@@ -64,10 +64,28 @@ class SessionManager(private val merchantContext: android.content.Context?) {
         return stored
     }
 
+    /**
+     * Reload the persisted merchant identity. This is called on every status read,
+     * so a COLD START (process death, app restart) re-hydrates the in-memory
+     * identity from disk; without it a persisted key would look unprovisioned.
+     */
     fun loadMerchantKey(): MerchantKeyStore.StoredKey? {
         val ctx = merchantContext ?: return null
-        val deviceKeyId = merchantDeviceKeyId ?: return null
-        return MerchantKeyStore.load(ctx, deviceKeyId)
+        val stored = MerchantKeyStore.load(ctx) ?: return null
+        merchantDeviceKeyId = stored.deviceKeyId
+        merchantPublicKey = stored.publicKey
+        merchantStorage = stored.storage
+        if (merchantCredential == null) {
+            merchantCredential = MerchantKeyStore.loadCredential(ctx)
+            merchantId = merchantCredential?.let {
+                try {
+                    Credential.parseFields(it).merchantId
+                } catch (e: ProtocolError) {
+                    null
+                }
+            }
+        }
+        return stored
     }
 
     fun deleteMerchantKey() {
@@ -82,7 +100,7 @@ class SessionManager(private val merchantContext: android.content.Context?) {
 
     fun provisionTestMerchant(seed: ByteArray, deviceKeyId: ByteArray, credential: ByteArray) {
         val ctx = requireNotNull(merchantContext)
-        val stored = MerchantKeyStore.provision(ctx, deviceKeyId, seed)
+        val stored = MerchantKeyStore.provision(ctx, deviceKeyId, seed, credential)
         merchantDeviceKeyId = stored.deviceKeyId
         merchantPublicKey = stored.publicKey
         merchantStorage = stored.storage
@@ -99,12 +117,15 @@ class SessionManager(private val merchantContext: android.content.Context?) {
     /** Sign a receipt payload and return the full COSE_Sign1 container. */
     fun signReceipt(payload: ByteArray): Triple<ByteArray, ByteArray, ByteArray> {
         val ctx = requireNotNull(merchantContext)
+        // Hydrate first so a cold start does not depend on call order.
+        loadMerchantKey()
         val deviceKeyId = merchantDeviceKeyId ?: throw ProtocolError("CAPABILITY_UNAVAILABLE", "no merchant key")
         return MerchantKeyStore.signReceipt(ctx, deviceKeyId, payload)
     }
 
     fun signer(): com.deceipt.adapter.session.MerchantSigner? {
         val ctx = merchantContext ?: return null
+        loadMerchantKey()
         val deviceKeyId = merchantDeviceKeyId ?: return null
         val pub = merchantPublicKey ?: return null
         return object : com.deceipt.adapter.session.MerchantSigner {

@@ -45,6 +45,8 @@ object MerchantKeyStore {
     const val DIRECT_ALIAS = "deceipt.merchant.ed25519.v1"
     const val WRAP_ALIAS = "deceipt.merchant.wrapAes.v1"
     private const val WRAPPED_FILE = "deceipt-merchant-key.bin"
+    private const val ID_FILE = "deceipt-merchant-key.id"
+    private const val CRED_FILE = "deceipt-merchant-credential.bin"
     private const val WRAPPED_MAGIC = "DECEIPTK1"
     private const val GCM_TAG_BITS = 128
 
@@ -100,7 +102,7 @@ object MerchantKeyStore {
         require(deviceKeyId.size == 16)
         if (directKeystoreEd25519Available()) {
             try {
-                generateDirect(deviceKeyId)
+                generateDirect(context, deviceKeyId)
                 return load(context, deviceKeyId) ?: error("direct key not readable after generate")
             } catch (e: Exception) {
                 // Fall through to the wrapped fallback rather than failing the PoC.
@@ -109,7 +111,8 @@ object MerchantKeyStore {
         return generateWrapped(context, deviceKeyId)
     }
 
-    private fun generateDirect(deviceKeyId: ByteArray) {
+    private fun generateDirect(context: Context, deviceKeyId: ByteArray) {
+        writeDeviceKeyId(context, deviceKeyId)
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (ks.containsAlias(DIRECT_ALIAS)) ks.deleteEntry(DIRECT_ALIAS)
         val kpg = KeyPairGenerator.getInstance("Ed25519", "AndroidKeyStore")
@@ -122,6 +125,7 @@ object MerchantKeyStore {
     }
 
     private fun generateWrapped(context: Context, deviceKeyId: ByteArray): StoredKey {
+        writeDeviceKeyId(context, deviceKeyId)
         val seed = Ed25519.generateSeed()
         val wrapped = wrapSeed(context, seed)
         Bytes.zeroize(seed)
@@ -130,27 +134,37 @@ object MerchantKeyStore {
     }
 
     /** Test-only provisioning: import a published seed into the wrapped store. */
-    fun provision(context: Context, deviceKeyId: ByteArray, seed: ByteArray): StoredKey {
+    fun provision(context: Context, deviceKeyId: ByteArray, seed: ByteArray, credential: ByteArray? = null): StoredKey {
         require(seed.size == Ed25519.SEED_BYTES) { "seed must be 32 bytes" }
+        writeDeviceKeyId(context, deviceKeyId)
+        credential?.let { writeCredential(context, it) }
         val wrapped = wrapSeed(context, seed)
         writeWrapped(context, deviceKeyId, wrapped)
         return load(context, deviceKeyId) ?: error("provisioned key not readable")
     }
 
-    fun load(context: Context, deviceKeyId: ByteArray): StoredKey? {
+    /**
+     * Load the stored key WITHOUT needing the caller to already know the key id:
+     * the wrapped blob self-describes it and the direct Keystore alias is fixed.
+     * `deviceKeyId` is only a hint and is IGNORED (the stored id is authoritative),
+     * which is what makes a cold start after process death work.
+     */
+    fun load(context: Context): StoredKey? {
         // Direct Keystore path.
         try {
             val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
             if (ks.containsAlias(DIRECT_ALIAS)) {
                 val pub = ks.getCertificate(DIRECT_ALIAS)?.publicKey?.encoded
                 if (pub != null && pub.size == 32) {
-                    return StoredKey("keystore_ed25519", deviceKeyId, pub, createdAtMs = 0L)
+                    deviceKeyIdFile(context)?.let { id ->
+                        if (id.size == 16) return StoredKey("keystore_ed25519", id, pub, createdAtMs = 0L)
+                    }
                 }
             }
         } catch (e: Exception) {
             // ignore; try the wrapped store
         }
-        // Wrapped fallback.
+        // Wrapped fallback: the blob carries its own device_key_id.
         val f = wrappedFile(context)
         if (!f.exists()) return null
         val raw = try {
@@ -162,10 +176,61 @@ object MerchantKeyStore {
         val seed = unwrapSeed(context, parsed.second) ?: return null
         return try {
             val pub = Ed25519.publicKeyFromSeed(seed)
-            // Re-wrap with a fresh IV on load so a stolen blob's IV is not stable.
             StoredKey("keystore_wrapped_aes", parsed.first, pub, createdAtMs = 0L)
         } finally {
             Bytes.zeroize(seed)
+        }
+    }
+
+    /** Back-compat overload: the id argument is a hint only and is not required. */
+    fun load(context: Context, deviceKeyId: ByteArray): StoredKey? = load(context)
+
+    /**
+     * The device key id is persisted separately from the key material so BOTH
+     * storage classes survive a process restart (the wrapped blob also embeds it;
+     * the direct Keystore key does not).
+     */
+    private fun deviceKeyIdFile(context: Context): ByteArray? = readDeviceKeyId(context)
+
+    /** The exact COSE_Sign1 credential persisted for this device, if any. */
+    fun loadCredential(context: Context): ByteArray? {
+        val f = File(context.filesDir, CRED_FILE)
+        return try {
+            if (f.exists()) f.readBytes() else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun writeCredential(context: Context, credential: ByteArray) {
+        try {
+            val f = File(context.filesDir, CRED_FILE)
+            f.writeBytes(credential)
+            f.setReadable(false, false)
+            f.setReadable(true, true)
+        } catch (e: Exception) {
+            // best effort
+        }
+    }
+
+    private fun readDeviceKeyId(context: Context): ByteArray? {
+        val f = File(context.filesDir, ID_FILE)
+        if (!f.exists()) return null
+        return try {
+            f.readBytes().takeIf { it.size == 16 }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun writeDeviceKeyId(context: Context, id: ByteArray) {
+        try {
+            val f = File(context.filesDir, ID_FILE)
+            f.writeBytes(id)
+            f.setReadable(false, false)
+            f.setReadable(true, true)
+        } catch (e: Exception) {
+            // best effort; the wrapped blob still carries the id
         }
     }
 
@@ -177,6 +242,12 @@ object MerchantKeyStore {
             // best effort
         }
         wrappedFile(context).delete()
+        try {
+            File(context.filesDir, ID_FILE).delete()
+            File(context.filesDir, CRED_FILE).delete()
+        } catch (e: Exception) {
+            // best effort
+        }
     }
 
     // -----------------------------------------------------------------------
