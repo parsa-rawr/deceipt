@@ -1,0 +1,115 @@
+{
+ "revision": "deceipt-proto-r1",
+ "cases": [
+  {
+   "case": "duplicate_map_key",
+   "bytes_hex": "a201010102",
+   "expected_error": "CBOR_DUPLICATE_KEY"
+  },
+  {
+   "case": "unsorted_map_keys",
+   "bytes_hex": "a202010102",
+   "expected_error": "CBOR_NONCANONICAL"
+  },
+  {
+   "case": "non_minimal_int",
+   "bytes_hex": "1805",
+   "expected_error": "CBOR_NONCANONICAL"
+  },
+  {
+   "case": "non_minimal_text_length",
+   "bytes_hex": "7803434144",
+   "expected_error": "CBOR_NONCANONICAL"
+  },
+  {
+   "case": "non_minimal_array_length",
+   "bytes_hex": "98020102",
+   "expected_error": "CBOR_NONCANONICAL"
+  },
+  {
+   "case": "indefinite_array",
+   "bytes_hex": "9f0101ff",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "indefinite_map",
+   "bytes_hex": "bf0101ff",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "float64_value",
+   "bytes_hex": "fb4014000000000000",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "float16_value",
+   "bytes_hex": "f93c00",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "tag_value",
+   "bytes_hex": "c101",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "null_value",
+   "bytes_hex": "f6",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "undefined_value",
+   "bytes_hex": "f7",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "negative_map_key",
+   "bytes_hex": "a12001",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "map_key_above_255",
+   "bytes_hex": "a119010001",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "text_map_key",
+   "bytes_hex": "a1616101",
+   "expected_error": "CBOR_UNSUPPORTED_TYPE"
+  },
+  {
+   "case": "truncated_bytestring",
+   "bytes_hex": "440102",
+   "expected_error": "CBOR_MALFORMED"
+  },
+  {
+   "case": "trailing_bytes",
+   "bytes_hex": "0101",
+   "expected_error": "CBOR_MALFORMED"
+  },
+  {
+   "case": "invalid_utf8",
+   "bytes_hex": "61ff",
+   "expected_error": "CBOR_MALFORMED"
+  },
+  {
+   "case": "depth_exceeded",
+   "bytes_hex": "818181818181818181818181818101",
+   "expected_error": "CBOR_DEPTH_EXCEEDED"
+  },
+  {
+   "case": "text_length_exceeded",
+   "bytes_hex": "79100161",
+   "expected_error": "CBOR_SIZE_EXCEEDED"
+  },
+  {
+   "case": "array_length_exceeded",
+   "bytes_hex": "990401",
+   "expected_error": "CBOR_SIZE_EXCEEDED"
+  },
+  {
+   "case": "map_length_exceeded",
+   "bytes_hex": "b90101",
+   "expected_error": "CBOR_SIZE_EXCEEDED"
+  }
+ ]
+}

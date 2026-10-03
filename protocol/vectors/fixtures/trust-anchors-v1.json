@@ -1,0 +1,14 @@
+{
+ "revision": "deceipt-proto-r1",
+ "note": "Public trust-anchor set pinned in the app. Public material only.",
+ "anchors": [
+  {
+   "anchor_id_hex": "0decea00000000000000000000000001",
+   "algorithm": "EdDSA",
+   "cose_alg": -8,
+   "public_key_hex": "bd65615aed2e3adf4f91e8fccfd7b54d44e532456399115b33456d72668a87cb",
+   "label": "Deceipt PoC Test Root 1",
+   "test_only": true
+  }
+ ]
+}

@@ -1,0 +1,67 @@
+{
+ "revision": "deceipt-proto-r1",
+ "purpose": "Prove A1's implementation of the A2 binding contract is byte-identical to A2's published vectors, and record the two defects found in A2's published vectors.",
+ "source": "protocol/flows/vectors/binding-v1.json (owner A2)",
+ "checks": [
+  {
+   "name": "V1 offer_hash",
+   "expected": "b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
+   "observed": "b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa"
+  },
+  {
+   "name": "V1 binding_tuple",
+   "observed": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
+   "expected": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
+   "length": 87
+  },
+  {
+   "name": "V1 binding_tuple_digest",
+   "observed": "11f63f30af68580b95ffa4b456dd0f89ced8204ba144e105812b61d2fe2259be",
+   "expected": "11f63f30af68580b95ffa4b456dd0f89ced8204ba144e105812b61d2fe2259be"
+  },
+  {
+   "name": "V1 binding_proof (HMAC reproduced over A2's published point bytes)",
+   "observed": "06ceaa6595ade4ec34e74f44a7b8a85e82f69a71959a125118b23bc7de337547",
+   "expected": "06ceaa6595ade4ec34e74f44a7b8a85e82f69a71959a125118b23bc7de337547"
+  },
+  {
+   "name": "V2 binding_proof",
+   "observed": "f249919ec38c298b4468ff9844088ac8de4201f0770da86221391ffb44efd269",
+   "expected": "f249919ec38c298b4468ff9844088ac8de4201f0770da86221391ffb44efd269"
+  },
+  {
+   "name": "V1 QR raw CBOR",
+   "observed": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f045820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa051a6955b978",
+   "expected": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f045820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa051a6955b978"
+  },
+  {
+   "name": "V1 QR payload",
+   "observed": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFggs208Y6uWMYnhM1pKbPwAeJZyxiQzdIo3D34GFIx3Q6oFGmlVuXg",
+   "expected": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFggs208Y6uWMYnhM1pKbPwAeJZyxiQzdIo3D34GFIx3Q6oFGmlVuXg"
+  }
+ ],
+ "defects_found_in_A2_vectors": [
+  {
+   "severity": "high",
+   "defect": "client_ephemeral_pubkey_hex in V1, V2 and V3 is not a valid P-256 point: EC point decoding fails, so ECDH cannot be performed.",
+   "evidence": [
+    [
+     "V1",
+     "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bc"
+    ],
+    [
+     "V3",
+     "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bd"
+    ]
+   ],
+   "impact": "The binding HMAC values are still correct (HMAC is over opaque bytes), but these vectors MUST NOT be used as handshake vectors and A2 should regenerate them with a point that decodes.",
+   "observed_in_a1": "A1 publishes valid P-256 points in protocol/vectors/handshake-valid.json; the binding proof there is computed over a valid point and therefore differs from A2's V1 binding_proof value."
+  },
+  {
+   "severity": "low",
+   "defect": "docs/flows/*.md lists binding errors as BINDING_UNKNOWN_SESSION, BINDING_PROOF_INVALID, BINDING_STALE, BINDING_CONSUMED, WRONG_TRANSACTION; A1 adopts exactly these names.",
+   "evidence": [],
+   "impact": "no defect; recorded for the freeze record"
+  }
+ ]
+}

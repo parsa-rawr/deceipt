@@ -1,0 +1,763 @@
+{
+ "revision": "deceipt-proto-r1",
+ "outcomes": [
+  {
+   "name": "TRUSTED",
+   "code": 1
+  },
+  {
+   "name": "UNVERIFIED_UNKNOWN_ISSUER",
+   "code": 2
+  },
+  {
+   "name": "ALREADY_IMPORTED_IDENTICAL",
+   "code": 3
+  },
+  {
+   "name": "REJECTED",
+   "code": 4
+  },
+  {
+   "name": "PENDING",
+   "code": 5
+  }
+ ],
+ "errors": [
+  {
+   "name": "CBOR_MALFORMED",
+   "code": 257,
+   "code_hex": "0x0101",
+   "fatal": true,
+   "retryable": false,
+   "category": "encoding"
+  },
+  {
+   "name": "CBOR_NONCANONICAL",
+   "code": 258,
+   "code_hex": "0x0102",
+   "fatal": true,
+   "retryable": false,
+   "category": "encoding"
+  },
+  {
+   "name": "CBOR_DUPLICATE_KEY",
+   "code": 259,
+   "code_hex": "0x0103",
+   "fatal": true,
+   "retryable": false,
+   "category": "encoding"
+  },
+  {
+   "name": "CBOR_DEPTH_EXCEEDED",
+   "code": 260,
+   "code_hex": "0x0104",
+   "fatal": true,
+   "retryable": false,
+   "category": "encoding"
+  },
+  {
+   "name": "CBOR_SIZE_EXCEEDED",
+   "code": 261,
+   "code_hex": "0x0105",
+   "fatal": true,
+   "retryable": false,
+   "category": "encoding"
+  },
+  {
+   "name": "CBOR_UNSUPPORTED_TYPE",
+   "code": 262,
+   "code_hex": "0x0106",
+   "fatal": true,
+   "retryable": false,
+   "category": "encoding"
+  },
+  {
+   "name": "MESSAGE_UNKNOWN_TYPE",
+   "code": 263,
+   "code_hex": "0x0107",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "MESSAGE_UNKNOWN_FIELD",
+   "code": 264,
+   "code_hex": "0x0108",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "MESSAGE_MISSING_FIELD",
+   "code": 265,
+   "code_hex": "0x0109",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "MESSAGE_FIELD_TYPE",
+   "code": 266,
+   "code_hex": "0x010a",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "MESSAGE_FIELD_RANGE",
+   "code": 267,
+   "code_hex": "0x010b",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "MESSAGE_TOO_LARGE",
+   "code": 268,
+   "code_hex": "0x010c",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "MESSAGE_WRONG_STATE",
+   "code": 269,
+   "code_hex": "0x010d",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "MESSAGE_WRONG_DIRECTION",
+   "code": 270,
+   "code_hex": "0x010e",
+   "fatal": true,
+   "retryable": false,
+   "category": "message"
+  },
+  {
+   "name": "LPDU_FRAGMENT_INVALID",
+   "code": 513,
+   "code_hex": "0x0201",
+   "fatal": true,
+   "retryable": false,
+   "category": "transport"
+  },
+  {
+   "name": "LPDU_SEQUENCE_ERROR",
+   "code": 514,
+   "code_hex": "0x0202",
+   "fatal": true,
+   "retryable": false,
+   "category": "transport"
+  },
+  {
+   "name": "LPDU_CONFLICT",
+   "code": 515,
+   "code_hex": "0x0203",
+   "fatal": true,
+   "retryable": false,
+   "category": "transport"
+  },
+  {
+   "name": "LPDU_REASSEMBLY_TIMEOUT",
+   "code": 516,
+   "code_hex": "0x0204",
+   "fatal": true,
+   "retryable": true,
+   "category": "transport"
+  },
+  {
+   "name": "LPDU_MESSAGE_TOO_LARGE",
+   "code": 517,
+   "code_hex": "0x0205",
+   "fatal": true,
+   "retryable": false,
+   "category": "transport"
+  },
+  {
+   "name": "TRANSPORT_MTU_TOO_SMALL",
+   "code": 518,
+   "code_hex": "0x0206",
+   "fatal": true,
+   "retryable": false,
+   "category": "transport"
+  },
+  {
+   "name": "TRANSPORT_LINK_LOST",
+   "code": 519,
+   "code_hex": "0x0207",
+   "fatal": true,
+   "retryable": true,
+   "category": "transport"
+  },
+  {
+   "name": "TRANSPORT_WRITE_FAILED",
+   "code": 520,
+   "code_hex": "0x0208",
+   "fatal": true,
+   "retryable": true,
+   "category": "transport"
+  },
+  {
+   "name": "TRANSPORT_PERMISSION_DENIED",
+   "code": 521,
+   "code_hex": "0x0209",
+   "fatal": true,
+   "retryable": false,
+   "category": "transport"
+  },
+  {
+   "name": "TRANSPORT_BLUETOOTH_OFF",
+   "code": 522,
+   "code_hex": "0x020a",
+   "fatal": true,
+   "retryable": true,
+   "category": "transport"
+  },
+  {
+   "name": "TRANSPORT_PEER_AMBIGUOUS",
+   "code": 523,
+   "code_hex": "0x020b",
+   "fatal": true,
+   "retryable": false,
+   "category": "transport"
+  },
+  {
+   "name": "TRANSPORT_CONNECT_TIMEOUT",
+   "code": 524,
+   "code_hex": "0x020c",
+   "fatal": true,
+   "retryable": true,
+   "category": "transport"
+  },
+  {
+   "name": "HANDSHAKE_UNSUPPORTED_VERSION",
+   "code": 769,
+   "code_hex": "0x0301",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "HANDSHAKE_NO_COMMON_SUITE",
+   "code": 770,
+   "code_hex": "0x0302",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "HANDSHAKE_ECDH_INVALID_POINT",
+   "code": 771,
+   "code_hex": "0x0303",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "HANDSHAKE_SIGNATURE_INVALID",
+   "code": 772,
+   "code_hex": "0x0304",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "HANDSHAKE_TRANSCRIPT_MISMATCH",
+   "code": 773,
+   "code_hex": "0x0305",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "HANDSHAKE_SUITE_MISMATCH",
+   "code": 774,
+   "code_hex": "0x0306",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "HANDSHAKE_NONCE_REPLAYED",
+   "code": 775,
+   "code_hex": "0x0307",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "CREDENTIAL_MALFORMED",
+   "code": 776,
+   "code_hex": "0x0308",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "CREDENTIAL_SIGNATURE_INVALID",
+   "code": 777,
+   "code_hex": "0x0309",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "CREDENTIAL_UNKNOWN_ISSUER",
+   "code": 778,
+   "code_hex": "0x030a",
+   "fatal": false,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "CREDENTIAL_NOT_YET_VALID",
+   "code": 779,
+   "code_hex": "0x030b",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "CREDENTIAL_EXPIRED",
+   "code": 780,
+   "code_hex": "0x030c",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "CREDENTIAL_CAPABILITY_MISSING",
+   "code": 781,
+   "code_hex": "0x030d",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "HANDSHAKE_TIMEOUT",
+   "code": 784,
+   "code_hex": "0x0310",
+   "fatal": true,
+   "retryable": true,
+   "category": "handshake"
+  },
+  {
+   "name": "PEER_NOT_AUTHENTICATED",
+   "code": 785,
+   "code_hex": "0x0311",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "BINDING_UNKNOWN_SESSION",
+   "code": 786,
+   "code_hex": "0x0312",
+   "fatal": true,
+   "retryable": false,
+   "category": "binding"
+  },
+  {
+   "name": "BINDING_PROOF_INVALID",
+   "code": 787,
+   "code_hex": "0x0313",
+   "fatal": true,
+   "retryable": false,
+   "category": "binding"
+  },
+  {
+   "name": "BINDING_REQUIRED",
+   "code": 788,
+   "code_hex": "0x0314",
+   "fatal": true,
+   "retryable": false,
+   "category": "binding"
+  },
+  {
+   "name": "BINDING_STALE",
+   "code": 789,
+   "code_hex": "0x0315",
+   "fatal": true,
+   "retryable": true,
+   "category": "binding"
+  },
+  {
+   "name": "BINDING_CONSUMED",
+   "code": 790,
+   "code_hex": "0x0316",
+   "fatal": true,
+   "retryable": false,
+   "category": "binding"
+  },
+  {
+   "name": "SESSION_EXPIRED",
+   "code": 791,
+   "code_hex": "0x0317",
+   "fatal": true,
+   "retryable": false,
+   "category": "handshake"
+  },
+  {
+   "name": "AEAD_AUTH_FAILED",
+   "code": 1025,
+   "code_hex": "0x0401",
+   "fatal": true,
+   "retryable": false,
+   "category": "session"
+  },
+  {
+   "name": "AEAD_COUNTER_MISMATCH",
+   "code": 1026,
+   "code_hex": "0x0402",
+   "fatal": true,
+   "retryable": false,
+   "category": "session"
+  },
+  {
+   "name": "AEAD_REPLAY_DETECTED",
+   "code": 1027,
+   "code_hex": "0x0403",
+   "fatal": true,
+   "retryable": false,
+   "category": "session"
+  },
+  {
+   "name": "AEAD_NONCE_EXHAUSTED",
+   "code": 1028,
+   "code_hex": "0x0404",
+   "fatal": true,
+   "retryable": false,
+   "category": "session"
+  },
+  {
+   "name": "SESSION_TORN_DOWN",
+   "code": 1029,
+   "code_hex": "0x0405",
+   "fatal": true,
+   "retryable": false,
+   "category": "session"
+  },
+  {
+   "name": "TRANSFER_SIZE_EXCEEDED",
+   "code": 1281,
+   "code_hex": "0x0501",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "FRAME_SIZE_INVALID",
+   "code": 1282,
+   "code_hex": "0x0502",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "FRAME_SEQUENCE_OUT_OF_RANGE",
+   "code": 1283,
+   "code_hex": "0x0503",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "FRAME_SEQUENCE_REPLAYED",
+   "code": 1284,
+   "code_hex": "0x0504",
+   "fatal": false,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "FRAME_CONFLICT",
+   "code": 1285,
+   "code_hex": "0x0505",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "FRAME_BUFFER_EXCEEDED",
+   "code": 1286,
+   "code_hex": "0x0506",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_INCOMPLETE",
+   "code": 1287,
+   "code_hex": "0x0507",
+   "fatal": true,
+   "retryable": true,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_HASH_MISMATCH",
+   "code": 1288,
+   "code_hex": "0x0508",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_TIMEOUT",
+   "code": 1289,
+   "code_hex": "0x0509",
+   "fatal": true,
+   "retryable": true,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_RETRY_EXHAUSTED",
+   "code": 1290,
+   "code_hex": "0x050a",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_CANCELLED",
+   "code": 1291,
+   "code_hex": "0x050b",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_ABORTED",
+   "code": 1292,
+   "code_hex": "0x050c",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_BEGIN_MISMATCH",
+   "code": 1293,
+   "code_hex": "0x050d",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "TRANSFER_ID_MISMATCH",
+   "code": 1294,
+   "code_hex": "0x050e",
+   "fatal": true,
+   "retryable": false,
+   "category": "framing"
+  },
+  {
+   "name": "RECEIPT_CONTAINER_MALFORMED",
+   "code": 1537,
+   "code_hex": "0x0601",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_UNSUPPORTED_VERSION",
+   "code": 1538,
+   "code_hex": "0x0602",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_UNSUPPORTED_ALGORITHM",
+   "code": 1539,
+   "code_hex": "0x0603",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_UNKNOWN_HEADER",
+   "code": 1540,
+   "code_hex": "0x0604",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_UNKNOWN_FIELD",
+   "code": 1541,
+   "code_hex": "0x0605",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_SIZE_EXCEEDED",
+   "code": 1542,
+   "code_hex": "0x0606",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_SIGNATURE_INVALID",
+   "code": 1543,
+   "code_hex": "0x0607",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_KEY_NOT_AUTHORIZED",
+   "code": 1544,
+   "code_hex": "0x0608",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_SEMANTIC_INVALID",
+   "code": 1545,
+   "code_hex": "0x0609",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_ARITHMETIC_MISMATCH",
+   "code": 1546,
+   "code_hex": "0x060a",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_MONETARY_RANGE",
+   "code": 1547,
+   "code_hex": "0x060b",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_UNSUPPORTED_CURRENCY",
+   "code": 1548,
+   "code_hex": "0x060c",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_DUPLICATE_CONFLICT",
+   "code": 1549,
+   "code_hex": "0x060d",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_OUTSIDE_KEY_VALIDITY",
+   "code": 1550,
+   "code_hex": "0x060e",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_CREDENTIAL_MISMATCH",
+   "code": 1551,
+   "code_hex": "0x060f",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_OFFER_MISMATCH",
+   "code": 1552,
+   "code_hex": "0x0610",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_TEXT_INVALID",
+   "code": 1553,
+   "code_hex": "0x0611",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_UNKNOWN_CRITICAL_EXTENSION",
+   "code": 1554,
+   "code_hex": "0x0612",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_ISSUED_IN_FUTURE",
+   "code": 1555,
+   "code_hex": "0x0613",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "WRONG_TRANSACTION",
+   "code": 1556,
+   "code_hex": "0x0614",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "RECEIPT_NONCANONICAL",
+   "code": 1557,
+   "code_hex": "0x0615",
+   "fatal": true,
+   "retryable": false,
+   "category": "receipt"
+  },
+  {
+   "name": "STORAGE_FAILED",
+   "code": 1793,
+   "code_hex": "0x0701",
+   "fatal": true,
+   "retryable": true,
+   "category": "local"
+  },
+  {
+   "name": "USER_CANCELLED",
+   "code": 1794,
+   "code_hex": "0x0702",
+   "fatal": true,
+   "retryable": false,
+   "category": "local"
+  },
+  {
+   "name": "VERIFY_BUDGET_EXCEEDED",
+   "code": 1795,
+   "code_hex": "0x0703",
+   "fatal": true,
+   "retryable": false,
+   "category": "local"
+  },
+  {
+   "name": "CAPABILITY_UNAVAILABLE",
+   "code": 1796,
+   "code_hex": "0x0704",
+   "fatal": true,
+   "retryable": false,
+   "category": "local"
+  },
+  {
+   "name": "INTERNAL_ERROR",
+   "code": 1797,
+   "code_hex": "0x0705",
+   "fatal": true,
+   "retryable": true,
+   "category": "local"
+  }
+ ]
+}

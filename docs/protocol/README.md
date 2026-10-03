@@ -1,0 +1,47 @@
+# Deceipt protocol contract — index
+
+**Revision:** `deceipt-proto-r1` — **FROZEN for the PoC**
+**Aggregate hash:** see `protocol/REVISION.json` (`aggregate_sha256`) — computed over every file listed there.
+**Owner:** A1. Changes require a new revision id and a full vector regeneration.
+
+> `DESIGN.md` is a **planning draft** (`Status: Draft v0.1`). This directory is the frozen contract that A3/A4/A5 implement and A6 tests. Where the two differ, **this contract is normative for implementation**; `DESIGN.md`'s stable decisions (`§13`, `§4.4`) are preserved unchanged.
+
+## Reading order
+
+| File | Pass | What it fixes |
+|---|---|---|
+| [receipt-v1.md](receipt-v1.md) | A | `DeceiptReceiptV1` schema, deterministic CBOR profile, COSE_Sign1, monetary/fractional rules, bounds, dedup |
+| [trust.md](trust.md) | B | Merchant device credential, PoC trust anchor, unknown-key policy, explicit unresolved items |
+| [handshake.md](handshake.md) | C | Suite, canonical transcript (372 B), key schedule, AEAD nonces/AAD, replay, timeouts, failure transitions, A2 binding adoption |
+| [wire.md](wire.md) | D | Service/characteristic UUIDs, message type ids, LPdu segmentation, transfer-id rules |
+| [framing.md](framing.md) | D | `DataFrame`, MTU-derived frame sizing, flow control, cancellation/disconnect, A2 interface |
+| [verification.md](verification.md) | — | 16-step order, sub-states, outcomes, typed errors, transport events, idempotency |
+| [conformance.md](conformance.md) | — | The checklist A3/A4/A5 must satisfy and A6 must run |
+
+## Machine-readable artifacts
+
+* `protocol/schema/receipt-v1.fields.json` — Pass A field tables
+* `protocol/schema/credential-v1.fields.json` — Pass B field tables
+* `protocol/schema/wire-v1.messages.json` — Pass D message tables
+* `protocol/schema/bounds-v1.json` — every numeric bound, timeout, currency exponent, error code
+* `protocol/schema/*.cddl` — CDDL descriptions of all three structures
+* `protocol/vectors/**` — valid and invalid fixtures with exact bytes and expected typed errors
+* `protocol/vectors/self-test.json` — proof that every byte-level invalid fixture produces its recorded error
+* `protocol/REVISION.json` — frozen file list + aggregate hash
+
+## Non-negotiable invariants (restated)
+
+1. BLE is an untrusted transport; AEAD decryption success NEVER yields a trusted receipt.
+2. Trust requires the merchant signature over the **exact received bytes** plus merchant-key authorization. Never re-encode-then-verify.
+3. Long-lived merchant signing keys are never reused for session key agreement.
+4. RSSI is never a selection, association, or trust signal; ambiguous association fails closed.
+5. Parser/allocation bounds are security requirements.
+6. Merchant private keys and session secrets never enter committed files, logs, or bridge payloads. Only `protocol/vectors/keys/test-keys.json` holds private halves, and those are test-only and published deliberately.
+
+## Regenerating the vectors
+
+```bash
+python3 protocol/vectors/tools/gen_vectors.py     # deterministic; rewrites vectors, bounds, field tables, REVISION.json
+```
+
+The generator runs a self-test that executes every byte-level invalid fixture through the reference implementation and fails the build if any recorded typed error does not match. `self-test.json` records the result (`checked: 153, failed: []` at this revision).

@@ -1,0 +1,156 @@
+; DeceiptReceiptV1 — CDDL
+; Revision: deceipt-proto-r1 (FROZEN for the PoC)
+; Encoding: RFC 8949 4.2.1 core deterministic; integer map keys 0..255; NO floats, NO tags,
+;           NO indefinite lengths, NO null. Text is NFC and free of control/bidi chars.
+; This CDDL is descriptive of the byte layout; the normative bound values live in
+; protocol/schema/bounds-v1.json and the normative rules in docs/protocol/receipt-v1.md.
+
+deceipt-receipt-v1 = {
+  1  : 1,                       ; receipt_version
+  2  : receipt-kind,            ; kind
+  3  : receipt-id,              ; receipt_id  (bstr .size 16)
+  4  : issued-at,               ; issued_at   (unix seconds 1577836800..4102444800)
+  ? 5  : int .ge -840 .le 840,  ; tz_offset_minutes
+  6  : merchant,                ; merchant
+  ? 7  : location,              ; location
+  8  : currency-code,           ; currency (ISO 4217 alpha-3, v1 exponent table)
+  9  : [* line],                ; lines      (<= 256)
+  ? 10 : [* discount],          ; discounts  (<= 64)
+  ? 11 : [* tax],               ; taxes      (<= 64)
+  ? 12 : uint,                  ; tip_amount_minor
+  ? 13 : uint,                  ; service_charge_minor
+  ? 14 : int,                   ; rounding_adjustment_minor
+  15 : totals,                  ; totals
+  16 : payment,                 ; payment
+  ? 17 : receipt-id,            ; refund_of_receipt_id   (required when kind = 2)
+  ? 18 : receipt-id,            ; void_of_receipt_id     (required when kind = 3)
+  ? 19 : order-reference,       ; order_reference
+  20 : bstr,                    ; merchant_credential (exact COSE_Sign1 credential bytes)
+  ? 21 : [* extension],         ; extensions (<= 32)
+}
+
+receipt-kind = 1 / 2 / 3          ; 1 sale, 2 refund, 3 void
+receipt-id   = bstr .size 16
+issued-at    = uint
+currency-code = tstr .size (3..3)
+
+merchant = {
+  1 : receipt-id,                 ; merchant_id
+  2 : display-name,               ; display_name
+  3 : merchant-reference,         ; merchant_reference (committed to by the A2 offer_hash)
+}
+
+location = {
+  ? 1 : tstr,                     ; label
+  ? 2 : tstr,                     ; street
+  ? 3 : tstr,                     ; city
+  ? 4 : tstr,                     ; region
+  ? 5 : [* tstr],                 ; address_lines (<= 8)
+  ? 6 : tstr,                     ; postal_code (digits)
+}
+
+line = {
+  1  : uint .ge 1,                ; line_id (unique)
+  2  : tstr,                      ; description
+  3  : quantity,                  ; quantity
+  4  : int,                       ; unit_price_minor
+  5  : uint,                      ; line_amount_minor == round_half_away(unit*value, 10^scale)
+  ? 6  : uint,                    ; line_discount_minor
+  ? 7  : [+ uint],                ; parent_line_ids
+  ? 8  : 1 / 2 / 3 / 4,           ; line_type
+  ? 9  : tstr,                    ; sku
+  ? 10 : [* modifier],            ; modifiers (<= 16)
+}
+
+quantity = {
+  1 : uint .le 9,                 ; scale
+  2 : int,                        ; value
+  ? 3 : tstr,                     ; unit
+}
+
+modifier = {
+  1 : tstr,                       ; description
+  2 : int,                        ; unit_price_minor
+  3 : int,                        ; qty_value
+  4 : uint .le 9,                 ; qty_scale
+}
+
+discount = {
+  1 : uint,                       ; discount_id (unique)
+  2 : uint,                       ; amount_minor
+  ? 3 : tstr,                     ; label
+  4 : 1 / 2,                      ; scope: 1 order, 2 line
+  ? 5 : uint,                     ; target_line_id (required when scope = 2)
+  ? 6 : uint .le 999999,          ; rate_ppm
+  ? 7 : uint,                     ; base_amount_minor
+}
+
+tax = {
+  1 : uint,                       ; tax_id (unique)
+  ? 2 : tstr,                     ; label
+  3 : uint .le 999999,            ; rate_ppm
+  4 : uint,                       ; base_amount_minor
+  5 : uint,                       ; amount_minor == round_half_away(base*rate, 1000000)
+  ? 6 : tstr,                     ; jurisdiction
+  ? 7 : tstr,                     ; code
+  ? 8 : bool,                     ; included_in_prices
+}
+
+totals = {
+  1 : uint,                       ; subtotal_minor
+  2 : uint,                       ; discount_total_minor
+  3 : uint,                       ; tax_total_minor
+  4 : uint,                       ; total_minor
+  ? 5 : uint,                     ; tip_minor
+  ? 6 : uint,                     ; service_charge_minor
+  ? 7 : int,                      ; rounding_adjustment_minor
+  8 : uint,                       ; tax_added_total_minor
+}
+
+payment = {
+  1 : 1 / 2 / 3 / 4 / 5,          ; status
+  2 : uint,                       ; amount_paid_minor
+  ? 3 : uint,                     ; change_minor
+  ? 4 : [* tender],               ; tenders (<= 32)
+}
+
+tender = {
+  1 : 1 / 2 / 3 / 4,              ; method
+  2 : uint,                       ; amount_minor
+  ? 3 : tstr .size (4..4),        ; card_last4 (digits)
+  ? 4 : tstr,                     ; brand
+  ? 5 : tstr,                     ; auth_ref
+}
+
+order-reference = {
+  ? 1 : tstr,                     ; order_number
+  ? 2 : tstr,                     ; table
+  ? 3 : tstr,                     ; server
+}
+
+extension = {
+  1 : tstr,                       ; key
+  2 : bool,                       ; critical
+  ? 3 : any,                      ; value (canonical CBOR, <= 4096 bytes)
+}
+
+display-name      = tstr            ; <= 128 UTF-8 bytes, NFC, no control/bidi
+merchant-reference = tstr           ; <= 128 UTF-8 bytes, NFC
+
+; ---------------------------------------------------------------------------
+; Signed container (RFC 9052 COSE_Sign1), EdDSA (-8) over
+; Sig_structure = ["Signature1", protected_bstr, h'', payload_bstr]
+; ---------------------------------------------------------------------------
+
+signed-receipt-v1 = [
+  protected : bstr .cbor receipt-protected-header,
+  unprotected : {},                 ; MUST be empty
+  payload : bstr .cbor deceipt-receipt-v1,
+  signature : bstr .size 64
+]
+
+receipt-protected-header = {
+  1 : -8,                           ; alg = EdDSA
+  3 : "application/deceipt-receipt+cbor",
+  4 : receipt-id,                   ; kid = merchant device key id
+}

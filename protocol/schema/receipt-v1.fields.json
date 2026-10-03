@@ -1,0 +1,590 @@
+{
+ "revision": "deceipt-proto-r1",
+ "schema": "deceipt.receipt-v1",
+ "top_level": "map",
+ "encoding": "deterministic CBOR (RFC 8949 4.2.1); integer keys 0..255; no floats; no tags; no indefinite lengths",
+ "unknown_field_policy": "unknown integer label at any map level => RECEIPT_UNKNOWN_FIELD (fatal); unknown COSE protected header label => RECEIPT_UNKNOWN_HEADER (fatal)",
+ "extension_policy": "unknown label 21 extensions with critical=true => RECEIPT_UNKNOWN_CRITICAL_EXTENSION (fatal); critical=false => ignored and preserved in the stored signed bytes",
+ "fields": [
+  {
+   "label": 1,
+   "name": "receipt_version",
+   "type": "uint",
+   "required": true,
+   "rule": "MUST be 1; else RECEIPT_UNSUPPORTED_VERSION"
+  },
+  {
+   "label": 2,
+   "name": "kind",
+   "type": "uint",
+   "required": true,
+   "rule": "1=sale 2=refund 3=void"
+  },
+  {
+   "label": 3,
+   "name": "receipt_id",
+   "type": "bstr16",
+   "required": true,
+   "rule": "random; dedup key"
+  },
+  {
+   "label": 4,
+   "name": "issued_at",
+   "type": "uint",
+   "required": true,
+   "rule": "unix seconds; 1577836800..4102444800 else RECEIPT_SEMANTIC_INVALID"
+  },
+  {
+   "label": 5,
+   "name": "tz_offset_minutes",
+   "type": "int",
+   "required": false,
+   "rule": "-840..840"
+  },
+  {
+   "label": 6,
+   "name": "merchant",
+   "type": "map",
+   "required": true,
+   "rule": "see merchant; label 1 required"
+  },
+  {
+   "label": 7,
+   "name": "location",
+   "type": "map",
+   "required": false,
+   "rule": "see location"
+  },
+  {
+   "label": 8,
+   "name": "currency",
+   "type": "tstr",
+   "required": true,
+   "rule": "ISO 4217 alpha-3 from the v1 exponent table; else RECEIPT_UNSUPPORTED_CURRENCY"
+  },
+  {
+   "label": 9,
+   "name": "lines",
+   "type": "array",
+   "required": true,
+   "rule": "see line; <= 256 items"
+  },
+  {
+   "label": 10,
+   "name": "discounts",
+   "type": "array",
+   "required": false,
+   "rule": "see discount; <= 64 items"
+  },
+  {
+   "label": 11,
+   "name": "taxes",
+   "type": "array",
+   "required": false,
+   "rule": "see tax; <= 64 items"
+  },
+  {
+   "label": 12,
+   "name": "tip_amount_minor",
+   "type": "uint",
+   "required": false,
+   "rule": "non-negative minor units"
+  },
+  {
+   "label": 13,
+   "name": "service_charge_minor",
+   "type": "uint",
+   "required": false,
+   "rule": "non-negative minor units"
+  },
+  {
+   "label": 14,
+   "name": "rounding_adjustment_minor",
+   "type": "int",
+   "required": false,
+   "rule": "signed minor units"
+  },
+  {
+   "label": 15,
+   "name": "totals",
+   "type": "map",
+   "required": true,
+   "rule": "see totals; labels 1,2,3,4,8 required"
+  },
+  {
+   "label": 16,
+   "name": "payment",
+   "type": "map",
+   "required": true,
+   "rule": "see payment; labels 1,2 required"
+  },
+  {
+   "label": 17,
+   "name": "refund_of_receipt_id",
+   "type": "bstr16",
+   "required": "kind=refund",
+   "rule": "required when kind=2"
+  },
+  {
+   "label": 18,
+   "name": "void_of_receipt_id",
+   "type": "bstr16",
+   "required": "kind=void",
+   "rule": "required when kind=3"
+  },
+  {
+   "label": 19,
+   "name": "order_reference",
+   "type": "map",
+   "required": false,
+   "rule": "see order_reference"
+  },
+  {
+   "label": 20,
+   "name": "merchant_credential",
+   "type": "bstr",
+   "required": true,
+   "rule": "the exact COSE_Sign1 credential bytes presented in ServerHello (byte-identical)"
+  },
+  {
+   "label": 21,
+   "name": "extensions",
+   "type": "array",
+   "required": false,
+   "rule": "see extension; <= 32 items"
+  }
+ ],
+ "sub_maps": {
+  "merchant": [
+   {
+    "label": 1,
+    "name": "merchant_id",
+    "type": "bstr16",
+    "required": true,
+    "rule": "must match credential"
+   },
+   {
+    "label": 2,
+    "name": "display_name",
+    "type": "tstr",
+    "required": true,
+    "rule": "<=128 utf-8 bytes, NFC, no bidi/control chars"
+   },
+   {
+    "label": 3,
+    "name": "merchant_reference",
+    "type": "tstr",
+    "required": true,
+    "rule": "stable merchant-chosen string; the A2 offer_hash uses this value"
+   }
+  ],
+  "location": [
+   {
+    "label": 1,
+    "name": "label",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=128 bytes"
+   },
+   {
+    "label": 2,
+    "name": "street",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=512 bytes"
+   },
+   {
+    "label": 3,
+    "name": "city",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=512 bytes"
+   },
+   {
+    "label": 4,
+    "name": "region",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=512 bytes"
+   },
+   {
+    "label": 5,
+    "name": "address_lines",
+    "type": "array",
+    "required": false,
+    "rule": "<=8 tstr, each <=512 bytes"
+   },
+   {
+    "label": 6,
+    "name": "postal_code",
+    "type": "tstr",
+    "required": false,
+    "rule": "digits only"
+   }
+  ],
+  "line": [
+   {
+    "label": 1,
+    "name": "line_id",
+    "type": "uint",
+    "required": true,
+    "rule": "unique within lines"
+   },
+   {
+    "label": 2,
+    "name": "description",
+    "type": "tstr",
+    "required": true,
+    "rule": "<=512 utf-8 bytes, NFC"
+   },
+   {
+    "label": 3,
+    "name": "quantity",
+    "type": "map",
+    "required": true,
+    "rule": "label1 scale uint 0..9, label2 value int, label3 unit tstr<=16"
+   },
+   {
+    "label": 4,
+    "name": "unit_price_minor",
+    "type": "int",
+    "required": true,
+    "rule": "|value| <= 1e12"
+   },
+   {
+    "label": 5,
+    "name": "line_amount_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "== round_half_away(unit*qty, 10^scale); 0..1e15"
+   },
+   {
+    "label": 6,
+    "name": "line_discount_minor",
+    "type": "uint",
+    "required": false,
+    "rule": "0..line_amount"
+   },
+   {
+    "label": 7,
+    "name": "parent_line_ids",
+    "type": "array",
+    "required": false,
+    "rule": "modifier parents; non-empty"
+   },
+   {
+    "label": 8,
+    "name": "line_type",
+    "type": "uint",
+    "required": false,
+    "rule": "1=item 2=modifier 3=discount 4=info"
+   },
+   {
+    "label": 9,
+    "name": "sku",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   },
+   {
+    "label": 10,
+    "name": "modifiers",
+    "type": "array",
+    "required": false,
+    "rule": "<=16 modifier maps"
+   }
+  ],
+  "discount": [
+   {
+    "label": 1,
+    "name": "discount_id",
+    "type": "uint",
+    "required": true,
+    "rule": "unique within discounts"
+   },
+   {
+    "label": 2,
+    "name": "amount_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "0..1e15"
+   },
+   {
+    "label": 3,
+    "name": "label",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=128 bytes"
+   },
+   {
+    "label": 4,
+    "name": "scope",
+    "type": "uint",
+    "required": true,
+    "rule": "1=order 2=line"
+   },
+   {
+    "label": 5,
+    "name": "target_line_id",
+    "type": "uint",
+    "required": "scope=2",
+    "rule": "required when scope=2"
+   },
+   {
+    "label": 6,
+    "name": "rate_ppm",
+    "type": "uint",
+    "required": false,
+    "rule": "0..999999; when present label 7 required and amount==round_half_away(base*rate,1e6)"
+   },
+   {
+    "label": 7,
+    "name": "base_amount_minor",
+    "type": "uint",
+    "required": false,
+    "rule": ">=0"
+   }
+  ],
+  "tax": [
+   {
+    "label": 1,
+    "name": "tax_id",
+    "type": "uint",
+    "required": true,
+    "rule": "unique within taxes"
+   },
+   {
+    "label": 2,
+    "name": "label",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=128 bytes"
+   },
+   {
+    "label": 3,
+    "name": "rate_ppm",
+    "type": "uint",
+    "required": true,
+    "rule": "0..999999"
+   },
+   {
+    "label": 4,
+    "name": "base_amount_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "0..1e15"
+   },
+   {
+    "label": 5,
+    "name": "amount_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "== round_half_away(base*rate,1e6)"
+   },
+   {
+    "label": 6,
+    "name": "jurisdiction",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   },
+   {
+    "label": 7,
+    "name": "code",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   },
+   {
+    "label": 8,
+    "name": "included_in_prices",
+    "type": "bool",
+    "required": false,
+    "rule": "true => excluded from the total; base MUST be 0 when true"
+   }
+  ],
+  "totals": [
+   {
+    "label": 1,
+    "name": "subtotal_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "sum of line_amount_minor"
+   },
+   {
+    "label": 2,
+    "name": "discount_total_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "sum of discount amount_minor"
+   },
+   {
+    "label": 3,
+    "name": "tax_total_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "sum of tax amount_minor (included and added)"
+   },
+   {
+    "label": 4,
+    "name": "total_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "subtotal - discounts + added taxes + tip + service_charge + rounding"
+   },
+   {
+    "label": 5,
+    "name": "tip_minor",
+    "type": "uint",
+    "required": false,
+    "rule": "must equal label 12 when present"
+   },
+   {
+    "label": 6,
+    "name": "service_charge_minor",
+    "type": "uint",
+    "required": false,
+    "rule": "must equal label 13"
+   },
+   {
+    "label": 7,
+    "name": "rounding_adjustment_minor",
+    "type": "int",
+    "required": false,
+    "rule": "must equal label 14"
+   },
+   {
+    "label": 8,
+    "name": "tax_added_total_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "sum of added taxes only"
+   }
+  ],
+  "payment": [
+   {
+    "label": 1,
+    "name": "status",
+    "type": "uint",
+    "required": true,
+    "rule": "1=paid 2=partial 3=unpaid 4=refunded 5=voided; constrained by kind"
+   },
+   {
+    "label": 2,
+    "name": "amount_paid_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "0..1e15; refund amount for kind=refund"
+   },
+   {
+    "label": 3,
+    "name": "change_minor",
+    "type": "uint",
+    "required": false,
+    "rule": "required iff amount_paid > total"
+   },
+   {
+    "label": 4,
+    "name": "tenders",
+    "type": "array",
+    "required": false,
+    "rule": "<=32 tender maps"
+   }
+  ],
+  "tender": [
+   {
+    "label": 1,
+    "name": "method",
+    "type": "uint",
+    "required": true,
+    "rule": "1=cash 2=card 3=other 4=stored_value"
+   },
+   {
+    "label": 2,
+    "name": "amount_minor",
+    "type": "uint",
+    "required": true,
+    "rule": "sum of tenders == amount_paid"
+   },
+   {
+    "label": 3,
+    "name": "card_last4",
+    "type": "tstr",
+    "required": false,
+    "rule": "exactly 4 digits"
+   },
+   {
+    "label": 4,
+    "name": "brand",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   },
+   {
+    "label": 5,
+    "name": "auth_ref",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   }
+  ],
+  "order_reference": [
+   {
+    "label": 1,
+    "name": "order_number",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   },
+   {
+    "label": 2,
+    "name": "table",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   },
+   {
+    "label": 3,
+    "name": "server",
+    "type": "tstr",
+    "required": false,
+    "rule": "<=64 bytes"
+   }
+  ],
+  "extension": [
+   {
+    "label": 1,
+    "name": "key",
+    "type": "tstr",
+    "required": true,
+    "rule": "<=64 bytes"
+   },
+   {
+    "label": 2,
+    "name": "critical",
+    "type": "bool",
+    "required": true,
+    "rule": "true and unknown => fatal"
+   },
+   {
+    "label": 3,
+    "name": "value",
+    "type": "any",
+    "required": false,
+    "rule": "canonical CBOR, <=4096 bytes"
+   }
+  ]
+ },
+ "refund_void_rules": {
+  "sale": "kind=1, payment.status in {1,2,3}, no refund_of/void_of",
+  "refund": "kind=2, refund_of_receipt_id required, payment.status=4, amount_paid == total",
+  "void": "kind=3, void_of_receipt_id required, lines MUST be empty, subtotal 0, total 0, payment.status=5, amount_paid 0"
+ },
+ "arithmetic": {
+  "quantity_amount": "round_half_away(unit_price_minor * qty_value, 10^qty_scale)",
+  "rounding_mode": "round-half-away-from-zero, integer-only",
+  "tax_amount": "round_half_away(base_amount_minor * rate_ppm, 1000000)",
+  "overflow_guard": "|unit*qty| <= 2^62 else RECEIPT_MONETARY_RANGE"
+ },
+ "version_negotiation": "receipt_version must be 1; the transport carries protocol_version 1 in ClientHello/ServerHello; the signed receipt version is authoritative and independent of the transport version"
+}

@@ -1,0 +1,98 @@
+{
+ "revision": "deceipt-proto-r1",
+ "checked": 153,
+ "failed": [],
+ "policy_only_cases": [
+  {
+   "file": "lpdu-invalid",
+   "case": "reassembled_pdu_too_large",
+   "reason": "resource/timeout policy assertion"
+  },
+  {
+   "file": "lpdu-invalid",
+   "case": "reassembly_timeout",
+   "reason": "resource/timeout policy assertion"
+  },
+  {
+   "file": "lpdu-invalid",
+   "case": "conflicting_duplicate_fragment",
+   "reason": "resource/timeout policy assertion"
+  },
+  {
+   "file": "lpdu-invalid",
+   "case": "too_many_fragments",
+   "reason": "resource/timeout policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "sequence_replayed_identical",
+   "reason": "receiver window/duplicate state: the frame parses cleanly; the typed error is a receiver-state decision"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "sequence_conflicting_duplicate",
+   "reason": "receiver window/duplicate state: the frame parses cleanly; the typed error is a receiver-state decision"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "sequence_below_window",
+   "reason": "receiver window/duplicate state: the frame parses cleanly; the typed error is a receiver-state decision"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "payload_hash_mismatch",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "incomplete_frame_set",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "begin_declares_wrong_frame_count",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "declared_ciphertext_above_bound",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "too_many_frames",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "ack_wait_timeout",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "retries_exhausted",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "framing-invalid",
+   "case": "receiver_cancelled",
+   "reason": "timeout/flow-control policy assertion"
+  },
+  {
+   "file": "handshake-invalid",
+   "case": "binding_stale",
+   "reason": "ordering/expiry policy assertion"
+  },
+  {
+   "file": "handshake-invalid",
+   "case": "binding_consumed",
+   "reason": "ordering/expiry policy assertion"
+  },
+  {
+   "file": "handshake-invalid",
+   "case": "wrong_transaction",
+   "reason": "ordering/expiry policy assertion"
+  }
+ ],
+ "note": "Every byte-level invalid fixture was executed through the reference implementation in protocol/vectors/tools/gen_vectors.py and produced exactly the recorded typed error."
+}

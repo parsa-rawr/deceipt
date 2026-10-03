@@ -1,0 +1,60 @@
+{
+ "warning": "TEST-ONLY DETERMINISTIC KEYS. Public by construction; MUST NOT protect anything; MUST NOT be trusted outside the test harness.",
+ "derivation": {
+  "ed25519_seed": "SHA-256('deceipt-testkey:ed25519:' + name)",
+  "p256_scalar": "((int(SHA-256('deceipt-testkey:p256:' + name + '#c')) mod (n-1)) + 1), c incremented until a valid point derives"
+ },
+ "keys": [
+  {
+   "name": "root-poc-1",
+   "type": "ed25519-test-root",
+   "private_seed_hex": "11e492be4a2b47efe735b8b9bf6839ba3675fb5c37a729701074c7fac4dc423b",
+   "public_key_hex": "bd65615aed2e3adf4f91e8fccfd7b54d44e532456399115b33456d72668a87cb",
+   "trust_anchor": true,
+   "note": "signs the PoC test-merchant credential; private half never ships"
+  },
+  {
+   "name": "root-unknown-1",
+   "type": "ed25519-unknown-root",
+   "private_seed_hex": "b607258a9ad54fad691ae2d1adc323af4a83edd05dfd2964ed2eb44dc72f586f",
+   "public_key_hex": "40d2f4bdbe4b42c84de51a2a2b83ac5ee42a1e2d75b10560002069ef44fdce90",
+   "trust_anchor": false,
+   "note": "NOT a trust anchor: unknown-issuer vectors only"
+  },
+  {
+   "name": "merchant-test-1",
+   "type": "ed25519-merchant-device",
+   "private_seed_hex": "3955055e519690782aa3b61aa6820bd1a61123820c779f2ec6788f3270b152d3",
+   "public_key_hex": "61d36a1033982810583469d18733d5810bcc8f06db10d11d391e3945d51c58ed",
+   "note": "device signing key of the pre-provisioned test merchant"
+  },
+  {
+   "name": "merchant-unknown-1",
+   "type": "ed25519-merchant-device",
+   "private_seed_hex": "6afe231ac4eeb2d1235dca7e6d406d8eeac88496e6e261b8085ef464738b0744",
+   "public_key_hex": "88c0a4050fb1feb3faa4fedff86f774732ddfdc54f61b3287cfacf49b092aa1a",
+   "note": "device key of the deliberately-unknown rogue merchant"
+  },
+  {
+   "name": "client-eph-1",
+   "type": "p256-ephemeral",
+   "private_scalar_hex": "940c2c9211aa78ee34c2a2e6aa65eb154f7627386b1d337ba8aab1cc762827cf",
+   "public_key_hex": "0414e02cf948541686573b744c58e8f92e70f93009333c81edc9a5f7bbda5445e88dbc8b8c812b139c60a85eea163240781d840eb17fb3ab28788aef78dec1bf5c",
+   "valid_p256_point": true
+  },
+  {
+   "name": "server-eph-1",
+   "type": "p256-ephemeral",
+   "private_scalar_hex": "246d8bb1d507116733923391030f994fa5a013f571c68cee910a730a04e46f36",
+   "public_key_hex": "041ba8c9100cde3121a29562d5ed4f8b21fc45067c7a0cb44b9ae47699ed567706b9dbe40d599f161825bd8a90abccb8cc5aa56856c2803f00265e492ed0227db2",
+   "valid_p256_point": true
+  },
+  {
+   "name": "client-eph-2",
+   "type": "p256-ephemeral",
+   "private_scalar_hex": "7ba96566558b4d2b2e986a47ef59b4c0370f90151c2b617bc44db8988809ff71",
+   "public_key_hex": "04a95a8ee31a6cbf66d5ff24bd47805ef85551251c8546b76c491fea64b079780e8991889866e66a41ea0fd5a968909cdf784a6225695b182970ff4b0684bcff69",
+   "valid_p256_point": true
+  }
+ ]
+}

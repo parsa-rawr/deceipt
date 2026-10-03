@@ -1,0 +1,128 @@
+{
+ "revision": "deceipt-proto-r1",
+ "cases": [
+  {
+   "case": "frame_size_zero",
+   "expected_error": "FRAME_SIZE_INVALID",
+   "note": "",
+   "frame_size": 0,
+   "peer_max_frame_payload": 162
+  },
+  {
+   "case": "frame_size_below_min",
+   "expected_error": "FRAME_SIZE_INVALID",
+   "note": "",
+   "frame_size": 8,
+   "peer_max_frame_payload": 162
+  },
+  {
+   "case": "frame_size_above_mtu_capacity",
+   "expected_error": "FRAME_SIZE_INVALID",
+   "note": "",
+   "frame_size": 200,
+   "peer_max_frame_payload": 162
+  },
+  {
+   "case": "frame_size_above_hard_cap",
+   "expected_error": "FRAME_SIZE_INVALID",
+   "note": "",
+   "frame_size": 513,
+   "peer_max_frame_payload": 512
+  },
+  {
+   "case": "sequence_out_of_range",
+   "expected_error": "FRAME_SEQUENCE_OUT_OF_RANGE",
+   "note": "",
+   "frame_count": 6,
+   "frame_hex": "ffeeddccbbaa998877665544332211000000000678787878787878787878"
+  },
+  {
+   "case": "sequence_replayed_identical",
+   "expected_error": "FRAME_SEQUENCE_REPLAYED",
+   "note": "byte-identical duplicate inside the window: receiver ignores it",
+   "frame_count": 6,
+   "duplicate_byte_identical_hex": "ffeeddccbbaa9988776655443322110000000000c18418e927d7a1a60e2532d3eb85b60b36637d9706f6e500ce3cc130beb752a14d11d56ba20f13f61047f83639913d61bdfbacc8740728eca29f969659d620471dfa75a87567d35b2ed14bdff9cfbf9276de1e63e456da3ce1f9450d949da56ea7f324fe09799b984c290b4572f15feffb909be04dba92029601ea6576152a25feb242d875c7eb04b3e568e3d78a89a150491bd0807654d813f805e8a6e6552c6b60",
+   "disposition": "ignore_and_continue"
+  },
+  {
+   "case": "sequence_conflicting_duplicate",
+   "expected_error": "FRAME_CONFLICT",
+   "note": "",
+   "frame_count": 6,
+   "duplicate_conflicting_hex": "ffeeddccbbaa9988776655443322110000000000c08418e927d7a1a60e2532d3eb85b60b36637d9706f6e500ce3cc130beb752a14d11d56ba20f13f61047f83639913d61bdfbacc8740728eca29f969659d620471dfa75a87567d35b2ed14bdff9cfbf9276de1e63e456da3ce1f9450d949da56ea7f324fe09799b984c290b4572f15feffb909be04dba92029601ea6576152a25feb242d875c7eb04b3e568e3d78a89a150491bd0807654d813f805e8a6e6552c6b60",
+   "originals_hex": "ffeeddccbbaa9988776655443322110000000000c18418e927d7a1a60e2532d3eb85b60b36637d9706f6e500ce3cc130beb752a14d11d56ba20f13f61047f83639913d61bdfbacc8740728eca29f969659d620471dfa75a87567d35b2ed14bdff9cfbf9276de1e63e456da3ce1f9450d949da56ea7f324fe09799b984c290b4572f15feffb909be04dba92029601ea6576152a25feb242d875c7eb04b3e568e3d78a89a150491bd0807654d813f805e8a6e6552c6b60"
+  },
+  {
+   "case": "sequence_below_window",
+   "expected_error": "FRAME_SEQUENCE_REPLAYED",
+   "note": "frame below the sliding window floor: ignore (cannot be buffered)",
+   "frame_count": 6,
+   "duplicate_byte_identical_hex": "ffeeddccbbaa9988776655443322110000000000c18418e927d7a1a60e2532d3eb85b60b36637d9706f6e500ce3cc130beb752a14d11d56ba20f13f61047f83639913d61bdfbacc8740728eca29f969659d620471dfa75a87567d35b2ed14bdff9cfbf9276de1e63e456da3ce1f9450d949da56ea7f324fe09799b984c290b4572f15feffb909be04dba92029601ea6576152a25feb242d875c7eb04b3e568e3d78a89a150491bd0807654d813f805e8a6e6552c6b60",
+   "window_floor": 6
+  },
+  {
+   "case": "transfer_id_mismatch",
+   "expected_error": "TRANSFER_ID_MISMATCH",
+   "note": "",
+   "frame_count": 6,
+   "frame_hex": "000000000000000000000000000000000000000178787878787878787878"
+  },
+  {
+   "case": "payload_hash_mismatch",
+   "expected_error": "TRANSFER_HASH_MISMATCH",
+   "note": "",
+   "expected_payload_hash_hex": "9954680148a908d61022b030f44b88c31732a800e82c55c91453b93181d06b4f",
+   "observed_payload_hash_hex": "447b6be14c994b9476bec5f0b5aaa4e3a64da0fdc45b46bd5d28c2878e7b4290"
+  },
+  {
+   "case": "incomplete_frame_set",
+   "expected_error": "TRANSFER_INCOMPLETE",
+   "note": "",
+   "frame_count": 6,
+   "received_frames": 5
+  },
+  {
+   "case": "begin_declares_wrong_frame_count",
+   "expected_error": "TRANSFER_BEGIN_MISMATCH",
+   "note": "",
+   "declared_frames": 2,
+   "actual_frames": 3
+  },
+  {
+   "case": "declared_ciphertext_above_bound",
+   "expected_error": "TRANSFER_SIZE_EXCEEDED",
+   "note": "",
+   "ciphertext_length": 65553,
+   "max_transfer_ciphertext": 65552
+  },
+  {
+   "case": "too_many_frames",
+   "expected_error": "TRANSFER_SIZE_EXCEEDED",
+   "note": "",
+   "frame_count": 32769,
+   "frame_size": 16,
+   "max_frames": 32768
+  },
+  {
+   "case": "ack_wait_timeout",
+   "expected_error": "TRANSFER_TIMEOUT",
+   "note": "",
+   "elapsed_ms": 3001,
+   "retries_used": 4,
+   "disposition": "retransmit_lowest_unacked"
+  },
+  {
+   "case": "retries_exhausted",
+   "expected_error": "TRANSFER_RETRY_EXHAUSTED",
+   "note": "",
+   "retries_used": 6
+  },
+  {
+   "case": "receiver_cancelled",
+   "expected_error": "TRANSFER_CANCELLED",
+   "note": "",
+   "cancel_from": "customer",
+   "disposition": "abort_and_disconnect"
+  }
+ ]
+}

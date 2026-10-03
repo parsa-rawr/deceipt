@@ -1,0 +1,501 @@
+{
+ "revision": "deceipt-proto-r1",
+ "schema": "deceipt.wire-v1",
+ "envelope": {
+  "plaintext": "0x00 || canonical CBOR (ClientHello, ServerHello only)",
+  "aead": "0x01 || counter_be64 || AES-256-GCM(...)"
+ },
+ "directions": {
+  "c2m": [
+   "CLIENT_HELLO",
+   "ACCEPT",
+   "ACK",
+   "RECEIPT_ACK",
+   "CANCEL",
+   "RETRY"
+  ],
+  "m2c": [
+   "SERVER_HELLO",
+   "RECEIPT_OFFER",
+   "TRANSFER_BEGIN",
+   "TRANSFER_COMPLETE",
+   "ERROR"
+  ]
+ },
+ "unknown_field_policy": "unknown integer label => MESSAGE_UNKNOWN_FIELD (fatal); unknown message type => MESSAGE_UNKNOWN_TYPE (fatal)",
+ "messages": [
+  {
+   "type": 1,
+   "name": "CLIENT_HELLO",
+   "direction": "c2m",
+   "state": "CONNECTED",
+   "encrypted": false,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true,
+     "value": 1
+    },
+    {
+     "label": 2,
+     "name": "protocol_version",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "crypto_suites",
+     "type": "array",
+     "required": true,
+     "rule": "non-empty uint array; v1 supports {1}"
+    },
+    {
+     "label": 4,
+     "name": "session_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 5,
+     "name": "client_nonce",
+     "type": "bstr32",
+     "required": true
+    },
+    {
+     "label": 6,
+     "name": "client_ephemeral_pubkey",
+     "type": "bstr65",
+     "required": true
+    },
+    {
+     "label": 7,
+     "name": "binding_proof",
+     "type": "bstr32",
+     "required": true
+    },
+    {
+     "label": 8,
+     "name": "max_frame_payload",
+     "type": "uint",
+     "required": true,
+     "rule": "16..512"
+    }
+   ]
+  },
+  {
+   "type": 2,
+   "name": "ACCEPT",
+   "direction": "c2m",
+   "state": "RECEIPT_OFFERED",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "protocol_version",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 4,
+     "name": "suite_id",
+     "type": "uint",
+     "required": true
+    }
+   ]
+  },
+  {
+   "type": 3,
+   "name": "ACK",
+   "direction": "c2m",
+   "state": "TRANSFER",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "highest_contiguous_sequence",
+     "type": "uint",
+     "required": true
+    }
+   ]
+  },
+  {
+   "type": 4,
+   "name": "RECEIPT_ACK",
+   "direction": "c2m",
+   "state": "STORED",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "receipt_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 4,
+     "name": "outcome",
+     "type": "uint",
+     "required": true,
+     "rule": "1 trusted 2 unknown_issuer 3 already_imported 4 rejected"
+    }
+   ]
+  },
+  {
+   "type": 5,
+   "name": "CANCEL",
+   "direction": "c2m",
+   "state": "any",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": false
+    },
+    {
+     "label": 3,
+     "name": "error_code",
+     "type": "uint",
+     "required": false
+    }
+   ]
+  },
+  {
+   "type": 6,
+   "name": "RETRY",
+   "direction": "c2m",
+   "state": "TRANSFER",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "from_sequence",
+     "type": "uint",
+     "required": true
+    }
+   ]
+  },
+  {
+   "type": 17,
+   "name": "SERVER_HELLO",
+   "direction": "m2c",
+   "state": "HANDSHAKE",
+   "encrypted": false,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "protocol_version",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "suite_id",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 4,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 5,
+     "name": "server_nonce",
+     "type": "bstr32",
+     "required": true
+    },
+    {
+     "label": 6,
+     "name": "server_ephemeral_pubkey",
+     "type": "bstr65",
+     "required": true
+    },
+    {
+     "label": 7,
+     "name": "merchant_credential",
+     "type": "bstr",
+     "required": true,
+     "rule": "<=1024 bytes"
+    },
+    {
+     "label": 8,
+     "name": "transcript_signature",
+     "type": "bstr64",
+     "required": true
+    },
+    {
+     "label": 9,
+     "name": "binding_tuple_digest",
+     "type": "bstr32",
+     "required": true
+    }
+   ]
+  },
+  {
+   "type": 18,
+   "name": "RECEIPT_OFFER",
+   "direction": "m2c",
+   "state": "MERCHANT_SESSION_AUTHENTICATED",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "receipt_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 4,
+     "name": "merchant_reference",
+     "type": "tstr",
+     "required": true
+    },
+    {
+     "label": 5,
+     "name": "total_amount_minor",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 6,
+     "name": "currency",
+     "type": "tstr",
+     "required": true
+    },
+    {
+     "label": 7,
+     "name": "issued_at",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 8,
+     "name": "kind",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 9,
+     "name": "ciphertext_length",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 10,
+     "name": "merchant_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 11,
+     "name": "credential_hash",
+     "type": "bstr32",
+     "required": true
+    },
+    {
+     "label": 12,
+     "name": "session_id",
+     "type": "bstr16",
+     "required": true
+    }
+   ]
+  },
+  {
+   "type": 19,
+   "name": "TRANSFER_BEGIN",
+   "direction": "m2c",
+   "state": "TRANSFER",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "ciphertext_length",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 4,
+     "name": "payload_hash",
+     "type": "bstr32",
+     "required": true
+    },
+    {
+     "label": 5,
+     "name": "frame_size",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 6,
+     "name": "frame_count",
+     "type": "uint",
+     "required": true
+    }
+   ]
+  },
+  {
+   "type": 20,
+   "name": "TRANSFER_COMPLETE",
+   "direction": "m2c",
+   "state": "TRANSFER",
+   "encrypted": true,
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "frame_count",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 4,
+     "name": "payload_hash",
+     "type": "bstr32",
+     "required": true
+    }
+   ]
+  },
+  {
+   "type": 21,
+   "name": "ERROR",
+   "direction": "m2c",
+   "state": "any",
+   "encrypted": "aead when keys exist, plaintext otherwise",
+   "fields": [
+    {
+     "label": 1,
+     "name": "type",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 2,
+     "name": "error_code",
+     "type": "uint",
+     "required": true
+    },
+    {
+     "label": 3,
+     "name": "fatal",
+     "type": "bool",
+     "required": true
+    },
+    {
+     "label": 4,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": false
+    },
+    {
+     "label": 5,
+     "name": "detail",
+     "type": "tstr",
+     "required": false,
+     "rule": "<=64 bytes, no secrets"
+    }
+   ]
+  }
+ ],
+ "transfer_id_rule": "16 random bytes chosen by the merchant for the session; it is a member of the binding tuple, so the merchant-signed transcript binds it; every DataFrame and every transfer-scoped message carries it and receivers MUST compare it",
+ "max_control_pdu": 2048
+}

@@ -1,0 +1,23 @@
+{
+ "revision": "deceipt-proto-r1",
+ "files": {
+  "../schema/bounds-v1.json": "e27a8e9fdeef4bc6598b86e47462758063a3b0d0baf9343f4a6e001a2e73fdb5",
+  "aead-invalid.json": "d0a7ef526d6533872933cfce67d56146b3a49afd0cbba06c42de38bdefd59279",
+  "aead-valid.json": "7c2d79650fe8ac134d80701f8a74df77127412f7cae20cbef594fe7d9f03c2cb",
+  "arithmetic-valid.json": "513f5188aed9d70907d40060de15278e81619587c83d2a4544927fc590127628",
+  "binding-crosscheck.json": "81453ef70b6d8dcbccc859830b9b33999b737e7e9e021e5abcac3a5460c60467",
+  "credentials.json": "09bd01764974c84c489714633354d31478e258fd1c552f492fe1f4ffdbbf5171",
+  "encoding-invalid.json": "4ea26e3651525f0f56900baa578d2bb9dd91f004d1807845dfde344ac5d6a37a",
+  "errors.json": "ff73036f9b34ad8e2e7d228dfb379a9561918ef19e7b4853c60adcacb45dfc92",
+  "fixtures/trust-anchors-v1.json": "b449bfff75bf0418686306b218f1afeb963fd672c7d39c9c40ab64f364b2ef87",
+  "framing-invalid.json": "857c287bc61ccb22b08c8793d601f7e99c331aea9b84bfbbb4c25e2766b4b9d3",
+  "framing-valid.json": "07297763cb4a1ff22428ed063832ac2c6fcc4008937dd476df6ae81103d1ffe9",
+  "handshake-invalid.json": "18ea2429f4ad6856d5c0b2c5db9e46d6bc7d3d408a3d9bceb7a1b8d7eb7da774",
+  "handshake-valid.json": "95a910b15475b314546c07ddcd30848a09a6430f6d24d579b5650bb43dcddce7",
+  "keys/test-keys.json": "846ce799dda3b959efc737083df1bedc13769f9c8adf3907ae24a59de82e528f",
+  "lpdu-invalid.json": "95eac2f4c3173af4bc3de97815b3e17b11a453ba0f0d9528d626f797eac0b799",
+  "lpdu-valid.json": "1814ed4a63b655fa05ac7eabb0c50f32fab13c983d795422f9b77d6559497f9a",
+  "receipt-invalid.json": "7f50c05de871905cd0ade302e1970ef016e4fb27b2eee9289cc9ea8b411df7ba",
+  "receipt-valid.json": "8eea35bc059577275aa90f72df84868121b6304ec2bfaab0e69e64dc64c45a12"
+ }
+}
