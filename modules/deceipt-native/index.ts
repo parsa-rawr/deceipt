@@ -55,6 +55,7 @@ export const NATIVE_METHODS = [
   'merchantSignReceipt',
   'verifyReceiptContainer',
   'verifyCredential',
+  'randomBytes',
   'mintBindingQr',
   'startMerchantSession',
   'beginTransfer',

@@ -603,4 +603,25 @@ class VectorTests {
         Qr.checkFresh(p, 1767225600L)
         assertEquals("BINDING_STALE", actualError { Qr.checkFresh(p, 1767225840L) })
     }
+
+    // -----------------------------------------------------------------------
+    // randomBytes (bounded CSPRNG for protocol secrets)
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun random_bytes_returns_requested_length_and_varies() {
+        for (n in listOf(1, 16, 32, 64)) {
+            val a = com.deceipt.adapter.crypto.Crypto.randomBytes(n)
+            val b = com.deceipt.adapter.crypto.Crypto.randomBytes(n)
+            assertEquals("length $n", n, a.size)
+            assertFalse("two draws of $n bytes must differ", a.contentEquals(b))
+        }
+    }
+
+    @Test
+    fun random_bytes_rejects_out_of_range_without_allocating() {
+        assertEquals("0", "MESSAGE_FIELD_RANGE", actualError { com.deceipt.adapter.crypto.Crypto.randomBytes(0) })
+        assertEquals("65", "MESSAGE_FIELD_RANGE", actualError { com.deceipt.adapter.crypto.Crypto.randomBytes(65) })
+        assertEquals("-1", "MESSAGE_FIELD_RANGE", actualError { com.deceipt.adapter.crypto.Crypto.randomBytes(-1) })
+    }
 }

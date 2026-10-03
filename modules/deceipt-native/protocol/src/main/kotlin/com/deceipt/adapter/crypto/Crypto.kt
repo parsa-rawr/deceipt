@@ -144,6 +144,28 @@ object P256 {
 /** HKDF-SHA-256 (RFC 5869), SHA-256, HMAC-SHA-256, AES-256-GCM. */
 object Crypto {
 
+    /**
+     * Protocol-secret bounds for [randomBytes]. The shared TS layer calls this to
+     * produce session_id / client_nonce / SBT on platforms with no WebCrypto
+     * (Hermes). `count` is validated BEFORE allocating, so a caller can never
+     * request an unbounded buffer.
+     */
+    const val MIN_RANDOM_BYTES = 1
+    const val MAX_RANDOM_BYTES = 64
+
+    private val secureRandom = java.security.SecureRandom()
+
+    /**
+     * `count` cryptographically strong random bytes from the platform CSPRNG.
+     * Not a JS PRNG: these are protocol secrets. The result is never logged.
+     */
+    fun randomBytes(count: Int): ByteArray {
+        if (count < MIN_RANDOM_BYTES || count > MAX_RANDOM_BYTES) {
+            throw ProtocolError("MESSAGE_FIELD_RANGE", "randomBytes count must be $MIN_RANDOM_BYTES..$MAX_RANDOM_BYTES")
+        }
+        return ByteArray(count).also { secureRandom.nextBytes(it) }
+    }
+
     fun sha256(vararg parts: ByteArray): ByteArray {
         val md = java.security.MessageDigest.getInstance("SHA-256")
         for (p in parts) md.update(p)

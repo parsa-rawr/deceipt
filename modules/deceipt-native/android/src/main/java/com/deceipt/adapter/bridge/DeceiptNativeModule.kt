@@ -6,6 +6,7 @@ import android.os.Build
 import android.provider.Settings
 import com.deceipt.adapter.ble.BlePermissions
 import com.deceipt.adapter.crypto.Ed25519
+import com.deceipt.adapter.crypto.Crypto
 import com.deceipt.adapter.crypto.MerchantKeyStore
 import com.deceipt.adapter.protocol.Bounds
 import com.deceipt.adapter.protocol.Bytes
@@ -137,6 +138,22 @@ class DeceiptNativeModule(
             try {
                 val r = block()
                 reactContext.runOnUiQueueThread { ok(promise, r) }
+            } catch (t: Throwable) {
+                reactContext.runOnUiQueueThread { fail(promise, t) }
+            }
+        }
+    }
+
+    /**
+     * Worker path for a SCALAR result (e.g. a base64 string). The map-shaped
+     * [ok] would coerce it to an empty WritableMap, so this resolves the raw
+     * value directly.
+     */
+    private fun <T> onWorkerRaw(promise: Promise, block: () -> T) {
+        executor.execute {
+            try {
+                val r = block()
+                reactContext.runOnUiQueueThread { promise.resolve(r) }
             } catch (t: Throwable) {
                 reactContext.runOnUiQueueThread { fail(promise, t) }
             }
@@ -510,6 +527,21 @@ class DeceiptNativeModule(
     @ReactMethod
     fun removeListeners(count: Double) {
         listenerAttached = false
+    }
+
+    /**
+     * Cryptographically strong random bytes for protocol secrets
+     * (session_id / client_nonce / SBT) when the JS runtime has no WebCrypto —
+     * Hermes does not expose `globalThis.crypto`. Backed by `SecureRandom`; a JS
+     * PRNG is never acceptable for these values.
+     *
+     * `count` is validated against `Crypto.MIN/MAX_RANDOM_BYTES` BEFORE allocating.
+     * Runs on the worker path; the output is never logged or persisted.
+     */
+    @ReactMethod
+    fun randomBytes(count: Double, promise: Promise) {
+        // Scalar result: must resolve the Base64 STRING, not a WritableMap.
+        onWorkerRaw(promise) { Bytes.toBase64(Crypto.randomBytes(count.toInt())) }
     }
 
     // -- test-only provisioning (gated) ------------------------------------
