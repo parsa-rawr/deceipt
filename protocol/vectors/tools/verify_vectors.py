@@ -486,13 +486,40 @@ def main():
     eq("accept type declared", dec(bytes.fromhex(aead["control_accept"]["plaintext_hex"]))[1]
        in declared, True)
 
+    # ---- 12. revision alignment: no pinned artifact may declare another revision ----
+    import re as _re
+    mine = load("vectors-manifest.json")["revision"]
+    warnings = []
+    # A1-owned docs must never declare another revision (hard failure).
+    for rel in sorted(os.listdir(os.path.join(V, "..", "..", "docs", "protocol"))):
+        if not rel.endswith(".md"):
+            continue
+        txt = open(os.path.join(V, "..", "..", "docs", "protocol", rel), encoding="utf-8").read()
+        for m in sorted(set(_re.findall(r"`(deceipt-proto-r\d+)`", txt))):
+            if m != mine:
+                fails.append("stale revision %s in docs/protocol/%s" % (m, rel))
+    # A2-owned pinned files: surface (owner must align; A1 may not edit them).
+    for rel in ["../flows/checkout-flow-v1.json", "../flows/checkout-flow-v1.mmd",
+                "../flows/vectors/binding-v1.json", "../flows/tools/gen_binding_vectors.py"]:
+        fp = os.path.normpath(os.path.join(V, rel))
+        if not os.path.exists(fp):
+            continue
+        txt = open(fp, encoding="utf-8").read()
+        for m in sorted(set(_re.findall(r"deceipt-proto-r\d+", txt))):
+            if m != mine:
+                warnings.append("A2 metadata: %s declares %s (pinned revision is %s) - "
+                                "owner action required" % (rel, m, mine))
+
     # ---- report ----
+    for w in warnings:
+        print("WARN", w)
     if fails:
         print("FAIL (%d)" % len(fails))
         for f in fails:
             print(" -", f)
         return 1
-    print("OK: all independent vector checks passed")
+    print("OK: all independent vector checks passed%s"
+          % ("" if not warnings else " (%d metadata warning(s) above)" % len(warnings)))
     return 0
 
 
