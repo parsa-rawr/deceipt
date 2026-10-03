@@ -1,6 +1,8 @@
 {
+ "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
+ "_generated": "generated; do not edit by hand",
  "revision": "deceipt-proto-r1",
- "purpose": "Prove A1's implementation of the A2 binding contract is byte-identical to A2's published vectors, and record the two defects found in A2's published vectors.",
+ "purpose": "Prove A1's implementation of the A2 binding contract is byte-identical to A2's published vectors, and record the one defect found in A2's published vectors plus the adopted error names.",
  "source": "protocol/flows/vectors/binding-v1.json (owner A2)",
  "checks": [
   {
@@ -40,7 +42,7 @@
    "expected": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFggs208Y6uWMYnhM1pKbPwAeJZyxiQzdIo3D34GFIx3Q6oFGmlVuXg"
   }
  ],
- "defects_found_in_A2_vectors": [
+ "findings_on_A2_vectors": [
   {
    "severity": "high",
    "defect": "client_ephemeral_pubkey_hex in V1, V2 and V3 is not a valid P-256 point: EC point decoding fails, so ECDH cannot be performed.",
@@ -58,8 +60,8 @@
    "observed_in_a1": "A1 publishes valid P-256 points in protocol/vectors/handshake-valid.json; the binding proof there is computed over a valid point and therefore differs from A2's V1 binding_proof value."
   },
   {
-   "severity": "low",
-   "defect": "docs/flows/*.md lists binding errors as BINDING_UNKNOWN_SESSION, BINDING_PROOF_INVALID, BINDING_STALE, BINDING_CONSUMED, WRONG_TRANSACTION; A1 adopts exactly these names.",
+   "severity": "info",
+   "finding": "docs/flows/*.md lists binding errors as BINDING_UNKNOWN_SESSION, BINDING_PROOF_INVALID, BINDING_STALE, BINDING_CONSUMED, WRONG_TRANSACTION; A1 adopts exactly these names.",
    "evidence": [],
    "impact": "no defect; recorded for the freeze record"
   }

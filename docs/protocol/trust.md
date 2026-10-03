@@ -88,6 +88,13 @@ Pinned anchor set (`protocol/vectors/fixtures/trust-anchors-v1.json`, test-only)
 
 `trust-anchors-v1.json` contains public keys only and is committed. `test-keys.json` contains test private halves and is committed too — it is test material by construction; `docs/decisions.md` D-003 un-ignores `protocol/vectors/**` for exactly this reason. Production builds MUST NOT bundle any test private key.
 
+**Public repository rule.** This tree is published publicly. Therefore:
+
+* every vector artifact carries a `_TESTONLY` header and `protocol/vectors/NOTICE` states the rule in-band;
+* the PoC root key above is an **explicitly-labelled test root**, generated deterministically from an ASCII label — it is not, and never was, a production trust root;
+* **no real or production trust-root private key exists anywhere in this repository.** Production roots are generated offline (e.g. `openssl genpkey -algorithm ED25519` on an air-gapped host) and only their public halves are ever committed;
+* a public spec plus public vectors is the intended state: a third party can reproduce every byte with `protocol/vectors/tools/verify_vectors.py`, and that is a feature, not a leak.
+
 ## 4. Verification algorithm (receiver)
 
 Run after `ServerHello` is parsed and before the transcript signature is accepted (`DESIGN.md` §9 steps 3–4):

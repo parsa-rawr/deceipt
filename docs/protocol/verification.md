@@ -119,6 +119,7 @@ RSSI may appear only as a diagnostics field marked `diagnostics_only`, and MUST 
 ## 6. Import idempotency
 
 * Persist `receipt_id` → exact signed payload bytes.
+* Test-only keys from `protocol/vectors/**` MUST NOT be bundled into a shipped build (public repo: they are published, but a build that trusts them would be trivially forgeable).
 * The whole verification is atomic: either the receipt is stored with a complete verification record, or nothing is stored (a partial/failed transfer leaves no trusted row).
 * Re-import of byte-identical payload ⇒ `ALREADY_IMPORTED_IDENTICAL`, no duplicate row.
 * Re-import with the same `receipt_id` but different bytes ⇒ `RECEIPT_DUPLICATE_CONFLICT`; both are kept as evidence and neither is labelled trusted without the user's attention.

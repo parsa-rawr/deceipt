@@ -36,7 +36,8 @@ A3/A4/A5 are accepted only if every applicable row passes against this revision.
 | B6 | Missing capability for the receipt kind | `receipt-invalid.json#capability_missing_for_sale` | `CREDENTIAL_CAPABILITY_MISSING` |
 | B7 | Receipt `kid` / `merchant_id` / credential bytes disagree | `receipt-invalid.json` | `RECEIPT_KEY_NOT_AUTHORIZED` / `RECEIPT_CREDENTIAL_MISMATCH` |
 | B8 | Receipt outside credential validity window | `receipt-invalid.json#receipt_issued_in_future` | `RECEIPT_ISSUED_IN_FUTURE` |
-| B9 | Root private key is absent from the app bundle and repo tree | build artifact + `git grep` | absent |
+| B9 | No production trust-root private key exists anywhere in the tree; no *test* private key is bundled into an app build | `git grep` over the tree + app bundle inspection | only the labelled test key in `protocol/vectors/keys/test-keys.json`; nothing in the app bundle |
+| B10 | Every vector artifact carries the `_TESTONLY` header / NOTICE | header inspection | present |
 
 ## C. Handshake (A4/A5; A3 type distinction)
 

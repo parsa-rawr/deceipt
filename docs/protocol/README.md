@@ -38,6 +38,16 @@
 5. Parser/allocation bounds are security requirements.
 6. Merchant private keys and session secrets never enter committed files, logs, or bridge payloads. Only `protocol/vectors/keys/test-keys.json` holds private halves, and those are test-only and published deliberately.
 
+## Test-only material and the public repository
+
+This repository is **public**. Consequently:
+
+* Every artifact under `protocol/vectors/**` is **test-only deterministic material** and says so in-file: each JSON vector carries a `_TESTONLY` header, and `protocol/vectors/NOTICE` / `protocol/vectors/fixtures/NOTICE` state the rule. Keys, nonces, seeds and session-binding tokens are derived from fixed ASCII labels and are public by construction.
+* They **MUST NEVER** be used outside these test vectors — not in a build, not in a session, not as a trust anchor. Production sessions use fresh CSPRNG randomness.
+* The only production-relevant value committed is the **PoC test root public key** (`protocol/vectors/fixtures/trust-anchors-v1.json`). It is public material. Its private half is an explicitly-labelled **test** key.
+* **No real or production trust-root private key exists anywhere in this tree.** Production trust roots are generated offline; their private material never enters the repository. A3/A4/A5 MUST NOT bundle any test private key into a build.
+* The public spec + public vectors are the single source of truth, so a third party can reproduce every byte with `python3 protocol/vectors/tools/verify_vectors.py`.
+
 ## Regenerating the vectors
 
 ```bash
