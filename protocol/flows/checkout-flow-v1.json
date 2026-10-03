@@ -1,11 +1,9 @@
 {
-  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. Binding bytes ADOPTED by A1 (deceipt-proto-r2; docs/protocol/handshake.md section 10; binding bytes identical across r1/r2). Selection model: QR-MANDATORY for v1 (resolves A6 RX-04). Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
+  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. Binding bytes ADOPTED by A1 (docs/protocol/handshake.md section 10); the binding bytes are revision-agnostic and reconcile byte-for-byte with the A1 frozen revision. Selection model: QR-MANDATORY for v1 (resolves A6 RX-04). Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
   "schema": "deceipt.checkout-flow/v1",
-  "status": "binding_bytes_adopted_in_deceipt-proto-r2__selection_qr_mandatory",
+  "status": "binding_bytes_adopted_in_A1_frozen_revision__selection_qr_mandatory",
   "owner": "A2",
-  "revision_consumes": "deceipt-proto-r2",
-  "revision_reconciled_against": "deceipt-proto-r2 (committed 2c06617; binding bytes unchanged from r1, reconciliation verified no-op)",
-  "revision_reconciliation_pending": null,
+  "revision_policy": "reconciles byte-for-byte with the A1 frozen protocol revision at the time of publication; the binding bytes are revision-agnostic and no A1 version bump changes them",
   "consumes": ["DESIGN.md#2.5", "DESIGN.md#7.2", "DESIGN.md#7.3", "DESIGN.md#8", "DESIGN.md#9", "DESIGN.md#11", "DESIGN.md#13"],
   "adopted_by": "A1 docs/protocol/handshake.md section 10",
 
@@ -35,7 +33,7 @@
     "resolves": "A6 RX-04",
     "auto_connect": false,
     "selection_act": "user scans the QR at the terminal; the QR's session_id names exactly one session",
-    "qr_less_path": "removed; not realisable in deceipt-proto-r2 because CLIENT_HELLO requires session_id (label 4) + binding_proof (label 7); absence is fatal BINDING_REQUIRED and no binding-less variant exists",
+    "qr_less_path": "removed; not realisable in the frozen wire contract because CLIENT_HELLO requires session_id (label 4) + binding_proof (label 7); absence is fatal BINDING_REQUIRED and no binding-less variant exists",
     "justification": "RSSI-free disambiguation requires possession of the binding material (SBT), which only the QR delivers; a binding-less connect path would require an explicit A1 wire revision"
   },
   "primary_flow": "P1_qr_bootstrap_ble_delivery",
@@ -223,7 +221,7 @@
   },
 
   "a1_dependencies": {
-    "status": "closed in deceipt-proto-r2 (handshake.md section 10; r2 committed 2c06617, binding bytes unchanged from r1)",
+    "status": "closed in the A1 frozen revision (handshake.md section 10); binding bytes revision-agnostic",
     "items": [
       {"requirement": "binding_tuple_digest required in signed transcript", "satisfied": true, "where": "transcript offset 250"},
       {"requirement": "ClientHello carries session_id, client_nonce, client_ephemeral_pubkey, binding_proof", "satisfied": true, "where": "fields 4,5,6,7"},
@@ -235,13 +233,13 @@
   },
 
   "a6_review_resolutions": {
-    "RX-04": {"resolved_by": "A2", "resolution": "QR-mandatory for v1; P0 QR-less path removed", "detail": "CLIENT_HELLO requires session_id + binding_proof; no binding-less variant exists in r1/r2"},
+    "RX-04": {"resolved_by": "A2", "resolution": "QR-mandatory for v1; QR-less path removed", "detail": "CLIENT_HELLO requires session_id + binding_proof; no binding-less variant exists in the frozen wire contract"},
     "R2-01": {"a2_portion": "fixed", "detail": "currency is tstr; offer_hash element order stated explicitly and mapped to labels; no binding bytes changed"},
-    "R7-01": {"status": "closed_in_r2", "detail": "WRONG_TRANSACTION is 0x0614; duplicate RECEIPT_OFFER_MISMATCH removed from the r2 taxonomy"},
-    "R4-01_RX-02": {"owner": "A1", "resolution": "r2: R4-01 option (a) - binding_tuple in SERVER_HELLO label 10 (digest label 9); protocol/flows/** folded into r2 hash scope", "a2_note": "A2 reconciles QR layout / vectors if a future revision changes offer_hash inputs or moves the binding_tuple source into the QR"}
+    "R7-01": {"status": "closed", "detail": "WRONG_TRANSACTION is 0x0614; duplicate RECEIPT_OFFER_MISMATCH removed from the error taxonomy"},
+    "R4-01_RX-02": {"owner": "A1", "resolution": "R4-01 option (a) - binding_tuple in SERVER_HELLO label 10 (digest label 9); protocol/flows/** is in the A1 freeze hash scope", "a2_note": "A2 reconciles QR layout / vectors if a future revision changes offer_hash inputs or moves the binding_tuple source into the QR"}
   },
 
   "vectors_file": "protocol/flows/vectors/binding-v1.json",
   "vector_generator": "protocol/flows/tools/gen_binding_vectors.py",
-  "vectors_note": "V1 reconciles byte-for-byte with A1 protocol/vectors/handshake-valid.json (deceipt-proto-r2, binding bytes unchanged from r1); all non-negative vectors use valid P-256 points; V4 is a deliberate invalid-point negative vector. See docs/flows/transaction-binding-and-checkout-v1.md sections 13-14."
+  "vectors_note": "V1 reconciles byte-for-byte with the A1 frozen protocol/vectors/handshake-valid.json; the binding bytes are revision-agnostic. All non-negative vectors use valid P-256 points; V4 is a deliberate invalid-point negative vector. See docs/flows/transaction-binding-and-checkout-v1.md sections 13-14."
 }
