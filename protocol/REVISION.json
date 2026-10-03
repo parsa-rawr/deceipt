@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "revision": "deceipt-proto-r3",
- "aggregate_sha256": "bb203bd21e0b623b45357aad77acc37459fa61a5e554cf5ea6c31c5015253dd8",
+ "aggregate_sha256": "c974e832708774dcfe4910307b913914b47b8496bd3271b65a16eb27f8a266fa",
  "hash_rule": "SHA-256(<revision id> || 0x00 || <sorted 'path=sha256' rows joined by 0x00>) over every frozen protocol artifact: docs/protocol/*.md, protocol/schema/*, protocol/vectors/** and protocol/flows/** (the A2 artifacts docs/protocol/README.md adopts and pins).",
  "files": {
   "../schema/bounds-v1.json": "5bc6f0de0cfd1cfc51b4bbbb6ef91ffb2b89e97bcdcb5a44b5bef00efec286a4",
@@ -12,7 +12,7 @@
   "aead-invalid.json": "32e98d0148e70fd8e4140742547112544f19e3a2e51a1f9f409c75ce7e2490f4",
   "aead-valid.json": "5eae6d38a2c4487c7e64009452d63014dce5110e128cbac81f9fd6a60170b05b",
   "arithmetic-valid.json": "3402b3a507f4318333cbbfb526fc9e835e49885d206982d3a79272f488a2bd76",
-  "binding-crosscheck.json": "858ac37c2b6bb880c7c0657e21ea9c686d6ce506b3ac0c53fc4f9c038698e9b4",
+  "binding-crosscheck.json": "b4d874f00905436bf6248cfa0d9061c2396efc604fc166f15baa3fad2aa3baa5",
   "credentials.json": "d7bb15ef186895737adb43db8df32b9d6cee5e51288d82964e3c4a0062cfe707",
   "encoding-invalid.json": "d466d9f2d774b098241b5256c96598b23b8fff3c56e5889c0dd5bde0e92c0e82",
   "errors.json": "4451435921b3b1ff687e6353db98f37bdfddc97f481854ff62a8a28c8ff3e695",
@@ -39,10 +39,10 @@
   "../schema/receipt-v1.cddl": "6162b51133530aff0387729ce2522b64112377f2c29f2d42b2f468f11fa51056",
   "../schema/credential-v1.cddl": "6fe13ad31e00be30b86e6f9cb5b942cda3b5e1abacc2aa9c50e0a72f621f3884",
   "../schema/wire-v1.cddl": "70404aa3746d8340f16f569c04601cd2a71083493b2387185f042b3588ca88d6",
-  "../flows/checkout-flow-v1.json": "52ec390711126ac5b12de016ee49adc29f4cbc6f4b8e913db5cef18a0a906663",
+  "../flows/checkout-flow-v1.json": "22a49b497848bcfc26e88a0f6ef0aef6faa5d9dda8370fe35a807b471c5ade32",
   "../flows/checkout-flow-v1.mmd": "ac82c2d55d133ce55437ff0ea17985e1f683b49e30103e6eb0bd59b641add906",
-  "../flows/tools/gen_binding_vectors.py": "ee0d5086ae0abb27ef47080d8c42861b343dcd904b930855db8a545b3cfcd0e7",
-  "../flows/vectors/binding-v1.json": "202a61967c0c8c1ce906ff7b932b38f4a9e8995a9a49657d6378c4e75d90506f"
+  "../flows/tools/gen_binding_vectors.py": "2e45acebb9060ae59d82c3f8bf68deca63f1eed542cab24cf8332b38fa3aebd9",
+  "../flows/vectors/binding-v1.json": "a86023d50f0a0435f40da0204d01f73677f33da57087811235281ee533ea0f7b"
  },
  "status": "FROZEN for the PoC; changes require a new revision id and a new vector regeneration",
  "generator": "protocol/vectors/tools/gen_vectors.py",
