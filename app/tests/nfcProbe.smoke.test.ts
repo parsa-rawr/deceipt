@@ -8,7 +8,7 @@
  * bundle — it only proves the probe is not lying to itself.
  */
 
-import {runNfcProbe, summarizeNfcProbe, probeCases} from '../src/dev/nfcProbe';
+import {runNfcProbe, summarizeNfcProbe, composeProbes, parseProbes} from '../src/dev/nfcProbe';
 import {buildDemoReceipt} from '../src/demo/demoReceipt';
 import {normalizationEngine, setNativeNfcSource} from '../src/protocol/normalization';
 import {buildMockPair} from './harness';
@@ -20,7 +20,7 @@ describe('NFC probe smoke (TEMPORARY)', () => {
     setNativeNfcSource(null);
   });
 
-  it('classifies every case correctly when the bridged normalizer is exact', async () => {
+  it('proves COMPOSITION by comparing the bridge output to the expected NFC form', async () => {
     const pair = await buildMockPair();
     const base = await buildDemoReceipt({
       merchantId: pair.provision.merchantId,
@@ -35,11 +35,18 @@ describe('NFC probe smoke (TEMPORARY)', () => {
     setNativeNfcSource({normalizeNfc: async (text: string) => platformNormalize.call(text, 'NFC')});
     const report = await runNfcProbe(base);
     expect(report.skipped).toBeUndefined();
-    expect(report.cases.length).toBe(probeCases().length);
+    expect(report.cases.length).toBe(composeProbes().length + parseProbes().length);
     expect(report.failures).toEqual([]);
-    // Every reordering case must have needed normalization.
-    const reordering = report.cases.filter(item => item.expectation === 'reject');
-    expect(reordering.length).toBeGreaterThanOrEqual(4);
+    // The compose cases must have actually exercised composition or reordering,
+    // not passed because the input was already NFC.
+    const composeCases = report.cases.filter(item => item.expectation === 'compose');
+    const exercised = composeCases.filter(item => item.expected !== item.observed);
+    expect(composeCases.length).toBeGreaterThanOrEqual(6);
+    expect(exercised.length).toBeGreaterThanOrEqual(4);
+    // The parse cases must reject with the specific non-NFC failure.
+    const rejectCases = report.cases.filter(item => item.expectation === 'reject');
+    expect(rejectCases.length).toBeGreaterThanOrEqual(2);
+    expect(rejectCases.every(item => /not NFC-normalized/.test(item.observed))).toBe(true);
     expect(summarizeNfcProbe(report)).toContain(`${report.cases.length}/${report.cases.length} cases`);
   });
 

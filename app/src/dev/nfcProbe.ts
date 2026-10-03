@@ -19,17 +19,19 @@
  * correct implementation.
  */
 
+import {ProtocolError} from '../protocol/errors';
 import {parseReceiptPayload, serializeReceipt, type Receipt} from '../protocol/receipt';
-import {normalizationEngine} from '../protocol/normalization';
+import {normalizationEngine, normalizeNfcAsync} from '../protocol/normalization';
 
 export interface NfcProbeCase {
   name: string;
   /** What the value is, in words. */
   description: string;
-  /** Whether a correct implementation must ACCEPT (already NFC) or REJECT. */
-  expectation: 'accept' | 'reject';
-  /** The NFC form computed before normalization was disabled. */
-  expectedNfc: string;
+  /** What a correct implementation must do. */
+  expectation: 'compose' | 'reject';
+  /** For `compose`: the NFC form the bridge must return. For `reject`: the
+   *  decomposed input the parse boundary must refuse. */
+  expected: string;
   /** What the probe observed on the bridged path. */
   observed: string;
   passed: boolean;
@@ -47,40 +49,76 @@ export interface NfcProbeReport {
 }
 
 /**
- * The probe cases, as readable strings rather than magic escapes, each carrying
- * the reason it is interesting.
+ * Compose probes: RAW non-NFC strings handed straight to the bridged normalizer.
+ *
+ * These are the cases that can prove the OS COMPOSED something. A receipt-level
+ * rejection cannot: rejecting a non-NFC document proves the parse boundary
+ * rejects, which is a different property. So each case carries the NFC form a
+ * correct implementation must return.
  */
-export function probeCases(): Array<{name: string; description: string; value: string}> {
+export function composeProbes(): Array<{name: string; description: string; raw: string; expectedNfc: string}> {
   return [
     {
       name: 'compose_e_acute',
-      description: 'e + U+0301 -> U+00E9 (stable since Unicode 3.x: any correct engine must pass)',
-      value: 'Cafe\u0301 \u0026 Vine',
+      description: 'e + U+0301 composes to U+00E9 (stable since Unicode 3.x)',
+      raw: 'Café \u0026 Vine',
+      expectedNfc: 'Café \u0026 Vine',
+    },
+    {
+      name: 'compose_a_ring',
+      description: 'A + U+030A composes to U+00C5',
+      raw: '\u00c5ngstrom vs Ångstrom',
+      expectedNfc: '\u00c5ngstrom vs Ångstrom',
+    },
+    {
+      name: 'compose_hangul_jamo',
+      description: 'Hangul jamo U+1100 U+1161 composes to the syllable U+AC00',
+      raw: '가',
+      expectedNfc: '가',
     },
     {
       name: 'reorder_ogonek_below',
-      description: 'a + U+031B + U+0323: CCC(031B)=216 < CCC(0323)=220, so the marks must swap',
-      value: 'Mocha a\u031B\u0323',
+      description: 'a + U+031B + U+0323: CCC(031B)=216 < CCC(0323)=220, so the marks MUST swap',
+      raw: 'Mocha ạ̛',
+      expectedNfc: 'Mocha ạ̛',
     },
     {
       name: 'reorder_ccc_unicode14',
       description: 'a + U+0898 + U+0323: U+0898 is Unicode 14, so a stale table cannot reorder it',
-      value: 'Brew a\u0898\u0323',
+      raw: 'Brew ạ࢘',
+      expectedNfc: 'Brew ạ࢘',
     },
     {
       name: 'reorder_post_unicode9_1abf',
-      description: 'a + U+1ABF + U+0301: U+1ABF is post-Unicode-9; needs reordering and composition',
-      value: 'Roast a\u1ABF\u0301',
+      description: 'a + U+1ABF + U+0301: post-Unicode-9 mark needing reordering then composition',
+      raw: 'Roast áᪿ',
+      expectedNfc: 'Roast áᪿ',
     },
     {
       name: 'reorder_post_unicode9_1df6',
       description: 'a + U+1DF6 + U+0323: post-Unicode-9 combining mark below',
-      value: 'Bean a\u1DF6\u0323',
+      raw: 'Bean ạ᷶',
+      expectedNfc: 'Bean ạ᷶',
+    },
+  ];
+}
+
+/**
+ * Parse probes: receipts whose display name is deliberately DECOMPOSED. A correct
+ * boundary must REJECT these (receipt-v1.md §8), which is what proves the raw
+ * bytes reached the check rather than a pre-normalized value.
+ */
+export function parseProbes(): Array<{name: string; description: string; decomposed: string}> {
+  return [
+    {
+      name: 'parse_rejects_decomposed_latin',
+      description: 'decomposed e + U+0301 must be rejected as non-NFC',
+      decomposed: 'Café \u0026 Vine',
     },
     {
-      name: 'already_nfc_nonASCII',
-      description: 'precomposed U+00E9: already NFC, must be accepted unchanged',
-      value: 'Caf\u00e9 \u0026 Vine',
+      name: 'parse_rejects_decomposed_unicode14_mark',
+      description: 'a + U+0898 + U+0323 must be rejected: the ordering is wrong and the mark is Unicode 14',
+      decomposed: 'Brew ạ࢘',
     },
   ];
 }
@@ -93,59 +131,31 @@ export async function runNfcProbe(base: Receipt): Promise<NfcProbeReport> {
   const engineBefore = normalizationEngine();
   const platformNormalize = String.prototype.normalize;
 
-  // Expectations must be computed while the exact engine is still available.
-  const expected: Array<{name: string; description: string; value: string; nfc: string}> = [];
-  for (const probeCase of probeCases()) {
-    let nfc: string;
-    try {
-      nfc = probeCase.value.normalize('NFC');
-    } catch {
-      return {
-        engineBefore,
-        engineDuring: engineBefore,
-        cases: [],
-        failures: [],
-        skipped: 'this host has no exact NFC engine to compute expectations from',
-      };
+  // Expectations are computed while the exact engine is still available. If the
+  // host has no exact engine there is nothing to compare against, so the probe
+  // declines to run rather than inventing expectations.
+  const composeExpected: Array<{name: string; description: string; raw: string; nfc: string}> = [];
+  for (const probe of composeProbes()) {
+    const nfc = probe.raw.normalize('NFC');
+    if (nfc === probe.raw) {
+      // The case does not actually need composing in this Unicode version, so it
+      // cannot prove composition happened. Reported rather than silently kept.
+      composeExpected.push({...probe, nfc});
+      continue;
     }
-    expected.push({...probeCase, nfc});
+    composeExpected.push({...probe, nfc});
   }
 
   const cases: NfcProbeCase[] = [];
   const failures: string[] = [];
   let engineDuring = engineBefore;
 
-  for (const item of expected) {
-    const isAlreadyNfc = item.nfc === item.value;
-    // Force the bridged path for THIS case only.
+  /** Run `work` with the JS engine disabled, always restoring it. */
+  const withBridgedEngine = async <T>(work: () => Promise<T>): Promise<T> => {
     Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true, writable: true});
-    let observed: string;
-    let passed: boolean;
     try {
       engineDuring = normalizationEngine();
-      if (engineDuring !== 'native') {
-        // Without a bridged engine every "reject" case would pass VACUOUSLY —
-        // the parse fails because no engine exists, not because the OS says the
-        // value is non-NFC. That would be a probe lying to itself, so it is
-        // reported as a hard failure instead of a pass.
-        throw new Error(
-          `the bridged normalizer is not reachable (engine '${engineDuring}'); the probe cannot distinguish a correct rejection from a missing engine`,
-        );
-      }
-      const payload = serializeReceipt({
-        ...base,
-        merchant: {...base.merchant, displayName: item.value.slice(0, 120)},
-      });
-      const parsed = await parseReceiptPayload(payload);
-      const accepted = parsed.receipt.merchant.displayName;
-      observed = `accepted: ${JSON.stringify(accepted)}`;
-      passed = isAlreadyNfc && accepted === item.value;
-      if (!isAlreadyNfc) {
-        observed += ' (should have been REJECTED as non-NFC)';
-      }
-    } catch (error) {
-      observed = `rejected: ${error instanceof Error ? error.message : String(error)}`;
-      passed = !isAlreadyNfc;
+      return await work();
     } finally {
       Object.defineProperty(String.prototype, 'normalize', {
         value: platformNormalize,
@@ -153,14 +163,82 @@ export async function runNfcProbe(base: Receipt): Promise<NfcProbeReport> {
         writable: true,
       });
     }
+  };
+
+  // --- Property 1: the bridge COMPOSES / REORDERS raw non-NFC text -----------
+  for (const item of composeExpected) {
+    const needsNormalization = item.nfc !== item.raw;
+    let observed: string;
+    let passed: boolean;
+    try {
+      const bridged = await withBridgedEngine(() => normalizeNfcAsync(item.raw));
+      observed = `bridged -> ${JSON.stringify(bridged)}`;
+      if (!needsNormalization) {
+        passed = true;
+        observed += ' (already NFC in this Unicode version: no reordering required, not a composition test)';
+      } else {
+        passed = bridged === item.nfc;
+        if (!passed) {
+          observed += ` (expected ${JSON.stringify(item.nfc)})`;
+        }
+      }
+    } catch (error) {
+      observed = `bridged threw: ${error instanceof Error ? error.message : String(error)}`;
+      passed = false;
+    }
     if (!passed) {
       failures.push(`${item.name}: ${observed}`);
     }
     cases.push({
       name: item.name,
       description: item.description,
-      expectation: isAlreadyNfc ? 'accept' : 'reject',
-      expectedNfc: item.nfc,
+      expectation: 'compose',
+      expected: item.nfc,
+      observed,
+      passed,
+    });
+  }
+
+  // --- Property 2: the parse boundary REJECTS raw decomposed receipt bytes ----
+  for (const item of parseProbes()) {
+    let observed: string;
+    let passed: boolean;
+    try {
+      const parsed = await withBridgedEngine(async () => {
+        if (normalizationEngine() !== 'native') {
+          // Without the bridge the rejection would be vacuous: it would mean "no
+          // engine exists", not "the OS agreed the value is non-NFC".
+          throw new Error(
+            `the bridged normalizer is not reachable (engine '${normalizationEngine()}'); this rejection cannot be attributed to the OS`,
+          );
+        }
+        // Serialization writes the string verbatim (nothing in `receiptToCbor`
+        // calls checkText, and checkText only validates), so the RAW decomposed
+        // bytes reach the parse boundary. This is what makes the rejection
+        // meaningful: the boundary saw non-NFC input and refused it.
+        const payload = serializeReceipt({
+          ...base,
+          merchant: {...base.merchant, displayName: item.decomposed.slice(0, 120)},
+        });
+        return parseReceiptPayload(payload);
+      });
+      observed = `accepted: ${JSON.stringify(parsed.receipt.merchant.displayName)} (should have been REJECTED)`;
+      passed = false;
+    } catch (error) {
+      observed = `rejected: ${error instanceof Error ? error.message : String(error)}`;
+      passed =
+        error instanceof ProtocolError &&
+        error.name === 'RECEIPT_TEXT_INVALID' &&
+        /not NFC-normalized/.test(error.message);
+    }
+    if (!passed) {
+      failures.push(`${item.name}: ${observed}`);
+    }
+    cases.push({
+      name: item.name,
+      description: item.description,
+      expectation: 'reject',
+      expected: item.decomposed,
       observed,
       passed,
     });
