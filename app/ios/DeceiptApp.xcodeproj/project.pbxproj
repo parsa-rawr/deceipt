@@ -7,63 +7,78 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		03E9C90445EC9E30A9094914 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9FBC0865C697A683B9A66F9 /* Foundation.framework */; };
 		08C70B04483FBF6D6F407473 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		0C80B921A6F3F58F76C31292 /* libPods-DeceiptApp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-DeceiptApp.a */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
-		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
-		46B43D2FD160D41A64A85605 /* DeceiptBytes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5A1740873BCBD53EB3F6C4 /* DeceiptBytes.swift */; };
 		1A671E7EDF1A2397FA78F3BB /* DeceiptError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC842A826D62CCF9B9475308 /* DeceiptError.swift */; };
-		E05FD0B8C9338F0E11FB653B /* DeceiptConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCB5D257AA4E81246CE1E0D /* DeceiptConstants.swift */; };
-		B04739C821F21FB6B55E7949 /* DeceiptCbor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36619B512152A291C9D3EB88 /* DeceiptCbor.swift */; };
-		BFAA78F92299F9D1D4EE949C /* DeceiptCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2870A9348AAE5EBEE675F3BE /* DeceiptCrypto.swift */; };
-		AAC31E279EAA7700EBDC1BBB /* DeceiptBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A889E5B3A0AFBE7D05E127F /* DeceiptBinding.swift */; };
-		D6AA99E6D94DF6ED86037CD0 /* DeceiptCose.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4852B07E76E878D87F3B41 /* DeceiptCose.swift */; };
-		904EB125EE9C9786B8D8F7C5 /* DeceiptCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC0E4240825062650EAAC43 /* DeceiptCredential.swift */; };
-		778525895C21067F7E318D6D /* DeceiptReceiptVerify.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7F10FA90E1A1444E998FAD /* DeceiptReceiptVerify.swift */; };
-		AFE692B3CC895202B80668D4 /* DeceiptHandshake.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8E657793B92AF74847F1A3 /* DeceiptHandshake.swift */; };
-		BB8E45B64EB24AE9C1794579 /* DeceiptWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40D7B5C4C75499A3BC634210 /* DeceiptWire.swift */; };
-		3D1132081A2E344F1E567C0A /* DeceiptTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A41528624AB8EC679BEC7A /* DeceiptTransport.swift */; };
-		C1C4B098CEEE49FD6DB39D65 /* DeceiptSessionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08AF7669C608038554AA04E0 /* DeceiptSessionEngine.swift */; };
-		84C3D4CA0560D986EE34EF83 /* DeceiptFrameSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5F0E94A4CA6D084352B30B0 /* DeceiptFrameSender.swift */; };
-		AD920084D37E374B9907BF40 /* DeceiptKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E171149D2E34F8CEEDF916 /* DeceiptKeyStore.swift */; };
-		D58349B6E51D144A4EE5AE25 /* DeceiptCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7DDD8364C26A7E0B97366AF /* DeceiptCapabilities.swift */; };
-		C4AF4F8FE6BB87D541A1E191 /* DeceiptBleTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCA8DF25463B458036EF44E /* DeceiptBleTransport.swift */; };
 		39091B781746A756B8B646BD /* DeceiptNativeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 785D191CAA9B2C2B88E44C01 /* DeceiptNativeBackend.swift */; };
+		3D1132081A2E344F1E567C0A /* DeceiptTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A41528624AB8EC679BEC7A /* DeceiptTransport.swift */; };
+		46B43D2FD160D41A64A85605 /* DeceiptBytes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F5A1740873BCBD53EB3F6C4 /* DeceiptBytes.swift */; };
+		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		778525895C21067F7E318D6D /* DeceiptReceiptVerify.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7F10FA90E1A1444E998FAD /* DeceiptReceiptVerify.swift */; };
+		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		84C3D4CA0560D986EE34EF83 /* DeceiptFrameSender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5F0E94A4CA6D084352B30B0 /* DeceiptFrameSender.swift */; };
+		904EB125EE9C9786B8D8F7C5 /* DeceiptCredential.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FC0E4240825062650EAAC43 /* DeceiptCredential.swift */; };
+		A5D721E369EF2327A9B455D2 /* DeceiptUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 923FE43F7711134CBC437A79 /* DeceiptUITests.swift */; };
 		AA7AEBFB0B4C408A3955363F /* DeceiptNativeModule.mm in Sources */ = {isa = PBXBuildFile; fileRef = AB9383FF68F81E273DC45707 /* DeceiptNativeModule.mm */; };
+		AAC31E279EAA7700EBDC1BBB /* DeceiptBinding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A889E5B3A0AFBE7D05E127F /* DeceiptBinding.swift */; };
+		AD920084D37E374B9907BF40 /* DeceiptKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E171149D2E34F8CEEDF916 /* DeceiptKeyStore.swift */; };
+		AFE692B3CC895202B80668D4 /* DeceiptHandshake.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA8E657793B92AF74847F1A3 /* DeceiptHandshake.swift */; };
+		B04739C821F21FB6B55E7949 /* DeceiptCbor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36619B512152A291C9D3EB88 /* DeceiptCbor.swift */; };
+		BB8E45B64EB24AE9C1794579 /* DeceiptWire.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40D7B5C4C75499A3BC634210 /* DeceiptWire.swift */; };
+		BFAA78F92299F9D1D4EE949C /* DeceiptCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2870A9348AAE5EBEE675F3BE /* DeceiptCrypto.swift */; };
+		C1C4B098CEEE49FD6DB39D65 /* DeceiptSessionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08AF7669C608038554AA04E0 /* DeceiptSessionEngine.swift */; };
+		C4AF4F8FE6BB87D541A1E191 /* DeceiptBleTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BCA8DF25463B458036EF44E /* DeceiptBleTransport.swift */; };
+		D58349B6E51D144A4EE5AE25 /* DeceiptCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7DDD8364C26A7E0B97366AF /* DeceiptCapabilities.swift */; };
+		D6AA99E6D94DF6ED86037CD0 /* DeceiptCose.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4852B07E76E878D87F3B41 /* DeceiptCose.swift */; };
+		E05FD0B8C9338F0E11FB653B /* DeceiptConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCB5D257AA4E81246CE1E0D /* DeceiptConstants.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		D5561B91513F568A632038E3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 13B07F861A680F5B00A75B9A;
+			remoteInfo = DeceiptApp;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		08AF7669C608038554AA04E0 /* DeceiptSessionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptSessionEngine.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Engine/DeceiptSessionEngine.swift"; sourceTree = "<group>"; };
+		0A889E5B3A0AFBE7D05E127F /* DeceiptBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptBinding.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptBinding.swift"; sourceTree = "<group>"; };
+		0C7F10FA90E1A1444E998FAD /* DeceiptReceiptVerify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptReceiptVerify.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptReceiptVerify.swift"; sourceTree = "<group>"; };
+		0D4852B07E76E878D87F3B41 /* DeceiptCose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCose.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptCose.swift"; sourceTree = "<group>"; };
+		0FC0E4240825062650EAAC43 /* DeceiptCredential.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCredential.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptCredential.swift"; sourceTree = "<group>"; };
+		0FCB5D257AA4E81246CE1E0D /* DeceiptConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptConstants.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptConstants.swift"; sourceTree = "<group>"; };
+		133310C3396D62A44C146BAF /* DeceiptAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeceiptAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07F961A680F5B00A75B9A /* DeceiptApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DeceiptApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = DeceiptApp/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = DeceiptApp/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = DeceiptApp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		14E171149D2E34F8CEEDF916 /* DeceiptKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptKeyStore.swift; path = DeceiptApp/Native/DeceiptKeyStore.swift; sourceTree = "<group>"; };
+		23A41528624AB8EC679BEC7A /* DeceiptTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptTransport.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Engine/DeceiptTransport.swift"; sourceTree = "<group>"; };
+		2870A9348AAE5EBEE675F3BE /* DeceiptCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCrypto.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Crypto/DeceiptCrypto.swift"; sourceTree = "<group>"; };
+		2BCA8DF25463B458036EF44E /* DeceiptBleTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptBleTransport.swift; path = DeceiptApp/Native/DeceiptBleTransport.swift; sourceTree = "<group>"; };
+		2F5A1740873BCBD53EB3F6C4 /* DeceiptBytes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptBytes.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Support/DeceiptBytes.swift"; sourceTree = "<group>"; };
+		36619B512152A291C9D3EB88 /* DeceiptCbor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCbor.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/CBOR/DeceiptCbor.swift"; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-DeceiptApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DeceiptApp.debug.xcconfig"; path = "Target Support Files/Pods-DeceiptApp/Pods-DeceiptApp.debug.xcconfig"; sourceTree = "<group>"; };
+		40D7B5C4C75499A3BC634210 /* DeceiptWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptWire.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptWire.swift"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-DeceiptApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-DeceiptApp.release.xcconfig"; path = "Target Support Files/Pods-DeceiptApp/Pods-DeceiptApp.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-DeceiptApp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-DeceiptApp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = DeceiptApp/AppDelegate.swift; sourceTree = "<group>"; };
+		785D191CAA9B2C2B88E44C01 /* DeceiptNativeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptNativeBackend.swift; path = DeceiptApp/Native/DeceiptNativeBackend.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = DeceiptApp/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		2F5A1740873BCBD53EB3F6C4 /* DeceiptBytes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptBytes.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Support/DeceiptBytes.swift"; sourceTree = "<group>"; };
+		923FE43F7711134CBC437A79 /* DeceiptUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeceiptUITests.swift; sourceTree = "<group>"; };
+		A7DDD8364C26A7E0B97366AF /* DeceiptCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCapabilities.swift; path = DeceiptApp/Native/DeceiptCapabilities.swift; sourceTree = "<group>"; };
+		AB9383FF68F81E273DC45707 /* DeceiptNativeModule.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = DeceiptNativeModule.mm; path = DeceiptApp/Native/DeceiptNativeModule.mm; sourceTree = "<group>"; };
 		AC842A826D62CCF9B9475308 /* DeceiptError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptError.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Support/DeceiptError.swift"; sourceTree = "<group>"; };
-		0FCB5D257AA4E81246CE1E0D /* DeceiptConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptConstants.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptConstants.swift"; sourceTree = "<group>"; };
-		36619B512152A291C9D3EB88 /* DeceiptCbor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCbor.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/CBOR/DeceiptCbor.swift"; sourceTree = "<group>"; };
-		2870A9348AAE5EBEE675F3BE /* DeceiptCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCrypto.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Crypto/DeceiptCrypto.swift"; sourceTree = "<group>"; };
-		0A889E5B3A0AFBE7D05E127F /* DeceiptBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptBinding.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptBinding.swift"; sourceTree = "<group>"; };
-		0D4852B07E76E878D87F3B41 /* DeceiptCose.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCose.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptCose.swift"; sourceTree = "<group>"; };
-		0FC0E4240825062650EAAC43 /* DeceiptCredential.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCredential.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptCredential.swift"; sourceTree = "<group>"; };
-		0C7F10FA90E1A1444E998FAD /* DeceiptReceiptVerify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptReceiptVerify.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptReceiptVerify.swift"; sourceTree = "<group>"; };
 		BA8E657793B92AF74847F1A3 /* DeceiptHandshake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptHandshake.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptHandshake.swift"; sourceTree = "<group>"; };
-		40D7B5C4C75499A3BC634210 /* DeceiptWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptWire.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Protocol/DeceiptWire.swift"; sourceTree = "<group>"; };
-		23A41528624AB8EC679BEC7A /* DeceiptTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptTransport.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Engine/DeceiptTransport.swift"; sourceTree = "<group>"; };
-		08AF7669C608038554AA04E0 /* DeceiptSessionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptSessionEngine.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Engine/DeceiptSessionEngine.swift"; sourceTree = "<group>"; };
 		C5F0E94A4CA6D084352B30B0 /* DeceiptFrameSender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptFrameSender.swift; path = "../../modules/deceipt-native/ios/DeceiptModule/Engine/DeceiptFrameSender.swift"; sourceTree = "<group>"; };
-		14E171149D2E34F8CEEDF916 /* DeceiptKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptKeyStore.swift; path = "DeceiptApp/Native/DeceiptKeyStore.swift"; sourceTree = "<group>"; };
-		A7DDD8364C26A7E0B97366AF /* DeceiptCapabilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptCapabilities.swift; path = "DeceiptApp/Native/DeceiptCapabilities.swift"; sourceTree = "<group>"; };
-		2BCA8DF25463B458036EF44E /* DeceiptBleTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptBleTransport.swift; path = "DeceiptApp/Native/DeceiptBleTransport.swift"; sourceTree = "<group>"; };
-		785D191CAA9B2C2B88E44C01 /* DeceiptNativeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DeceiptNativeBackend.swift; path = "DeceiptApp/Native/DeceiptNativeBackend.swift"; sourceTree = "<group>"; };
-		E0F131D58694C2A4A4D42F6D /* DeceiptNativeModule.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = DeceiptNativeModule.h; path = "DeceiptApp/Native/DeceiptNativeModule.h"; sourceTree = "<group>"; };
-		AB9383FF68F81E273DC45707 /* DeceiptNativeModule.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = DeceiptNativeModule.mm; path = "DeceiptApp/Native/DeceiptNativeModule.mm"; sourceTree = "<group>"; };
+		D9FBC0865C697A683B9A66F9 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS14.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		E0F131D58694C2A4A4D42F6D /* DeceiptNativeModule.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = DeceiptNativeModule.h; path = DeceiptApp/Native/DeceiptNativeModule.h; sourceTree = "<group>"; };
+		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +87,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				0C80B921A6F3F58F76C31292 /* libPods-DeceiptApp.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		77A3D7B68F3840B2CCC27ECC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				03E9C90445EC9E30A9094914 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -95,8 +118,17 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				5DCACB8F33CDC322A6C60F78 /* libPods-DeceiptApp.a */,
+				70B919906B6222ADDBA5D0B2 /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		70B919906B6222ADDBA5D0B2 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				D9FBC0865C697A683B9A66F9 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -116,6 +148,7 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				D90B1C4BB391C1648749FC0B /* DeceiptAppUITests */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -126,6 +159,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* DeceiptApp.app */,
+				133310C3396D62A44C146BAF /* DeceiptAppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -137,19 +171,6 @@
 				5709B34CF0A7D63546082F79 /* Pods-DeceiptApp.release.xcconfig */,
 			);
 			path = Pods;
-			sourceTree = "<group>";
-		};
-		CDC03F16E67BB9C9B1601EAC /* Native */ = {
-			isa = PBXGroup;
-			children = (
-				14E171149D2E34F8CEEDF916 /* DeceiptKeyStore.swift */,
-				A7DDD8364C26A7E0B97366AF /* DeceiptCapabilities.swift */,
-				2BCA8DF25463B458036EF44E /* DeceiptBleTransport.swift */,
-				785D191CAA9B2C2B88E44C01 /* DeceiptNativeBackend.swift */,
-				E0F131D58694C2A4A4D42F6D /* DeceiptNativeModule.h */,
-				AB9383FF68F81E273DC45707 /* DeceiptNativeModule.mm */,
-			);
-			name = Native;
 			sourceTree = "<group>";
 		};
 		CBE30353B4688FBA26AAEA87 /* DeceiptCore */ = {
@@ -173,9 +194,49 @@
 			name = DeceiptCore;
 			sourceTree = "<group>";
 		};
+		CDC03F16E67BB9C9B1601EAC /* Native */ = {
+			isa = PBXGroup;
+			children = (
+				14E171149D2E34F8CEEDF916 /* DeceiptKeyStore.swift */,
+				A7DDD8364C26A7E0B97366AF /* DeceiptCapabilities.swift */,
+				2BCA8DF25463B458036EF44E /* DeceiptBleTransport.swift */,
+				785D191CAA9B2C2B88E44C01 /* DeceiptNativeBackend.swift */,
+				E0F131D58694C2A4A4D42F6D /* DeceiptNativeModule.h */,
+				AB9383FF68F81E273DC45707 /* DeceiptNativeModule.mm */,
+			);
+			name = Native;
+			sourceTree = "<group>";
+		};
+		D90B1C4BB391C1648749FC0B /* DeceiptAppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				923FE43F7711134CBC437A79 /* DeceiptUITests.swift */,
+			);
+			name = DeceiptAppUITests;
+			path = DeceiptAppUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		04AE9ECDAA55805652E1B650 /* DeceiptAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3F62B3E555D29D4809BBA249 /* Build configuration list for PBXNativeTarget "DeceiptAppUITests" */;
+			buildPhases = (
+				128D8335B2D48F59A2AE0844 /* Sources */,
+				77A3D7B68F3840B2CCC27ECC /* Frameworks */,
+				E06A65D0463D00EACBDC41E8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				68D679577EFC263CCDAAD068 /* PBXTargetDependency */,
+			);
+			name = DeceiptAppUITests;
+			productName = DeceiptAppUITests;
+			productReference = 133310C3396D62A44C146BAF /* DeceiptAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		13B07F861A680F5B00A75B9A /* DeceiptApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "DeceiptApp" */;
@@ -224,6 +285,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* DeceiptApp */,
+				04AE9ECDAA55805652E1B650 /* DeceiptAppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -236,6 +298,13 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				08C70B04483FBF6D6F407473 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E06A65D0463D00EACBDC41E8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -317,6 +386,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		128D8335B2D48F59A2AE0844 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5D721E369EF2327A9B455D2 /* DeceiptUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		13B07F871A680F5B00A75B9A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -345,6 +422,15 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		68D679577EFC263CCDAAD068 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = DeceiptApp;
+			target = 13B07F861A680F5B00A75B9A /* DeceiptApp */;
+			targetProxy = D5561B91513F568A632038E3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -402,6 +488,39 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		3F3626377BE1F856B5051F35 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.deceipt.poc.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DeceiptApp;
+			};
+			name = Debug;
+		};
+		44B265FCE2C5232F4E2CB7EF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.deceipt.poc.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = DeceiptApp;
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -569,6 +688,15 @@
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
 				13B07F951A680F5B00A75B9A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3F62B3E555D29D4809BBA249 /* Build configuration list for PBXNativeTarget "DeceiptAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				44B265FCE2C5232F4E2CB7EF /* Release */,
+				3F3626377BE1F856B5051F35 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

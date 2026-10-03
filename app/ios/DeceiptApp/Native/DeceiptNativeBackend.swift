@@ -137,6 +137,18 @@ public final class DeceiptNativeBackend: NSObject {
 
     public func merchantKeyDelete() { keyStore.delete() }
 
+    // MARK: Secure randomness (WebCrypto is absent on RN 0.87 Hermes)
+
+    /// Returns `count` bytes from the platform CSPRNG as padded standard base64.
+    /// Bound 1..64 (documented); a JS PRNG is never acceptable for protocol
+    /// secrets. The bytes are never logged.
+    public func randomBytes(count: Int) throws -> String {
+        guard (1...64).contains(count) else {
+            throw DeceiptFailure("MESSAGE_FIELD_RANGE", phase: BridgePhase.internal, detail: "randomBytes count must be 1..64")
+        }
+        return DeceiptBytes.base64(DeceiptCrypto.randomBytes(count))
+    }
+
     // MARK: Test-only provisioning (gated)
 
     /// Imports the published PoC test device key + credential. Dev builds only:
@@ -684,6 +696,8 @@ public final class DeceiptNativeBackend: NSObject {
             return try merchantKeyGenerate()
         case "merchantKeyDelete":
             merchantKeyDelete(); return NSNull()
+        case "randomBytes":
+            return try randomBytes(count: (args.first as? NSNumber)?.intValue ?? 0)
         case "merchantPublicIdentity":
             return merchantPublicIdentity() ?? NSNull()
         case "merchantSignReceipt":

@@ -27,14 +27,21 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "QR_PAYLOAD"
+            value = "$(QR_PAYLOAD)"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
       <Testables>
          <TestableReference
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "DeceiptAppTests.xctest"
-               BlueprintName = "DeceiptAppTests"
+               BlueprintIdentifier = "04AE9ECDAA55805652E1B650"
+               BuildableName = "DeceiptAppUITests.xctest"
+               BlueprintName = "DeceiptAppUITests"
                ReferencedContainer = "container:DeceiptApp.xcodeproj">
             </BuildableReference>
          </TestableReference>
