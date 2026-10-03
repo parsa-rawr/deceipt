@@ -19,7 +19,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface DeceiptNative : NSObject <RCTBridgeModule>
+@interface DeceiptNative : NSObject <RCTBridgeModule, RCTTurboModule>
 @end
 
 NS_ASSUME_NONNULL_END

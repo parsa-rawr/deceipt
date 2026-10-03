@@ -3,10 +3,13 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 
+// Apps built with the iOS 26+ SDK MUST adopt the UIScene life cycle; the bare
+// RN 0.87 template still uses the legacy `UIWindow` flow, which UIKit rejects at
+// launch ("UIScene life cycle is required for apps built with this SDK").
+// The React Native factory itself takes a `UIWindow`, so the scene delegate
+// creates the window and hands it to `startReactNative`.
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
-  var window: UIWindow?
-
   var reactNativeDelegate: ReactNativeDelegate?
   var reactNativeFactory: RCTReactNativeFactory?
 
@@ -20,16 +23,43 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
+    return true
+  }
 
-    window = UIWindow(frame: UIScreen.main.bounds)
+  func application(
+    _ application: UIApplication,
+    configurationForConnecting connectingSceneSession: UISceneSession,
+    options: UIScene.ConnectionOptions
+  ) -> UISceneConfiguration {
+    let configuration = UISceneConfiguration(
+      name: "Default Configuration",
+      sessionRole: connectingSceneSession.role
+    )
+    configuration.delegateClass = SceneDelegate.self
+    return configuration
+  }
+}
 
-    factory.startReactNative(
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions
+  ) {
+    guard let windowScene = scene as? UIWindowScene,
+          let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
+      return
+    }
+    let window = UIWindow(windowScene: windowScene)
+    self.window = window
+    appDelegate.reactNativeFactory?.startReactNative(
       withModuleName: "DeceiptApp",
       in: window,
-      launchOptions: launchOptions
+      launchOptions: nil
     )
-
-    return true
+    window.makeKeyAndVisible()
   }
 }
 
