@@ -9,10 +9,17 @@
  */
 
 import {ed25519Verify, hmacSha256, hmacSha256Pure, hmacSha256Sync, sha256, sha256Pure, sha256Sync} from '../src/protocol/crypto';
-import {hexDecode, hexEncode} from '../src/protocol/bytes';
+import {concatBytes, hexDecode, hexEncode, utf8Encode} from '../src/protocol/bytes';
 import {computeBindingTupleDigest, computeOfferHash, bindingProofMessage} from '../src/protocol/binding';
 import {buildTranscript, transcriptHash} from '../src/protocol/handshake';
-import {loadHandshakeValid, loadTestKeys} from './fixtures';
+import {
+  loadAeadValid,
+  loadCredentials,
+  loadFramingValid,
+  loadHandshakeValid,
+  loadReceiptValid,
+  loadTestKeys,
+} from './fixtures';
 
 const SHA256_EMPTY = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const SHA256_ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
@@ -142,6 +149,72 @@ describe('pure digests reproduce the frozen r4 vectors with WebCrypto absent', (
     const viaFallback = sha256Pure(data);
     const viaWebCrypto = await sha256(data);
     expect(hexEncode(viaWebCrypto)).toBe(hexEncode(viaFallback));
+  });
+});
+
+describe('the on-device fallback reproduces every frozen digest the shared layer computes', () => {
+  /**
+   * This is the check that matters for Hermes: no `globalThis.crypto`, so the
+   * pure implementations must produce the exact bytes the frozen r4 vectors
+   * record. Each case below is run through `sha256Sync`/`hmacSha256Sync`, which
+   * are the pure paths unconditionally.
+   */
+  it('receipt body hash (receipt-valid receipt_body_sha256)', () => {
+    const vector = loadReceiptValid();
+    expect(hexEncode(sha256Sync(hexDecode(vector.receipt_body_hex)))).toBe(vector.receipt_body_sha256);
+  });
+
+  it('long receipt body hash (receipt-valid long_receipt)', () => {
+    const vector = loadReceiptValid();
+    expect(hexEncode(sha256Sync(hexDecode(vector.long_receipt.receipt_body_hex)))).toBe(vector.long_receipt.receipt_body_sha256);
+  });
+
+  it('domain-separated offer hash and binding tuple digest (handshake-valid)', () => {
+    const vector = loadHandshakeValid();
+    // offer_hash  = SHA-256("deceipt-offer-hash-v1"  || 0x00 || preimage)
+    const offerPreimage = concatBytes(
+      utf8Encode('deceipt-offer-hash-v1'),
+      new Uint8Array([0x00]),
+      hexDecode(vector.offer_hash_preimage_hex),
+    );
+    expect(hexEncode(sha256Sync(offerPreimage))).toBe(vector.offer_hash_hex);
+    // binding_tuple_digest = SHA-256("deceipt-binding-tuple-v1" || 0x00 || tuple)
+    const tuplePreimage = concatBytes(
+      utf8Encode('deceipt-binding-tuple-v1'),
+      new Uint8Array([0x00]),
+      hexDecode(vector.binding_tuple_hex),
+    );
+    expect(hexEncode(sha256Sync(tuplePreimage))).toBe(vector.binding_tuple_digest_hex);
+  });
+
+  it('credential hash (handshake-valid credential_hash_hex)', () => {
+    const vector = loadHandshakeValid();
+    const credential = hexDecode(loadCredentials().cases[0].credential_hex);
+    expect(hexEncode(sha256Sync(credential))).toBe(vector.credential_hash_hex);
+  });
+
+  it('transfer payload hash (framing-valid payload_hash_hex)', () => {
+    const framing = loadFramingValid();
+    const ciphertext = hexDecode(framing.frames_hex.map(frame => frame.slice(40)).join(''));
+    expect(hexEncode(sha256Sync(ciphertext))).toBe(framing.payload_hash_hex);
+  });
+
+  it('session context transcript hash (aead-valid session_context_hex prefix)', () => {
+    const aead = loadAeadValid();
+    const context = hexDecode(aead.session_context_hex);
+    // session_context = transcript_hash(32) || transfer_id(16)
+    expect(hexEncode(sha256Sync(hexDecode(loadHandshakeValid().transcript_hex)))).toBe(
+      hexEncode(context.subarray(0, 32)),
+    );
+  });
+
+  it('binding proof (handshake-valid binding_proof_hex) via the pure HMAC', () => {
+    const vector = loadHandshakeValid();
+    const proof = hmacSha256Sync(
+      hexDecode('000102030405060708090a0b0c0d0e0f'),
+      hexDecode(vector.binding_proof_message_hex),
+    );
+    expect(hexEncode(proof)).toBe(vector.binding_proof_hex);
   });
 });
 
