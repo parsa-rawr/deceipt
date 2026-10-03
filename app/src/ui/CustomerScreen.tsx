@@ -168,11 +168,9 @@ export function CustomerScreen({native, store, anchors, now, controllerFactory}:
           <Text style={styles.sectionTitle}>Permissions</Text>
           <Field label="bluetooth" value={`${permissions.bluetooth} (${permissions.bluetoothState})`} />
           <Field label="camera" value={permissions.camera} />
-          {permissions.bluetooth !== 'granted' || permissions.bluetoothState !== 'on' ? (
+          {permissionProblem(permissions) !== null ? (
             <Text style={styles.error} testID="permission-warning">
-              {permissions.bluetoothState !== 'on'
-                ? 'Bluetooth is off. Turn it on to receive a receipt.'
-                : 'Deceipt needs Bluetooth to receive your receipt.'}
+              {permissionProblem(permissions)}
             </Text>
           ) : null}
           <ActionButton
@@ -357,6 +355,34 @@ export async function verifyStoredReceipt(
 
 export function describeError(error: unknown): string {
   return describe(error);
+}
+
+/**
+ * The recovery copy for a Bluetooth problem. Permission state and radio state
+ * are DIFFERENT failures with different fixes, so they must never share a
+ * message: telling a user to turn the radio on when the app lacks permission
+ * sends them down a path that cannot work.
+ */
+export function permissionProblem(permissions: PermissionReport): string | null {
+  if (permissions.bluetooth === 'denied' || permissions.bluetooth === 'restricted') {
+    return 'Deceipt needs Bluetooth permission to receive your receipt. Grant it in Settings, then try again.';
+  }
+  if (permissions.bluetooth === 'undetermined') {
+    return 'Deceipt needs Bluetooth access to receive your receipt.';
+  }
+  if (permissions.bluetooth === 'unavailable' || permissions.bluetoothState === 'unsupported') {
+    return 'This device does not support Bluetooth, so it cannot receive a receipt.';
+  }
+  if (permissions.bluetoothState === 'unauthorized') {
+    return 'This app is not authorized to use Bluetooth. Allow it in Settings, then try again.';
+  }
+  if (permissions.bluetoothState === 'off') {
+    return 'Bluetooth is off. Turn it on to receive a receipt.';
+  }
+  if (permissions.bluetoothState === 'unknown') {
+    return 'Bluetooth state is unknown. Check that Bluetooth is on, then try again.';
+  }
+  return null;
 }
 
 function describe(error: unknown): string {

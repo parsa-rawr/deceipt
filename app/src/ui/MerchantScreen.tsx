@@ -132,7 +132,7 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
       if (merchantIdHex.length !== 32 || credentialB64.length === 0) {
         throw new ProtocolError('CAPABILITY_UNAVAILABLE', 'the provisioned key has no merchant id or credential');
       }
-      const receipt = buildDemoReceipt({
+      const receipt = await buildDemoReceipt({
         merchantId: hexToBytes(merchantIdHex),
         credentialBytes: base64ToBytes(credentialB64),
       });

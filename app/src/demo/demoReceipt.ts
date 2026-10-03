@@ -22,7 +22,7 @@
 
 import {computeLineAmountMinor, type Receipt} from '../protocol/receipt';
 import type {ProtocolError} from '../protocol/errors';
-import {randomBytes} from '../protocol/crypto';
+import {secureRandomBytes} from '../protocol/crypto';
 
 /** Fixed instant inside the frozen credential's validity window. */
 export const DEMO_ISSUED_AT_UNIX = 1767225540;
@@ -37,6 +37,8 @@ export interface DemoReceiptInputs {
   credentialBytes: Uint8Array;
   /** Overrides for tests; defaults to the frozen demo instant. */
   issuedAtUnix?: number;
+  /** Overrides for tests; defaults to 16 CSPRNG bytes. */
+  receiptId?: Uint8Array;
 }
 
 interface DemoLine {
@@ -75,10 +77,13 @@ const DEMO_TIP_MINOR = 100;
  * rule, then the totals are recomputed from what was stated, so the receipt
  * this returns always satisfies the arithmetic validation it will face.
  */
-export function buildDemoReceipt(inputs: DemoReceiptInputs): Receipt {
+export async function buildDemoReceipt(inputs: DemoReceiptInputs): Promise<Receipt> {
   if (inputs.merchantId.length !== 16) {
     throw new Error('the demo receipt needs the credential\'s 16-byte merchant_id');
   }
+  // A fresh identifier per checkout is a protocol requirement (receipt-v1.md §3
+  // label 3), and it is a secret-bearing value, so it comes from the CSPRNG.
+  const receiptId = inputs.receiptId ?? (await secureRandomBytes(16));
   const lines = DEMO_LINES.map(line => {
     const quantity = {scale: line.qtyScale, value: line.qtyValue, unit: line.unit};
     return {
@@ -99,7 +104,7 @@ export function buildDemoReceipt(inputs: DemoReceiptInputs): Receipt {
   return {
     receiptVersion: 1,
     kind: 1,
-    receiptId: randomBytes(16),
+    receiptId,
     issuedAt: inputs.issuedAtUnix ?? DEMO_ISSUED_AT_UNIX,
     tzOffsetMinutes: -14400,
     merchant: {

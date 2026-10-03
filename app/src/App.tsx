@@ -23,6 +23,8 @@ import {NativeModules, ScrollView, StatusBar, Text, View, useColorScheme} from '
 import type {DeceiptNative} from './native/DeceiptNative';
 import {InMemoryDeceiptNative} from './native/mock/InMemoryDeceiptNative';
 import {adaptNativeModule, probeNativeModule, type ProbeResult} from './native/adapterShim';
+import {base64Decode} from './protocol/bytes';
+import {canGenerateSecureRandom, setNativeRandomSource} from './protocol/crypto';
 import {MemoryKeyValueStore, ReceiptStore} from './storage/receiptStore';
 import {TRUST_ANCHORS} from './config/trustAnchors';
 import {MerchantScreen} from './ui/MerchantScreen';
@@ -55,6 +57,19 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
   const [mode, setMode] = useState<Mode>('menu');
   const binding = useMemo(() => (native === undefined ? resolveNativeAdapter() : bindSuppliedAdapter(native)), [native]);
   const resolvedNative = binding.adapter;
+  // Point the protocol layer at the adapter's CSPRNG before any screen can mint
+  // an identifier or a nonce. Hermes has no `globalThis.crypto`, so on device
+  // this is the only secure source there is.
+  useMemo(() => {
+    setNativeRandomSource(
+      binding.probe.compatible
+        ? {
+            randomBytes: async (count: number) => base64Decode(await binding.adapter.randomBytes(count)),
+          }
+        : null,
+    );
+    return undefined;
+  }, [binding]);
   const resolvedStore = useMemo(() => store ?? new ReceiptStore(new MemoryKeyValueStore()), [store]);
   const clock = useMemo(() => now ?? (() => DEMO_NOW_UNIX), [now]);
 
@@ -78,6 +93,9 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
           <Card testID="adapter-card">
             <Text style={styles.sectionTitle}>Adapter</Text>
             <Text style={styles.value}>{describeAdapter(resolvedNative)}</Text>
+            <Text style={styles.label} testID="randomness-source">
+              randomness: {canGenerateSecureRandom() ? (binding.isNative ? 'native CSPRNG' : 'WebCrypto (mock build)') : 'unavailable'}
+            </Text>
             {binding.probe.compatible ? (
               <Text style={styles.label} testID="adapter-compatible">
                 contract check: ok ({binding.probe.present.length} methods, events via {binding.probe.eventMode})

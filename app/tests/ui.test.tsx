@@ -125,7 +125,7 @@ describe('customer screen drive', () => {
 
     // Merchant side: prepare and advertise through the same helpers the screen
     // uses, so the handoff exercised here is the real one.
-    const receipt = buildDemoReceipt({
+    const receipt = await buildDemoReceipt({
       merchantId: pair.provision.merchantId,
       credentialBytes: pair.provision.credentialBytes,
     });
@@ -175,7 +175,7 @@ describe('customer screen drive', () => {
   it('never trusts a receipt whose signature was tampered in flight', async () => {
     const pair = await buildMockPair({tamperFinalFrameByte: true});
     const store = new ReceiptStore(new MemoryKeyValueStore());
-    const receipt = buildDemoReceipt({
+    const receipt = await buildDemoReceipt({
       merchantId: pair.provision.merchantId,
       credentialBytes: pair.provision.credentialBytes,
     });
@@ -228,7 +228,7 @@ describe('customer screen drive', () => {
 describe('customer code round-trips into the selection', () => {
   it('accepts the exact merchant payload as startCustomerSession input', async () => {
     const pair = await buildMockPair();
-    const receipt = buildDemoReceipt({
+    const receipt = await buildDemoReceipt({
       merchantId: pair.provision.merchantId,
       credentialBytes: pair.provision.credentialBytes,
     });
@@ -351,4 +351,51 @@ function contractShapedModule(overrides: Record<string, unknown>): Record<string
     built[key] = value;
   }
   return built;
+}
+
+describe('Bluetooth failure copy distinguishes permission from radio state', () => {
+  it('never tells a user to turn on the radio when the permission is missing', async () => {
+    const {permissionProblem} = await permissionsModule();
+    // The exact device state: denied + unauthorized.
+    const denied = permissionProblem({bluetooth: 'denied', camera: 'denied', bluetoothState: 'unauthorized'});
+    expect(denied).toContain('permission');
+    expect(denied).not.toContain('Turn it on');
+    // Radio off is a different problem with a different fix.
+    const off = permissionProblem({bluetooth: 'granted', camera: 'granted', bluetoothState: 'off'});
+    expect(off).toContain('Turn it on');
+    expect(off).not.toContain('permission');
+    // Unsupported hardware is a third.
+    const unsupported = permissionProblem({bluetooth: 'unavailable', camera: 'granted', bluetoothState: 'unsupported'});
+    expect(unsupported).toContain('does not support Bluetooth');
+    // A healthy state says nothing.
+    expect(permissionProblem({bluetooth: 'granted', camera: 'granted', bluetoothState: 'on'})).toBeNull();
+  });
+
+  it('renders the permission fix, not the radio fix, for the device state', async () => {
+    const {permissionProblem} = await permissionsModule();
+    void permissionProblem;
+    const {InMemoryDeceiptNative} = await mockModule();
+    const adapter = new InMemoryDeceiptNative({platform: 'android'});
+    adapter.setPermissionState({bluetooth: 'denied', camera: 'denied', bluetoothState: 'unauthorized'});
+    const root = render(
+      React.createElement(CustomerScreen, {
+        native: adapter,
+        store: new ReceiptStore(new MemoryKeyValueStore()),
+        anchors: frozenAnchors(),
+        now: () => NOW,
+      }),
+    );
+    await settle(3);
+    const warning = collectText(byId(root, 'permission-warning'));
+    expect(warning).toContain('permission');
+    expect(warning).not.toContain('Bluetooth is off');
+  });
+});
+
+async function permissionsModule(): Promise<typeof import('../src/ui/CustomerScreen')> {
+  return require('../src/ui/CustomerScreen') as typeof import('../src/ui/CustomerScreen');
+}
+
+async function mockModule(): Promise<typeof import('../src/native/mock/InMemoryDeceiptNative')> {
+  return require('../src/native/mock/InMemoryDeceiptNative') as typeof import('../src/native/mock/InMemoryDeceiptNative');
 }

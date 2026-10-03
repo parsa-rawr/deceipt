@@ -12,6 +12,9 @@ import {ed25519Verify, hmacSha256, hmacSha256Pure, hmacSha256Sync, sha256, sha25
 import {concatBytes, hexDecode, hexEncode, utf8Encode} from '../src/protocol/bytes';
 import {computeBindingTupleDigest, computeOfferHash, bindingProofMessage} from '../src/protocol/binding';
 import {buildTranscript, transcriptHash} from '../src/protocol/handshake';
+import {prepareMerchantOffer} from '../src/checkout/merchantFlow';
+import {buildDemoReceipt} from '../src/demo/demoReceipt';
+import {buildMockPair} from './harness';
 import {
   loadAeadValid,
   loadCredentials,
@@ -231,3 +234,112 @@ describe('Ed25519 is not hand-rolled', () => {
     ).toBe(true);
   });
 });
+
+describe('secure randomness comes from native when WebCrypto is absent', () => {
+  it('does not fall back to a JS PRNG; it fails closed with no source', async () => {
+    const {canGenerateSecureRandom, secureRandomBytes, setNativeRandomSource} = sources();
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
+    setNativeRandomSource(null);
+    try {
+      expect(canGenerateSecureRandom()).toBe(false);
+      await expect(secureRandomBytes(16)).rejects.toMatchObject({name: 'CAPABILITY_UNAVAILABLE'});
+      // The synchronous helper must refuse too, rather than inventing bytes.
+      expect(() => randomBytesSync(16)).toThrow();
+    } finally {
+      if (descriptor === undefined) {
+        delete (globalThis as {crypto?: unknown}).crypto;
+      } else {
+        Object.defineProperty(globalThis, 'crypto', descriptor);
+      }
+      setNativeRandomSource(null);
+    }
+  });
+
+  it('takes the native path, and never consults WebCrypto, when a source is registered', async () => {
+    const {secureRandomBytes, setNativeRandomSource} = sources();
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    // Remove WebCrypto so a Node-only pass cannot satisfy this test.
+    Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
+    const calls: number[] = [];
+    setNativeRandomSource({
+      randomBytes: async (count: number) => {
+        calls.push(count);
+        return new Uint8Array(count).fill(0xa5);
+      },
+    });
+    try {
+      const bytes = await secureRandomBytes(16);
+      expect(bytes).toHaveLength(16);
+      expect(bytes[0]).toBe(0xa5);
+      expect(calls).toEqual([16]);
+      // The protocol's identifier minting goes through the same path.
+      const sessionId = await secureRandomBytes(16);
+      expect(sessionId).toHaveLength(16);
+      expect(calls).toEqual([16, 16]);
+    } finally {
+      if (descriptor === undefined) {
+        delete (globalThis as {crypto?: unknown}).crypto;
+      } else {
+        Object.defineProperty(globalThis, 'crypto', descriptor);
+      }
+      setNativeRandomSource(null);
+    }
+  });
+
+  it('rejects an out-of-range count instead of allocating', async () => {
+    const {secureRandomBytes, setNativeRandomSource} = sources();
+    setNativeRandomSource({randomBytes: async (count: number) => new Uint8Array(count)});
+    try {
+      await expect(secureRandomBytes(0)).rejects.toMatchObject({name: 'CAPABILITY_UNAVAILABLE'});
+      await expect(secureRandomBytes(65)).rejects.toMatchObject({name: 'CAPABILITY_UNAVAILABLE'});
+      await expect(secureRandomBytes(1.5)).rejects.toMatchObject({name: 'CAPABILITY_UNAVAILABLE'});
+    } finally {
+      setNativeRandomSource(null);
+    }
+  });
+
+  it('rejects a native source that returns the wrong length', async () => {
+    const {secureRandomBytes, setNativeRandomSource} = sources();
+    setNativeRandomSource({randomBytes: async () => new Uint8Array(3)});
+    try {
+      await expect(secureRandomBytes(16)).rejects.toMatchObject({name: 'CAPABILITY_UNAVAILABLE'});
+    } finally {
+      setNativeRandomSource(null);
+    }
+  });
+
+  it('is used by the merchant offer path (session id and transfer id are native-sourced)', async () => {
+    const {setNativeRandomSource} = sources();
+    const pair = await buildMockPair();
+    let counter = 0;
+    const seen: number[] = [];
+    setNativeRandomSource({
+      randomBytes: async (count: number) => {
+        counter += 1;
+        seen.push(count);
+        return new Uint8Array(count).fill(counter);
+      },
+    });
+    try {
+      const receipt = await buildDemoReceipt({
+        merchantId: pair.provision.merchantId,
+        credentialBytes: pair.provision.credentialBytes,
+      });
+      await prepareMerchantOffer(pair.merchant, receipt, 1767225600);
+      // 16 (receipt id) + 16 (session id) + 16 (transfer id).
+      expect(seen.filter(count => count === 16).length).toBeGreaterThanOrEqual(3);
+    } finally {
+      setNativeRandomSource(null);
+    }
+  });
+});
+
+/** The crypto module, loaded once for these cases. */
+function sources(): typeof import('../src/protocol/crypto') {
+  return require('../src/protocol/crypto') as typeof import('../src/protocol/crypto');
+}
+
+function randomBytesSync(count: number): Uint8Array {
+  return sources().randomBytes(count);
+}

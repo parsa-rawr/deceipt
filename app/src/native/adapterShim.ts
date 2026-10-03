@@ -23,7 +23,12 @@
  */
 
 import {NativeEventEmitter, type EmitterSubscription} from 'react-native';
-import type {DeceiptEvent, DeceiptEventListener, DeceiptNative} from './DeceiptNative';
+import type {
+  DeceiptEvent,
+  DeceiptEventListener,
+  DeceiptNative,
+  DeceiptNativeWithTestProvisioning,
+} from './DeceiptNative';
 
 /** The event channel name the native side emits on (A4/A5 use the same one). */
 export const EVENT_CHANNEL = 'DeceiptEvent';
@@ -57,6 +62,7 @@ const REQUIRED_METHODS: readonly string[] = [
   'merchantSignReceipt',
   'verifyReceiptContainer',
   'verifyCredential',
+  'randomBytes',
   'mintBindingQr',
   'startMerchantSession',
   'beginTransfer',
@@ -97,13 +103,15 @@ export function probeNativeModule(candidate: unknown): ProbeResult {
 
   let eventMode: ProbeResult['eventMode'] = 'none';
   const subscribe = record.subscribe;
-  if (typeof subscribe === 'function') {
-    // The contract's shape: one listener argument. A native module declaring
-    // zero arguments is the emitter pattern (as Android originally shipped),
-    // which `adaptNativeModule` absorbs.
-    eventMode = subscribe.length >= 1 ? 'native_jsi' : 'emitter';
-  } else if (typeof record.addListener === 'function') {
+  // Structural, not arity-based: see needsEmitterShim. A legacy emitter surface
+  // (addListener/removeListeners, as Android ships) means events arrive through
+  // the emitter even when `subscribe` also exists as a readiness probe.
+  const hasEmitterSurface =
+    typeof record.addListener === 'function' || typeof record.removeListeners === 'function';
+  if (hasEmitterSurface) {
     eventMode = 'emitter';
+  } else if (typeof subscribe === 'function') {
+    eventMode = 'native_jsi';
   }
 
   if (eventMode === 'none') {
@@ -121,10 +129,16 @@ export function needsEmitterShim(candidate: unknown): boolean {
   if (record === null) {
     return false;
   }
-  if (typeof record.subscribe === 'function' && (record.subscribe as (...args: unknown[]) => unknown).length >= 1) {
-    return false;
+  // Structural discriminator, NOT arity: `Function.length` is unreliable across
+  // React Native's module proxy (an Android @ReactMethod with only a Promise
+  // parameter presents as 0 args in JS, which made the contract appear absent).
+  // A module that exposes the legacy emitter surface -- `addListener` /
+  // `removeListeners` -- is the emitter shape; a module that exposes only
+  // `subscribe` is the native JSI shape (iOS).
+  if (typeof record.addListener === 'function' || typeof record.removeListeners === 'function') {
+    return true;
   }
-  return typeof record.addListener === 'function' || typeof record.subscribe === 'function';
+  return typeof record.subscribe === 'function';
 }
 
 /**
@@ -150,7 +164,13 @@ export function subscribeViaEmitter(
     return () => undefined;
   }
   const directSubscribe = record.subscribe;
-  if (typeof directSubscribe === 'function' && (directSubscribe as (...args: unknown[]) => unknown).length >= 1) {
+  // NEVER call a raw `subscribe` that the caller did not already discriminate:
+  // on Android `subscribe(promise)` presents as zero-arg in JS and throws
+  // "called with 1 arguments (expected argument count: 0)". The emitter is the
+  // real channel whenever we are on this path, so subscribe is only invoked
+  // with no arguments as an optional readiness probe.
+  const hasEmitter = typeof record.addListener === 'function' || typeof record.removeListeners === 'function';
+  if (!hasEmitter && typeof directSubscribe === 'function' && (directSubscribe as (...args: unknown[]) => unknown).length >= 1) {
     const native = candidate as DeceiptNative;
     return native.subscribe(listener);
   }
@@ -188,7 +208,7 @@ export function subscribeViaEmitter(
  * Wrap a legacy native module so it satisfies the contract. Methods pass
  * through; only event delivery is adapted.
  */
-export function adaptNativeModule(candidate: unknown): DeceiptNative {
+export function adaptNativeModule(candidate: unknown): DeceiptNativeWithTestProvisioning {
   const record = asRecord(candidate);
   if (record === null) {
     throw new Error('the native module is not an object');
@@ -202,7 +222,28 @@ export function adaptNativeModule(candidate: unknown): DeceiptNative {
   };
 
   const needsShim = needsEmitterShim(candidate);
+  // The contract declares `testProvisioning` as a nested object
+  // (`DeceiptTestProvisioning`), but the native modules expose
+  // `provisionTestMerchant` / `clearTestProvisioning` as flat bridge methods.
+  // Synthesize the nested shape here so the adapter actually satisfies the
+  // contract; without this the demo cannot import the test merchant key even
+  // though the native side supports it.
+  const flatProvision = record.provisionTestMerchant;
+  const flatClear = record.clearTestProvisioning;
+  // BOTH flat methods must exist before the nested shape is synthesized. A
+  // one-armed wrapper would advertise a capability the module does not have, and
+  // a fabricated `clearTestProvisioning` that resolves successfully would report
+  // a key as removed when it was not — that is worse than refusing the call.
+  const testProvisioning =
+    typeof flatProvision === 'function' && typeof flatClear === 'function'
+      ? {
+          provisionTestMerchant: (request: unknown) =>
+            (flatProvision as (arg: unknown) => unknown).call(candidate, request),
+          clearTestProvisioning: () => (flatClear as () => unknown).call(candidate),
+        }
+      : (record.testProvisioning as unknown);
   return {
+    testProvisioning: testProvisioning as DeceiptNativeWithTestProvisioning['testProvisioning'],
     capabilities: method('capabilities'),
     permissionState: method('permissionState'),
     requestPermissions: method('requestPermissions'),
@@ -214,6 +255,7 @@ export function adaptNativeModule(candidate: unknown): DeceiptNative {
     merchantSignReceipt: method('merchantSignReceipt'),
     verifyReceiptContainer: method('verifyReceiptContainer'),
     verifyCredential: method('verifyCredential'),
+    randomBytes: method('randomBytes'),
     mintBindingQr: method('mintBindingQr'),
     startMerchantSession: method('startMerchantSession'),
     beginTransfer: method('beginTransfer'),

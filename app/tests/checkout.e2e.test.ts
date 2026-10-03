@@ -72,7 +72,7 @@ describe('mock end-to-end checkout', () => {
       ],
       tipAmountMinor: 100,
       nowUnix: NOW,
-    });
+    }, hexDecode('0123456789abcdef0123456789abcdef'));
 
     const prepared = await prepareMerchantOffer(pair.merchant, receipt, NOW);
     const serving = await startMerchantServing(pair.merchant, prepared);
@@ -129,7 +129,7 @@ describe('mock end-to-end checkout', () => {
       currency: 'CAD',
       lines: [{lineId: 1, description: 'Latte', quantity: {scale: 0, value: 1}, unitPriceMinor: 475, lineAmountMinor: 475}],
       nowUnix: NOW,
-    });
+    }, hexDecode('0123456789abcdef0123456789abcdef'));
     const prepared = await prepareMerchantOffer(pair.merchant, receipt, NOW);
     const serving = await startMerchantServing(pair.merchant, prepared);
 

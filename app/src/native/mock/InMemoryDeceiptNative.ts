@@ -373,6 +373,20 @@ export class InMemoryDeceiptNative implements DeceiptNative {
     }
   }
 
+  /**
+   * MOCK ONLY: a deterministic, clearly-labelled test PRNG.
+   *
+   * It exists so the shared flow is reproducible in tests. It is NOT a CSPRNG
+   * and MUST NOT be mistaken for one: the real adapters use SecureRandom /
+   * SecRandomCopyBytes, and the shared layer never substitutes this.
+   */
+  async randomBytes(count: number): Promise<Base64> {
+    if (!Number.isInteger(count) || count < 1 || count > 64) {
+      throw new ProtocolError('CAPABILITY_UNAVAILABLE', `randomBytes count ${count} is outside 1..64`);
+    }
+    return base64Encode(nextMockRandom(count));
+  }
+
   async verifyCredential(credentialB64: Base64, anchors: TrustAnchor[], nowUnix?: number): Promise<CredentialVerification> {
     const check = await verifyCredential(base64Decode(credentialB64), anchors, nowUnix ?? this.now());
     return {
@@ -1125,4 +1139,21 @@ function offerMetadata(offer: ReceiptOffer): OfferMetadata {
 
 function errorName(name: string): ProtocolErrorName {
   return name as ProtocolErrorName;
+}
+
+/**
+ * MOCK ONLY deterministic byte stream. A xorshift32 is fine here because the
+ * mock models the protocol, not the security: no test depends on these bytes
+ * being unpredictable, and using the real CSPRNG would make runs unreproducible.
+ */
+let mockRandomState = 0x9e3779b9;
+function nextMockRandom(count: number): Uint8Array {
+  const out = new Uint8Array(count);
+  for (let index = 0; index < count; index += 1) {
+    mockRandomState ^= mockRandomState << 13;
+    mockRandomState ^= mockRandomState >>> 17;
+    mockRandomState ^= mockRandomState << 5;
+    out[index] = mockRandomState & 0xff;
+  }
+  return out;
 }

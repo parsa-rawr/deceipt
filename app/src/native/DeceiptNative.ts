@@ -687,6 +687,7 @@ export interface DeceiptTestProvisioning {
  * merchantSignReceipt         | any                                       | exact-bytes signing, native builds COSE container
  * verifyReceiptContainer      | any                                       | exact-bytes verification, native builds Sig_structure
  * verifyCredential            | any                                       | sub-states preserved
+ * randomBytes                 | any                                       | CSPRNG; native-only, never a JS PRNG
  * mintBindingQr               | any (merchant)                            | SBT stays native
  * startMerchantSession        | after mintBindingQr                       | GATT server + advertising
  * beginTransfer               | MERCHANT_SESSION_AUTHENTICATED            | after ACCEPT; TransferableSession only
@@ -729,6 +730,21 @@ export interface DeceiptNative {
   verifyReceiptContainer(coseSign1B64: Base64, devicePublicKeyB64: Base64): Promise<ReceiptSignatureVerification>;
   /** Credential verification against the pinned anchor set (trust.md §4). */
   verifyCredential(credentialB64: Base64, anchors: TrustAnchor[], nowUnix?: number): Promise<CredentialVerification>;
+  /**
+   * CSPRNG-backed random bytes, `count` in 1..64, base64 encoded.
+   *
+   * Native owns this because the identifiers and nonces it produces are protocol
+   * SECRETS: `session_id`, `client_nonce`, the ephemeral key material and the
+   * session-binding token must come from a real CSPRNG (Android `SecureRandom`,
+   * iOS `SecRandomCopyBytes`). Hermes on RN 0.87 has no `globalThis.crypto`, and
+   * a JavaScript PRNG is NOT an acceptable substitute — a predictable nonce is a
+   * security defect (DESIGN.md §6, invariant 2).
+   *
+   * The shared layer prefers WebCrypto when it is genuinely present and falls
+   * back to this method otherwise; when neither exists it fails closed with
+   * `CAPABILITY_UNAVAILABLE` rather than substituting a weaker source.
+   */
+  randomBytes(count: number): Promise<Base64>;
 
   // --- session lifecycle ---------------------------------------------------
   /** Merchant: mint the SBT and build the QR payload. SBT never crosses the bridge. */

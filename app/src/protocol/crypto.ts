@@ -61,9 +61,67 @@ function requireCrypto(feature: string): CryptoSurface {
   return resolved;
 }
 
-/** `getRandomValues`-only fallback is not acceptable; CSPRNG is required. */
-export function requireSecureRandom(): CryptoSurface {
-  return requireCrypto('secure random generation');
+/**
+ * Secure randomness, resolved in this order:
+ *
+ *   1. a real native adapter (the bridge's `randomBytes`, backed by
+ *      SecureRandom / SecRandomCopyBytes) — the authoritative source on device;
+ *   2. WebCrypto's `getRandomValues`, when the runtime genuinely has it;
+ *   3. nothing: fail closed with `CAPABILITY_UNAVAILABLE`.
+ *
+ * A JavaScript PRNG is NEVER used. `session_id`, `client_nonce`, ephemeral key
+ * material and the session-binding token are protocol secrets, and a predictable
+ * nonce is a security defect (DESIGN.md §6).
+ */
+export interface SecureRandomSource {
+  randomBytes(count: number): Promise<Uint8Array>;
+}
+
+let nativeRandomSource: SecureRandomSource | null = null;
+
+/**
+ * Register the native randomness provider. The app sets this once at startup so
+ * protocol modules never import the bridge directly (keeping them testable and
+ * free of React Native dependencies).
+ */
+export function setNativeRandomSource(source: SecureRandomSource | null): void {
+  nativeRandomSource = source;
+}
+
+export function hasNativeRandomSource(): boolean {
+  return nativeRandomSource !== null;
+}
+
+/** True when this runtime can produce secure random bytes at all. */
+export function canGenerateSecureRandom(): boolean {
+  return nativeRandomSource !== null || hasWebCrypto();
+}
+
+/**
+ * Secure random bytes for protocol identifiers and nonces. Throws
+ * `CAPABILITY_UNAVAILABLE` when no CSPRNG exists, rather than substituting one.
+ */
+export async function secureRandomBytes(count: number): Promise<Uint8Array> {
+  if (!Number.isInteger(count) || count < 1 || count > 64) {
+    throw new ProtocolError('CAPABILITY_UNAVAILABLE', `random byte count ${count} is outside 1..64`);
+  }
+  const native = nativeRandomSource;
+  if (native !== null) {
+    const fromNative = await native.randomBytes(count);
+    if (fromNative.length !== count) {
+      throw new ProtocolError('CAPABILITY_UNAVAILABLE', 'the native CSPRNG returned the wrong length');
+    }
+    return fromNative;
+  }
+  const crypto = resolveCryptoOptional();
+  if (crypto !== null && typeof crypto.getRandomValues === 'function') {
+    const out = new Uint8Array(count);
+    return crypto.getRandomValues(out);
+  }
+  throw new ProtocolError(
+    'CAPABILITY_UNAVAILABLE',
+    'secure random generation needs the native adapter (this runtime has no CSPRNG)',
+  );
 }
 
 function isCryptoSurface(value: unknown): value is CryptoSurface {
@@ -349,7 +407,22 @@ export async function ed25519PublicKeyFromTestSeed(seed: Uint8Array): Promise<Ui
 }
 
 /** Cryptographically secure random bytes. Never a test vector. */
+/**
+ * Synchronous random bytes, for call sites that cannot await.
+ *
+ * Only succeeds when the runtime has a real CSPRNG (WebCrypto). On Hermes there
+ * is none, so callers that need randomness on device must use
+ * `secureRandomBytes` and let it reach the native adapter. This function never
+ * falls back to a PRNG.
+ */
 export function randomBytes(length: number): Uint8Array {
-  const out = new Uint8Array(length);
-  return requireSecureRandom().getRandomValues(out);
+  const crypto = resolveCryptoOptional();
+  if (crypto !== null && typeof crypto.getRandomValues === 'function') {
+    const out = new Uint8Array(length);
+    return crypto.getRandomValues(out);
+  }
+  throw new ProtocolError(
+    'CAPABILITY_UNAVAILABLE',
+    'synchronous randomness needs WebCrypto; use secureRandomBytes on device',
+  );
 }

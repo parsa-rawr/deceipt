@@ -7,7 +7,7 @@
  */
 
 import {base64Decode, base64Encode, hexEncode} from '../protocol/bytes';
-import {randomBytes} from '../protocol/crypto';
+import {secureRandomBytes} from '../protocol/crypto';
 import {serializeReceipt, type Receipt} from '../protocol/receipt';
 import {computeBindingValues, buildReceiptOfferFromReceipt} from '../native/offer';
 import {TIMEOUTS_MS} from '../protocol/constants';
@@ -27,7 +27,10 @@ export interface SyntheticReceiptOptions {
 }
 
 /** Build a well-formed, arithmetic-consistent sale receipt to sign. */
-export function buildSyntheticSale(options: SyntheticReceiptOptions): Receipt {
+export function buildSyntheticSale(options: SyntheticReceiptOptions, receiptId: Uint8Array): Receipt {
+  if (receiptId.length !== 16) {
+    throw new ProtocolError('RECEIPT_SEMANTIC_INVALID', 'a receipt id is 16 bytes');
+  }
   const subtotal = options.lines.reduce((sum, line) => sum + line.lineAmountMinor, 0);
   const tip = options.tipAmountMinor ?? 0;
   const taxBase = subtotal;
@@ -36,7 +39,7 @@ export function buildSyntheticSale(options: SyntheticReceiptOptions): Receipt {
   return {
     receiptVersion: 1,
     kind: 1,
-    receiptId: randomBytes(16),
+    receiptId,
     issuedAt: options.nowUnix,
     merchant: {
       merchantId: options.merchantId,
@@ -97,8 +100,8 @@ export async function prepareMerchantOffer(
   const payload = serializeReceipt(receipt);
   const signed = await native.merchantSignReceipt(base64Encode(payload));
   const identity = buildReceiptOfferFromReceipt(base64Decode(signed.coseSign1B64));
-  const sessionIdHex = hexEncode(randomBytes(16));
-  const transferIdHex = hexEncode(randomBytes(16));
+  const sessionIdHex = hexEncode(await secureRandomBytes(16));
+  const transferIdHex = hexEncode(await secureRandomBytes(16));
   const receiptIdHex = hexEncode(receipt.receiptId);
   const binding = await computeBindingValues({
     sessionIdHex,
