@@ -620,8 +620,8 @@ class VectorTests {
 
     @Test
     fun random_bytes_rejects_out_of_range_without_allocating() {
-        assertEquals("0", "MESSAGE_FIELD_RANGE", actualError { com.deceipt.adapter.crypto.Crypto.randomBytes(0) })
-        assertEquals("65", "MESSAGE_FIELD_RANGE", actualError { com.deceipt.adapter.crypto.Crypto.randomBytes(65) })
-        assertEquals("-1", "MESSAGE_FIELD_RANGE", actualError { com.deceipt.adapter.crypto.Crypto.randomBytes(-1) })
+        for (bad in listOf(0, -1, 65, 1000)) {
+            assertEquals("count $bad", "MESSAGE_FIELD_RANGE", actualError { com.deceipt.adapter.crypto.Crypto.randomBytes(bad) })
+        }
     }
 }

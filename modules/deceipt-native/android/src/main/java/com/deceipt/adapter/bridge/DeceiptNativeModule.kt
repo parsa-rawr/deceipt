@@ -541,7 +541,16 @@ class DeceiptNativeModule(
     @ReactMethod
     fun randomBytes(count: Double, promise: Promise) {
         // Scalar result: must resolve the Base64 STRING, not a WritableMap.
-        onWorkerRaw(promise) { Bytes.toBase64(Crypto.randomBytes(count.toInt())) }
+        onWorkerRaw(promise) {
+            // A3's contract: an integer 1..64, rejected (never clamped) otherwise.
+            if (count < 1.0 || count > Crypto.MAX_RANDOM_BYTES.toDouble() || count != Math.floor(count)) {
+                throw ProtocolError(
+                    "CAPABILITY_UNAVAILABLE",
+                    "randomBytes count must be an integer 1..${Crypto.MAX_RANDOM_BYTES}",
+                )
+            }
+            Bytes.toBase64(Crypto.randomBytes(count.toInt()))
+        }
     }
 
     // -- test-only provisioning (gated) ------------------------------------
