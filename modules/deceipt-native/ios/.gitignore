@@ -1,0 +1,5 @@
+# SwiftPM build artifacts and the local toolchain caches it produces.
+.build/
+.swiftpm/
+Package.resolved
+DerivedData/

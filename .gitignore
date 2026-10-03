@@ -81,3 +81,10 @@ Thumbs.db
 .vscode/
 *.swp
 *~
+
+# SwiftPM / Xcode build output (A4)
+**/.build/
+# The standard Android SDK debug keystore is a PUBLIC throwaway (alias androiddebugkey,
+# well-known password). It is required by signingConfigs.debug and is NOT production
+# signing material. Tracked deliberately; never place a release keystore here.
+!app/android/app/debug.keystore
