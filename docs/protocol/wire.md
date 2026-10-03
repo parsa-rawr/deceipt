@@ -44,7 +44,7 @@ The base UUID `8decc0de-1e57-4000-8000-000000NNNNNN` is Deceipt-owned and not de
 | `0x12` | `RECEIPT_OFFER` | A→B | EVENT | yes | `MERCHANT_SESSION_AUTHENTICATED` |
 | `0x13` | `TRANSFER_BEGIN` | A→B | EVENT | yes | `TRANSFER` |
 | `0x14` | `TRANSFER_COMPLETE` | A→B | EVENT | yes | `TRANSFER` |
-| `0x15` | `ERROR` | A→B | EVENT | aead if keys exist | any |
+| `0x15` | `ERROR` | A→B | EVENT | plaintext only before keys; AEAD once keys exist | any |
 
 * The high nibble distinguishes direction: `0x0_` = B→A, `0x1_` = A→B. A message arriving on the wrong characteristic or with the wrong direction nibble is `MESSAGE_WRONG_DIRECTION` (fatal).
 * Unknown `type` ⇒ `MESSAGE_UNKNOWN_TYPE` (fatal).
@@ -121,7 +121,17 @@ aad(B→A control)   = session_context ‖ 0x02 ‖ 0x00
 aad(A→B control)   = session_context ‖ 0x02 ‖ 0x01
 ```
 
-Counter is strict in-order per direction: `counter < expected` ⇒ `AEAD_REPLAY_DETECTED`; `counter > expected` ⇒ `AEAD_COUNTER_MISMATCH`; tag failure ⇒ `AEAD_AUTH_FAILED`; a plaintext envelope after the handshake ⇒ `MESSAGE_WRONG_STATE`.
+Counter is strict in-order per direction: `counter < expected` ⇒ `AEAD_REPLAY_DETECTED`; `counter > expected` ⇒ `AEAD_COUNTER_MISMATCH`; tag failure ⇒ `AEAD_AUTH_FAILED`.
+
+**Exactly which messages may be plaintext.** Only these, and only while no session keys exist:
+
+| Message | Plaintext permitted when |
+|---|---|
+| `CLIENT_HELLO` | always (sent before any keys exist) |
+| `SERVER_HELLO` | always (sent before the client has keys) |
+| `ERROR` | only in the `CONNECTED` / pre-key `HANDSHAKE` states — so a peer can report `HANDSHAKE_UNSUPPORTED_VERSION`, `HANDSHAKE_NO_COMMON_SUITE`, `HANDSHAKE_ECDH_INVALID_POINT`, `CREDENTIAL_*` |
+
+Every other control message (§ `ACCEPT`/`ACK`/`RECEIPT_ACK`/`CANCEL`/`RETRY`/`RECEIPT_OFFER`/`TRANSFER_BEGIN`/`TRANSFER_COMPLETE`), and `ERROR` once keys exist, MUST use the AEAD envelope. A plaintext envelope received where AEAD is required ⇒ `MESSAGE_WRONG_STATE` (fatal). A peer that cannot or will not send AEAD at that point MUST `ABORT`/disconnect instead.
 
 ## 7. Complete worked example (must reproduce)
 

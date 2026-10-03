@@ -2793,7 +2793,8 @@ def wire_messages_schema() -> Dict[str, Any]:
                         {"label": 3, "name": "frame_count", "type": "uint", "required": True},
                         {"label": 4, "name": "payload_hash", "type": "bstr32", "required": True}]},
             {"type": MSG_ERROR, "name": "ERROR", "direction": "m2c", "state": "any",
-             "encrypted": "aead when keys exist, plaintext otherwise",
+             "encrypted": "plaintext ONLY in pre-key states (CONNECTED / HANDSHAKE before "
+                          "ServerHello); AEAD once session keys exist",
              "fields": [{"label": 1, "name": "type", "type": "uint", "required": True},
                         {"label": 2, "name": "error_code", "type": "uint", "required": True},
                         {"label": 3, "name": "fatal", "type": "bool", "required": True},

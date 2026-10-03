@@ -38,7 +38,7 @@ B -> A  RECEIPT_ACK    (AEAD)
         DISCONNECT
 ```
 
-`CLIENT_HELLO` and `SERVER_HELLO` are the **only** messages that may travel in a plaintext envelope (`tag 0x00`). Every control message after `SERVER_HELLO` MUST use the AEAD envelope; a plaintext control message after the handshake is `MESSAGE_WRONG_STATE` (§8).
+`CLIENT_HELLO` and `SERVER_HELLO` travel in the plaintext envelope (`tag 0x00`). `ERROR` may also be plaintext **only while no session keys exist** (pre-key handshake failure reporting). Every other control message, and `ERROR` once keys exist, MUST use the AEAD envelope; a plaintext control message where AEAD is required is `MESSAGE_WRONG_STATE` (fatal).
 
 ## 3. Canonical transcript (exact bytes)
 

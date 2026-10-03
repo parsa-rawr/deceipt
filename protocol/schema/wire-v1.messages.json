@@ -460,7 +460,7 @@
    "name": "ERROR",
    "direction": "m2c",
    "state": "any",
-   "encrypted": "aead when keys exist, plaintext otherwise",
+   "encrypted": "plaintext ONLY in pre-key states (CONNECTED / HANDSHAKE before ServerHello); AEAD once session keys exist",
    "fields": [
     {
      "label": 1,
