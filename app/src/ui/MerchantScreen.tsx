@@ -23,7 +23,7 @@ import {DeceiptBridgeError} from '../native/bridgeError';
 import {ProtocolError, type ProtocolErrorName} from '../protocol/errors';
 import {prepareMerchantOffer, startMerchantServing, assertMerchantReady, type PreparedMerchantOffer} from '../checkout/merchantFlow';
 import {buildDemoReceipt} from '../demo/demoReceipt';
-import {ensureDemoMerchant} from '../demo/merchantProvision';
+import {ensureDemoMerchant, isMerchantReady, missingMerchantParts} from '../demo/merchantProvision';
 import {Card, Field, ActionButton, StatusPill, colors, formatMoney, styles} from './primitives';
 
 export interface MerchantScreenProps {
@@ -125,8 +125,21 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
     setFailure(null);
     setPhase('preparing');
     try {
-      const status = await assertMerchantReady(native);
+      // Repair an incomplete enrollment before signing: a key without its
+      // credential cannot serve a receipt, so the affordance must stay reachable.
+      const ensured = await ensureDemoMerchant(native);
+      if (!ensured.ok && ensured.reason !== undefined) {
+        setProvisionNote(ensured.reason);
+      }
+      const status = await native.merchantKeyStatus();
       setKeyStatus(status);
+      if (!isMerchantReady(status)) {
+        throw new ProtocolError(
+          'CAPABILITY_UNAVAILABLE',
+          `merchant enrollment is incomplete (missing ${missingMerchantParts(status).join(', ')})`,
+        );
+      }
+      await assertMerchantReady(native);
       const merchantIdHex = status.merchantIdHex ?? '';
       const credentialB64 = status.credentialB64 ?? '';
       if (merchantIdHex.length !== 32 || credentialB64.length === 0) {
@@ -187,7 +200,7 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
         <Text style={styles.sectionTitle}>Signing key</Text>
         {keyStatus === null ? (
           <Text style={styles.label}>checking…</Text>
-        ) : keyStatus.provisioned ? (
+        ) : isMerchantReady(keyStatus) ? (
           <>
             <View style={styles.row}>
               <Text style={styles.label}>device key id</Text>
@@ -196,14 +209,19 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
               </Text>
             </View>
             <Field label="storage" value={keyStatus.identity?.storage ?? 'unknown'} />
+            <Field label="merchant id" value={(keyStatus.merchantIdHex ?? '').slice(0, 8)} />
           </>
         ) : (
           <>
+            {/* A key alone is not a usable merchant identity, so the import
+                affordance stays reachable whenever any part is missing. */}
             <Text style={styles.error} testID="merchant-key-missing">
-              No signing key is provisioned on this build, so merchant mode cannot sign a receipt.
+              {keyStatus.provisioned
+                ? `Merchant enrollment is incomplete (missing ${missingMerchantParts(keyStatus).join(', ')}). Re-import the published test credential to repair it.`
+                : 'No signing key is provisioned on this build, so merchant mode cannot sign a receipt.'}
             </Text>
             <ActionButton
-              label="Import test merchant key"
+              label={keyStatus.provisioned ? 'Re-import test merchant credential' : 'Import test merchant key'}
               onPress={() => void onProvision()}
               testID="provision-test-merchant"
               accessibilityLabel="provision-test-merchant"

@@ -505,15 +505,38 @@ describe('NFC validation is strict, never silently skipped', () => {
     }
   });
 
-  it('rejects non-ASCII when the engine cannot normalize, rather than accepting it unvalidated', () => {
-    const {checkText} = receiptModule();
+  it('accepts valid non-ASCII NFC through the fallback when the engine cannot normalize', () => {
+    const {checkText, normalizationEngine} = receiptModule();
     const descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
     Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true});
     try {
-      expect(() => checkText('Café', 128, 'display_name')).toThrow(ProtocolError);
-      expect(() => checkText('Café', 128, 'display_name')).toThrowError(/cannot validate NFC/);
+      // The fallback must make legitimate non-ASCII merchant text work, not
+      // narrow the receipt format.
+      expect(normalizationEngine()).toBe('unorm');
+      expect(() => checkText('Caf\u00e9', 128, 'display_name')).not.toThrow();
+      expect(() => checkText('\u65e5\u672c\u8a9e', 128, 'display_name')).not.toThrow();
+      // And the fallback still rejects a decomposed string.
+      expect(() => checkText('e\u0301', 128, 'display_name')).toThrowError(/not NFC-normalized/);
     } finally {
       restore(String.prototype, 'normalize', descriptor);
+    }
+  });
+
+  it('rejects non-ASCII only when NO engine exists at all', () => {
+    const {checkText, normalizationEngine} = receiptModule();
+    const platform = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
+    Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true});
+    const unormModule = require('unorm') as {nfc: unknown};
+    const savedNfc = unormModule.nfc;
+    try {
+      delete (unormModule as {nfc?: unknown}).nfc;
+      expect(normalizationEngine()).toBe('none');
+      expect(() => checkText('Caf\u00e9', 128, 'display_name')).toThrowError(/has no NFC implementation/);
+      // ASCII still passes, because it needs no engine.
+      expect(() => checkText('Maple & Vine Cafe', 128, 'display_name')).not.toThrow();
+    } finally {
+      unormModule.nfc = savedNfc;
+      restore(String.prototype, 'normalize', platform);
     }
   });
 

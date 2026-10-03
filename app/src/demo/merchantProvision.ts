@@ -30,11 +30,58 @@ import {
 
 export interface ProvisionOutcome {
   ok: boolean;
-  /** `true` when the adapter already had a key; nothing was imported. */
+  /**
+   * `true` only when the merchant identity was ALREADY COMPLETE (key, credential
+   * and merchant id) and nothing was imported. A key alone is not enough: an
+   * incomplete enrollment must still be repaired, which is the device case where
+   * the credential import had not persisted.
+   */
   alreadyProvisioned: boolean;
   /** Why the bootstrap did not run, when it did not. */
   reason?: string;
   status?: MerchantKeyStatus;
+}
+
+/**
+ * A merchant identity is usable only when ALL of key, credential and merchant id
+ * are present. `provisioned` on its own is not readiness, so this is the single
+ * predicate the UI and the bootstrap agree on.
+ */
+export function isMerchantReady(status: MerchantKeyStatus): boolean {
+  if (status.ready === true) {
+    return true;
+  }
+  // Defensive: an adapter that predates `ready` is judged on the parts, so the
+  // app does not depend on every adapter having been rebuilt against the new
+  // field before it can serve a receipt.
+  return (
+    status.provisioned &&
+    typeof status.credentialB64 === 'string' &&
+    status.credentialB64.length > 0 &&
+    typeof status.merchantIdHex === 'string' &&
+    status.merchantIdHex.length === 32
+  );
+}
+
+/** The parts an incomplete enrollment is missing, for the UI to name. */
+export function missingMerchantParts(status: MerchantKeyStatus): string[] {
+  if (isMerchantReady(status)) {
+    return [];
+  }
+  if (status.missing !== undefined) {
+    return status.missing;
+  }
+  const missing: string[] = [];
+  if (!status.provisioned) {
+    missing.push('signing_key');
+  }
+  if (status.credentialB64 === undefined || status.credentialB64.length === 0) {
+    missing.push('credential');
+  }
+  if (status.merchantIdHex === undefined || status.merchantIdHex.length !== 32) {
+    missing.push('merchant_id');
+  }
+  return missing;
 }
 
 /**
@@ -59,12 +106,16 @@ export async function ensureDemoMerchant(native: DeceiptNative): Promise<Provisi
     return {ok: false, alreadyProvisioned: false, reason: 'the adapter cannot sign (no Ed25519)'};
   }
   const existing = await native.merchantKeyStatus();
-  if (existing.provisioned) {
+  // Only a COMPLETE identity short-circuits. A key without its credential is the
+  // device failure this repair exists for: the published test credential is
+  // re-imported over the same (published) test key, which is the only way to
+  // recover an enrollment whose credential did not persist.
+  if (isMerchantReady(existing)) {
     return {ok: true, alreadyProvisioned: true, status: existing};
   }
 
-  const provisioned = await provisionTestMerchant(native);
-  return provisioned;
+  const repaired = await provisionTestMerchant(native);
+  return repaired;
 }
 
 /**

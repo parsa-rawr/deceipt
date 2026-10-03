@@ -399,3 +399,72 @@ async function permissionsModule(): Promise<typeof import('../src/ui/CustomerScr
 async function mockModule(): Promise<typeof import('../src/native/mock/InMemoryDeceiptNative')> {
   return require('../src/native/mock/InMemoryDeceiptNative') as typeof import('../src/native/mock/InMemoryDeceiptNative');
 }
+
+describe('merchant enrollment recovery (incomplete identity)', () => {
+  it('treats a key without its credential as NOT ready', async () => {
+    const {isMerchantReady, missingMerchantParts} = await provisionModule();
+    expect(isMerchantReady({provisioned: true, ready: false})).toBe(false);
+    expect(isMerchantReady({provisioned: false, ready: false})).toBe(false);
+    expect(isMerchantReady({provisioned: true, ready: true})).toBe(true);
+    // An adapter that predates `ready` is judged on the parts.
+    // An adapter predating `ready` is judged on the parts.
+    expect(isMerchantReady({provisioned: true, merchantIdHex: 'a'.repeat(32), credentialB64: 'AAAA'})).toBe(true);
+    expect(isMerchantReady({provisioned: true, merchantIdHex: 'a'.repeat(32)})).toBe(false);
+    expect(missingMerchantParts({provisioned: true, ready: false, missing: ['credential']})).toEqual(['credential']);
+    expect(missingMerchantParts({provisioned: true, ready: true})).toEqual([]);
+  });
+
+  it('keeps the import affordance reachable when the credential is missing', async () => {
+    const {InMemoryDeceiptNative} = await mockModule();
+    // A key exists, but no credential: exactly the device state.
+    const adapter = new InMemoryDeceiptNative({platform: 'android'});
+    await adapter.merchantKeyGenerate();
+    const status = await adapter.merchantKeyStatus();
+    expect(status.provisioned).toBe(true);
+    expect(status.ready).toBe(false);
+    expect(status.missing).toContain('credential');
+
+    const root = render(React.createElement(MerchantScreen, {native: adapter, now: () => NOW}));
+    await settle(3);
+    // The blocking state AND its repair button are both present.
+    const missing = collectText(byId(root, 'merchant-key-missing'));
+    expect(missing).toContain('incomplete');
+    expect(missing).toContain('credential');
+    expect(byId(root, 'provision-test-merchant')).toBeTruthy();
+  });
+
+  it('does not report alreadyProvisioned for an incomplete identity', async () => {
+    const {ensureDemoMerchant} = await provisionModule();
+    const {InMemoryDeceiptNative} = await mockModule();
+    const adapter = new InMemoryDeceiptNative({
+      platform: 'android',
+      capabilities: {testProvisioningEnabled: true, ed25519: true},
+    });
+    await adapter.merchantKeyGenerate();
+    const outcome = await ensureDemoMerchant(adapter);
+    // A key alone must not short-circuit the repair path.
+    expect(outcome.alreadyProvisioned).toBe(false);
+  });
+
+  it('reports alreadyProvisioned only for a complete identity', async () => {
+    const {ensureDemoMerchant} = await provisionModule();
+    const pair = await buildMockPair();
+    const outcome = await ensureDemoMerchant(pair.merchant);
+    expect(outcome.alreadyProvisioned).toBe(true);
+    expect(outcome.ok).toBe(true);
+  });
+
+  it('preserves the production gate: refuses to provision when the adapter disallows it', async () => {
+    const {ensureDemoMerchant} = await provisionModule();
+    const {InMemoryDeceiptNative} = await mockModule();
+    const adapter = new InMemoryDeceiptNative({platform: 'ios', capabilities: {testProvisioningEnabled: false}});
+    const outcome = await ensureDemoMerchant(adapter);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.alreadyProvisioned).toBe(false);
+    expect(outcome.reason).toContain('does not allow test provisioning');
+  });
+});
+
+async function provisionModule(): Promise<typeof import('../src/demo/merchantProvision')> {
+  return require('../src/demo/merchantProvision') as typeof import('../src/demo/merchantProvision');
+}

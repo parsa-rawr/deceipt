@@ -24,6 +24,7 @@ import type {DeceiptNative} from './native/DeceiptNative';
 import {InMemoryDeceiptNative} from './native/mock/InMemoryDeceiptNative';
 import {adaptNativeModule, probeNativeModule, type ProbeResult} from './native/adapterShim';
 import {base64Decode} from './protocol/bytes';
+import {normalizationEngine, normalizationEngineIsExact} from './protocol/normalization';
 import {canGenerateSecureRandom, setNativeRandomSource} from './protocol/crypto';
 import {MemoryKeyValueStore, ReceiptStore} from './storage/receiptStore';
 import {TRUST_ANCHORS} from './config/trustAnchors';
@@ -93,6 +94,10 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
           <Card testID="adapter-card">
             <Text style={styles.sectionTitle}>Adapter</Text>
             <Text style={styles.value}>{describeAdapter(resolvedNative)}</Text>
+            <Text style={styles.label} testID="nfc-engine">
+              NFC engine: {normalizationEngine()}
+              {normalizationEngineIsExact() ? '' : ' (fallback tables predate Unicode 9; a few newer combining marks may not be reordered)'}
+            </Text>
             <Text style={styles.label} testID="randomness-source">
               randomness: {canGenerateSecureRandom() ? (binding.isNative ? 'native CSPRNG' : 'WebCrypto (mock build)') : 'unavailable'}
             </Text>

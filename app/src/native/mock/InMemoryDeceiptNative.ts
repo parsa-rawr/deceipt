@@ -313,14 +313,25 @@ export class InMemoryDeceiptNative implements DeceiptNative {
   // --- merchant keys & signing --------------------------------------------
 
   async merchantKeyStatus(): Promise<MerchantKeyStatus> {
-    if (this.merchantKey === null || this.provision === undefined) {
-      return {provisioned: false};
+    const missing: Array<'signing_key' | 'credential' | 'merchant_id'> = [];
+    if (this.merchantKey === null) {
+      missing.push('signing_key');
+    }
+    if (this.provision === undefined || this.provision.credentialBytes.length === 0) {
+      missing.push('credential');
+    }
+    if (this.provision === undefined || this.provision.merchantId.length !== 16) {
+      missing.push('merchant_id');
+    }
+    if (missing.length > 0) {
+      return {provisioned: this.merchantKey !== null, ready: false, missing};
     }
     return {
       provisioned: true,
-      identity: this.merchantKey,
-      credentialB64: base64Encode(this.provision.credentialBytes),
-      merchantIdHex: hexEncode(this.provision.merchantId),
+      ready: true,
+      identity: this.merchantKey ?? undefined,
+      credentialB64: base64Encode(this.provision!.credentialBytes),
+      merchantIdHex: hexEncode(this.provision!.merchantId),
     };
   }
 

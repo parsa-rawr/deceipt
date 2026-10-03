@@ -14,6 +14,7 @@
  */
 
 import {MAX_ARITH_PRODUCT, CURRENCY_MINOR_UNIT_EXPONENT, RECEIPT_LIMITS} from './constants';
+import {normalizationEngine, normalizationEngineIsExact, toNfc} from './normalization';
 import {CborMap, CborValue, decodeCbor, encodeCbor} from './cbor';
 import {ProtocolError} from './errors';
 import {hexEncode} from './bytes';
@@ -528,30 +529,33 @@ export function checkText(value: string, maxBytes: number, label: string): void 
   //
   //  * ASCII (U+0000..U+007F) has no canonical decompositions or compositions,
   //    so NFC is the identity on it. That is a Unicode theorem, not a shortcut:
-  //    a pure-ASCII string is NFC without consulting the engine. This covers
+  //    a pure-ASCII string is NFC without consulting any engine. This covers
   //    every string in the frozen vectors and the demo.
-  //  * non-ASCII needs real normalization data. If the engine has
-  //    `String.prototype.normalize` (every build with Intl) the check is exact.
-  //    If it does not, the string is REJECTED rather than accepted unvalidated,
-  //    because accepting it would silently weaken a required security check
-  //    (bidi/lookalike defense). A runtime that cannot validate NFC therefore
-  //    fails closed and says so.
+  //  * non-ASCII goes through `normalization.ts`, which uses the platform
+  //    normalizer when present and the `unorm` fallback otherwise, so valid
+  //    non-ASCII text works on Hermes too (see that module for the measured
+  //    limitation of the fallback's older Unicode tables).
+  //  * only when NEITHER engine exists is the string rejected — fail closed,
+  //    never accepted unvalidated.
   if (isAscii(value)) {
     return;
   }
-  if (typeof value.normalize !== 'function') {
+  const normalized = toNfc(value);
+  if (normalized === null) {
     throw new ProtocolError(
       'RECEIPT_TEXT_INVALID',
-      `${label} contains non-ASCII text and this runtime cannot validate NFC normalization`,
+      `${label} contains non-ASCII text and this runtime has no NFC implementation`,
     );
   }
-  const normalized = value.normalize('NFC');
   if (normalized !== value) {
     throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} is not NFC-normalized`);
   }
 }
 
 /** True when every code unit is in U+0000..U+007F (where NFC is the identity). */
+/** Re-exported so the UI can report the NFC engine actually in use. */
+export {normalizationEngine, normalizationEngineIsExact};
+
 export function isAscii(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     if (value.charCodeAt(index) > 0x7f) {

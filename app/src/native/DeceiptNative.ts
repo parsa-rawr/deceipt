@@ -192,16 +192,40 @@ export interface MerchantKeyIdentity {
 }
 
 export interface MerchantKeyStatus {
+  /** A signing key exists in platform storage. NOT sufficient for merchant mode. */
   provisioned: boolean;
+  /**
+   * The merchant identity is COMPLETE: a signing key AND the credential that
+   * authorizes it AND the merchant id that credential asserts.
+   *
+   * `provisioned` alone is not enough to serve a receipt — a device can hold a
+   * key whose credential import failed (observed on device after a cold start),
+   * and such a device cannot build a `ServerHello` or embed a credential at
+   * receipt label 20. Callers must gate on `ready`, not on `provisioned`, and
+   * adapters MUST report `ready: false` whenever any of the three parts is
+   * missing.
+   *
+   * Optional so an adapter built before this field existed still type-checks; the
+   * shared layer then decides readiness from `provisioned`, `credentialB64` and
+   * `merchantIdHex` together (see `isMerchantReady`).
+   */
+  ready?: boolean;
+  /** Present only when `ready` is true. */
   identity?: MerchantKeyIdentity;
   /**
    * The exact COSE_Sign1 credential bytes provisioned for this device, if any.
    * Public material (an issuer-signed credential). Held natively so the
    * `ServerHello` can be built without a round trip through JS.
    */
+  /** Present only when `ready` is true. */
   credentialB64?: Base64;
-  /** 16-byte merchant_id from that credential, when provisioned. */
+  /** 16-byte merchant_id from that credential; present only when `ready`. */
   merchantIdHex?: Id16Hex;
+  /**
+   * Which parts are missing when `ready` is false, so the UI can say what to do
+   * instead of showing a generic failure.
+   */
+  missing?: Array<'signing_key' | 'credential' | 'merchant_id'>;
 }
 
 /** Result of signing a receipt payload. */
