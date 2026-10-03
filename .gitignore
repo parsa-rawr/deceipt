@@ -1,0 +1,65 @@
+# ---- Node / RN ----
+node_modules/
+npm-debug.log
+yarn-error.log
+.metro-health-check*
+.metro-cache/
+*.tsbuildinfo
+
+# ---- Build outputs ----
+build/
+dist/
+out/
+*.app
+*.ipa
+*.apk
+*.aab
+app/android/app/build/
+app/android/build/
+app/android/.gradle/
+app/android/.cxx/
+app/android/local.properties
+app/ios/build/
+app/ios/Pods/
+app/ios/*.xcworkspace/xcuserdata/
+app/ios/*.xcodeproj/xcuserdata/
+app/ios/.xcode.env.local
+Dangerfile
+
+# ---- CocoaPods / Gradle caches ----
+vendor/bundle/
+.gradle/
+gradle.properties.bak
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Key material (NEVER commit merchant/session secrets) ----
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.provisionprofile
+*.der
+*.cer
+*.crt
+!**/test-vectors/**
+!**/fixtures/**
+!protocol/vectors/**
+# anchored: only repo-root keys/ and secrets/ are local secret stores.
+# protocol/vectors/keys/ holds TEST-ONLY deterministic material and must be committed.
+/keys/
+/secrets/
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
