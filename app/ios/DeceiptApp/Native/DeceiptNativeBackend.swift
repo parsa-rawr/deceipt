@@ -144,7 +144,7 @@ public final class DeceiptNativeBackend: NSObject {
     /// secrets. The bytes are never logged.
     public func randomBytes(count: Int) throws -> String {
         guard (1...64).contains(count) else {
-            throw DeceiptFailure("MESSAGE_FIELD_RANGE", phase: BridgePhase.internal, detail: "randomBytes count must be 1..64")
+            throw DeceiptFailure("CAPABILITY_UNAVAILABLE", phase: BridgePhase.internal, detail: "randomBytes count must be 1..64")
         }
         return DeceiptBytes.base64(DeceiptCrypto.randomBytes(count))
     }

@@ -29,11 +29,14 @@ public final class DeceiptCapabilities: NSObject {
     public static let adapterBuild = "a4-ios-0.1.0"
 
     /// `true` only in explicitly flagged test/dev builds (never production).
+    /// A build-time `DECEIPT_TEST_PROVISIONING` flag enables it unconditionally;
+    /// otherwise an explicit launch environment variable opts in, so a normal
+    /// Release build stays production-safe unless a test harness sets it.
     public static var testProvisioningEnabled: Bool {
         #if DECEIPT_TEST_PROVISIONING
         return true
         #else
-        return false
+        return ProcessInfo.processInfo.environment["DECEIPT_TEST_PROVISIONING"] == "1"
         #endif
     }
 

@@ -18,7 +18,10 @@ final class DeceiptUITests: XCTestCase {
 
     private func app() -> XCUIApplication {
         let app = XCUIApplication()
-        // The bundle id is fixed; do not require the caller to set anything.
+        // Opt this build into test provisioning (the app honours this launch
+        // environment variable) so the merchant test can import the PoC test
+        // key; a production launch never sets it.
+        app.launchEnvironment["DECEIPT_TEST_PROVISIONING"] = "1"
         app.launch()
         return app
     }
