@@ -1,0 +1,55 @@
+// Deceipt native adapter — Android library (A5 scope).
+//
+// A plain `com.android.library` module exposing ONE hand-written legacy
+// ReactContextBaseJavaModule named "DeceiptNative" (see
+// app/src/native/DeceiptNative.ts and modules/deceipt-native/index.ts). No
+// codegen spec: the frozen TypeScript contract is the single source of truth.
+
+apply plugin: "com.android.library"
+apply plugin: "org.jetbrains.kotlin.android"
+
+android {
+    namespace "com.deceipt.native"
+    compileSdk rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    ndkVersion rootProject.ext.ndkVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // JVM unit tests exercise the radio-independent protocol/crypto path.
+        testOptions {
+            unitTests {
+                includeAndroidResources = false
+                returnDefaultValues = false
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    sourceSets {
+        // Vector fixtures are copied in-repo so the JVM test path is hermetic.
+        test.resources.srcDirs += ["src/test/resources"]
+    }
+
+    packagingOptions {
+        resources {
+            excludes += ["META-INF/*.kotlin_module"]
+        }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib")
+
+    testImplementation("junit:junit:4.13.2")
+}

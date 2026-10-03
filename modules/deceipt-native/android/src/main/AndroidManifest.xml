@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      BLE permissions. The runtime-permission model is declared here and
+      requested at runtime (BLUETOOTH_ADVERTISE / CONNECT / SCAN on API 31+;
+      BLUETOOTH + BLUETOOTH_ADMIN with ACCESS_FINE_LOCATION on API 24..30).
+
+      neverForLocation: the advertisement carries only the Deceipt service UUID
+      and no location-derived data; Deceipt never derives proximity, and RSSI is
+      never a selection/association/trust signal (DESIGN.md 2.5, 7.3).
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="false" />
+</manifest>
