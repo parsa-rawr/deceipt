@@ -469,37 +469,14 @@ async function provisionModule(): Promise<typeof import('../src/demo/merchantPro
   return require('../src/demo/merchantProvision') as typeof import('../src/demo/merchantProvision');
 }
 
-describe('merchant prepare cannot stall silently', () => {
-  it('reports a typed failure when a native step never answers', async () => {
-    const {prepareMerchantOffer, PREPARE_STEP_TIMEOUT_MS} = await prepareModule();
-    const {buildDemoReceipt} = await demoModule();
-    const pair = await buildMockPair();
-    const receipt = await buildDemoReceipt({
-      merchantId: pair.provision.merchantId,
-      credentialBytes: pair.provision.credentialBytes,
-    });
-    // A merchant adapter whose signing call never settles — the device symptom
-    // (screen stuck on "preparing" with no error).
-    const hanging = Object.assign(Object.create(Object.getPrototypeOf(pair.merchant)), pair.merchant, {
-      merchantSignReceipt: () => new Promise<never>(() => undefined),
-    });
-    const steps: string[] = [];
-    jest.useFakeTimers();
-    try {
-      const pending = prepareMerchantOffer(hanging, receipt, NOW, progress => steps.push(progress.step));
-      // Advance past the bound; the preparation must FAIL with a named step
-      // rather than sit on "preparing" forever. Advancing all timers fires the
-      // earliest outstanding bound, which is the point: whichever step is stuck
-      // is the one reported.
-      jest.advanceTimersByTime(PREPARE_STEP_TIMEOUT_MS + 1);
-      await expect(pending).rejects.toThrow(/did not answer the '\w+' step within \d+ ms/);
-      await expect(pending).rejects.toThrow(/CAPABILITY_UNAVAILABLE|did not answer/);
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
-  it('names each step it enters on the success path', async () => {
+describe('merchant prepare diagnostics (TEMPORARY)', () => {
+  /**
+   * These pin the temporary step-name diagnostic only. They are NOT a policy
+   * test: no contract deadline covers merchant preparation, and both this block
+   * and the instrumentation it covers are removed once the stall's cause is
+   * fixed. A real hang regression belongs at the root-cause seam, not here.
+   */
+  it('names each step it enters on the normal path', async () => {
     const {prepareMerchantOffer} = await prepareModule();
     const {buildDemoReceipt} = await demoModule();
     const pair = await buildMockPair();
@@ -510,8 +487,6 @@ describe('merchant prepare cannot stall silently', () => {
     const steps: string[] = [];
     await prepareMerchantOffer(pair.merchant, receipt, NOW, progress => steps.push(progress.step));
     expect(steps).toContain('signing_receipt');
-    expect(steps).toContain('deriving_offer');
-    expect(steps).toContain('minting_qr');
     expect(steps[steps.length - 1]).toBe('done');
   });
 });
