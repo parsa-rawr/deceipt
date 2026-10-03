@@ -79,6 +79,10 @@ Fixture `protocol/vectors/handshake-valid.json`:
 | Quantity | Value |
 |---|---|
 | transcript (372 B) | see `transcript_hex` |
+| `offer_hash` | `efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5` |
+| `binding_tuple` (87 B) | `85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5` |
+| `binding_tuple_digest` | `d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2` |
+| `binding_proof` | `fa19790fda7c85c1c745d4299c4177f9bcd15090de78961a38b7ebc36565083e` |
 | `transcript_hash` | `0f7ec36321515c01b7c1cb2e6cf61c7bbbc8b067162eb945c4e9b6ddfc624c3b` |
 | `transcript_signature` | `a80f32f51c02240c975b5d1144fbd6a7c98c630d70153ad43b2dfa5f6f5385bd8198379f4475f9d8757752f75a578dc0808d36aef02e7de1467f78a6d0e00f0f` |
 

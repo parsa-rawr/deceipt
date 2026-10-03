@@ -1898,6 +1898,7 @@ def main() -> None:
                             "header MUST be empty; payload MUST be attached; whole array "
                             "MUST be deterministically encoded.",
           "receipt_body_hex": payload.hex(), "receipt_body_len": len(payload),
+          "receipt_body_sha256": hashlib.sha256(payload).hexdigest(),
           "protected_bstr_hex": pb.hex(),
           "protected_map": {str(k): (v.hex() if isinstance(v, bytes) else v)
                             for k, v in prot.items()},
