@@ -14,9 +14,11 @@ Owner: **A2** (transaction binding + checkout flow). Exclusive write scope: `doc
 
 A1 **adopted this contract's binding bytes verbatim** into the frozen revision `deceipt-proto-r1` (`docs/protocol/handshake.md` §10): `binding_tuple` + `binding_tuple_digest` (transcript offset 250), `ClientHello` fields 4–7, the `RECEIPT_OFFER` fields, `32`-byte `client_nonce`, and the typed `BINDING_*` errors.
 
-**Selection model — QR-mandatory (A6 RX-04 resolved, §4 of the prose contract):** the QR bootstrap is the **single binding path**. `CLIENT_HELLO` requires `session_id` + `binding_proof`, so a QR-less connect is not realisable in r1; the former "P0 picker" path is **removed**. The `2+ candidates` case is display guidance only, with the duplicate-`session_id` case failing closed (`TRANSPORT_PEER_AMBIGUOUS`).
+**Selection model — QR-mandatory (A6 RX-04 resolved, §4 of the prose contract):** the QR bootstrap is the **single binding path**. `CLIENT_HELLO` requires `session_id` + `binding_proof`, so a QR-less connect is not realisable in r1/r2; the former "P0 picker" path is **removed**. The `2+ candidates` case is display guidance only, with the duplicate-`session_id` case failing closed (`TRANSPORT_PEER_AMBIGUOUS`).
 
-**Vector defect fix (post A1 cross-check):** A2's original `client_ephemeral_pubkey` was not a valid P-256 point. Vectors regenerated (see §13); V1 now matches A1's frozen fixture exactly; a negative vector (V4) with a non-decoding point was added. **Do not regenerate until A1 publishes `deceipt-proto-r2`** (offer_hash member-definition fix), after which A2 reconciles byte-for-byte.
+**Vector defect fix (post A1 cross-check):** A2's original `client_ephemeral_pubkey` was not a valid P-256 point. Vectors regenerated (see §13); V1 now matches A1's frozen fixture exactly; a negative vector (V4) with a non-decoding point was added.
+
+**r2 reconciliation — verified no-op:** `deceipt-proto-r2` left binding inputs unchanged (V1 values and transcript offsets 250/282/284/285 identical; all 38 frozen rows hash-match). No vector regeneration was needed — the r1 vectors are the r2 vectors. A1 resolved R4-01 with option (a) (`binding_tuple` in `SERVER_HELLO` label 10), so the QR map is unchanged. `protocol/flows/**` is now inside the r2 hash scope (A6 RX-02); those four files are pinned and are not edited under r2.
 
 **A6 R2-01 (A2 portion) fixed:** §3.5 now writes `currency` as `tstr` and states the offer-hash array element order explicitly. **A6 R7-01 aligned:** only `WRONG_TRANSACTION` (`0x0614`) is cited.
 
