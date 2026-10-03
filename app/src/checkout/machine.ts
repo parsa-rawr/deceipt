@@ -116,7 +116,6 @@ export type CheckoutEvent =
   | {type: 'candidate_lost'; peripheralId: PeripheralId}
   | {type: 'scan_stopped'}
   | {type: 'session_ambiguous'; peripheralId: PeripheralId}
-  | {type: 'connect_started'; selection: Selection}
   | {type: 'handshake_authenticated'; session: TransferableSession; offer: OfferMetadata}
   | {type: 'offer_declined'}
   | {type: 'transfer_began'; frameCount: number}
@@ -209,9 +208,6 @@ export function reduce(model: CheckoutModel, event: CheckoutEvent): CheckoutMode
         ambiguousSessionHandle: event.peripheralId,
         failure: {error: new ProtocolError('TRANSPORT_PEER_AMBIGUOUS'), message: failureMessageFor('TRANSPORT_PEER_AMBIGUOUS')},
       };
-
-    case 'connect_started':
-      return {...model, state: 'connecting', selection: event.selection, failure: null};
 
     case 'handshake_authenticated':
       return {

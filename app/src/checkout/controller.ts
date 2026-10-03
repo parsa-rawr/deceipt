@@ -107,8 +107,17 @@ export class CheckoutController {
 
   /** The customer's explicit act: scanning a terminal's QR (P1). */
   async onQRScanned(qrPayload: string): Promise<void> {
-    const parsed = parseBindingQr(qrPayload);
-    this.scannedSessionIdHex = hexEncode(parsed.sessionId);
+    let sessionIdHex: string;
+    try {
+      sessionIdHex = hexEncode(parseBindingQr(qrPayload).sessionId);
+    } catch (error) {
+      // A malformed scan never reaches `connecting`; it is reported as typed.
+      this.failFrom(error);
+      return;
+    }
+    this.scannedSessionIdHex = sessionIdHex;
+    // The scan is the explicit selection act AND the transition (r3).
+    this.dispatch({type: 'user_scanned_qr', qrPayload});
     await this.beginSession({kind: 'qr', qrPayload});
   }
 
@@ -171,13 +180,12 @@ export class CheckoutController {
     return this.options.native.permissionState();
   }
 
+  /**
+   * Start the native session. The machine has already moved to `connecting`
+   * from the scan (`user_scanned_qr`), which is the only edge into that state
+   * under r3; this method therefore performs no state transition of its own.
+   */
   private async beginSession(selection: Selection): Promise<void> {
-    // The guard runs before any transport work, so no session is opened from a
-    // state the machine has not permitted (A2 section 5 transition guards).
-    this.dispatch({type: 'connect_started', selection});
-    if (this.model.state !== 'connecting') {
-      return;
-    }
     try {
       const snapshot = await this.options.native.startCustomerSession({
         selection,
