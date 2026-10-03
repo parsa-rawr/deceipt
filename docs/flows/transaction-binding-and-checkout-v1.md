@@ -1,8 +1,8 @@
 # Deceipt PoC — Transaction Binding & Checkout Flow (v1)
 
 **Owner:** A2 (transaction binding + checkout flow)
-**Status:** v1 — binding bytes **adopted verbatim by A1 into `deceipt-proto-r1` and confirmed unchanged by `deceipt-proto-r2`** (committed `2c06617`, aggregate `5a7cc554dae28764155d478fa7cdd12eabb0aeac20bad982d44bddf5c045edda`, 39 files). **Selection model: QR-mandatory** (§4, resolution of A6 RX-04).
-**Revision note:** binding vectors regenerated after A1's cross-check found the published `client_ephemeral_pubkey` was not a valid P-256 point; V1 reconciles byte-for-byte with `protocol/vectors/handshake-valid.json`. **r2 reconciliation: verified no-op** — `deceipt-proto-r2` changed docs and hash scope, not the binding bytes; the frozen values and transcript offsets (250, 282, 284, 285) are identical, all 39 frozen rows hash-match, and the aggregate recomputes. No vector regeneration was required. `protocol/flows/**` is now inside the r2 hash scope (A6 RX-02); A1 has frozen it and plans no r3 for those bytes. See §12/§14.
+**Status:** v1 — binding bytes **adopted verbatim by A1 into `deceipt-proto-r1` and confirmed unchanged by `deceipt-proto-r2`** (r2 FINAL, commit `7d6c313`, aggregate `b228a5dc08b062c87b87d9cf53924b53e080c1bad4e8f2a67f0739cb2a505d96`, 39 files). **Selection model: QR-mandatory** (§4, resolution of A6 RX-04).
+**Revision note:** binding vectors regenerated after A1's cross-check found the published `client_ephemeral_pubkey` was not a valid P-256 point; V1 reconciles byte-for-byte with `protocol/vectors/handshake-valid.json`. **r2 reconciliation: verified no-op** — `deceipt-proto-r2` changed docs and hash scope, not the binding bytes; the frozen values and transcript offsets (250, 282, 284, 285) are identical, all 39 frozen rows hash-match, and the aggregate recomputes. No vector regeneration was required. `protocol/flows/**` is now inside the r2 hash scope (A6 RX-02); r2 is frozen and no r3 is planned for those bytes. See §12/§14.
 **Consumes:** `DESIGN.md` §2.5, §4.4–4.5, §6.3–6.4, §7.1–7.4, §8, §9, §11, §13.
 **Feeds:** A1 (pass C/D — closed in r1), A3 (checkout UI + state machine), A6 (adversarial review), A0 (freeze gate).
 
@@ -539,12 +539,12 @@ All four vectors and their exact bytes live in `protocol/flows/vectors/binding-v
 | `offer_hash`, `binding_tuple`, `binding_tuple_digest`, `binding_proof` (V1) vs r2 `handshake-valid.json` | **byte-identical** |
 | `binding_proof_message` / `client_ephemeral_pubkey` | **identical** |
 | transcript offsets (`binding_tuple_digest` 250, `max_frame_payload` 282, `binding_len` 284, `binding_tuple` 285) | **unchanged** |
-| all 38 frozen rows vs their recorded SHA-256 | **0 mismatches** (includes all four `protocol/flows/**` files) |
+| all 39 frozen rows vs their recorded SHA-256 | **0 mismatches** (includes all four `protocol/flows/**` files) |
 | recomputed revision aggregate | **matches** r2's stated aggregate |
 
 **Conclusion:** r2 changed no binding input, so **no A2 vector regeneration was required** — the r1 vectors are the r2 vectors. Because `protocol/flows/**` is now hash-pinned in `REVISION.json`, A2 makes **no** further edits to those four files under r2; any future change to them requires a new revision id (A0/A1). A1's option-a resolution of R4-01 (no QR layout change) means the QR map in §3.3 is unchanged, so the `pending r2` note there is resolved (no `transfer_id`/`receipt_id` added).
 
-**r2 committed** as `2c06617`, aggregate `5a7cc554dae28764155d478fa7cdd12eabb0aeac20bad982d44bddf5c045edda`, 39 frozen files (docs and hash scope changed; binding bytes did not). Two r2 facts reflected in this contract:
+**r2 FINAL** as commit `7d6c313`, aggregate `b228a5dc08b062c87b87d9cf53924b53e080c1bad4e8f2a67f0739cb2a505d96`, 39 frozen files. The aggregate moved past the interim value twice while A1 corrected stale doc/tool text (metadata only) — the binding bytes never changed. A2's four `protocol/flows/**` hashes match A1's final manifest exactly. Two r2 facts reflected in this contract:
 
 - **R7-01 closed:** `WRONG_TRANSACTION` is `0x0614`; the duplicate `RECEIPT_OFFER_MISMATCH` code is **removed** from the taxonomy. §6 cites only `WRONG_TRANSACTION`.
 - **`SessionUnverifiedPeer`** is a first-class r2 wire outcome (fixture `protocol/vectors/handshake-unverified-peer.json`): a well-formed peer whose issuer is not a pinned anchor reaches this session type, transfer is **allowed**, and every receipt from it is `UNVERIFIED_UNKNOWN_ISSUER` and can **never** become `TRUSTED`. This is the wire-level realisation of the "display as unknown, never trust" rule; the §5 state machine's `connecting → transferring` guard and §8 display rules already treat an unknown key as shown-but-not-trusted, so no A2 flow change is required — noted here for A3's session type and A6's re-review.
