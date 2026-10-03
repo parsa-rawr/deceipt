@@ -91,7 +91,7 @@ A3/A4/A5 are accepted only if every applicable row passes against this revision.
 
 ## F. Reference-implementation self-test
 
-`protocol/vectors/tools/gen_vectors.py` executes every byte-level invalid fixture (encoding, receipt, AEAD, LPdu, framing, handshake) through the reference implementation and asserts the recorded error. Result at this revision: `protocol/vectors/self-test.json` — **153 checks, 0 failures**. 18 additional cases are receiver-state/timeout policy assertions that cannot be decided by a single byte string; they are listed in `self-test.json#policy_only_cases` and MUST be tested on-device (rows D8, E4–E8).
+`protocol/vectors/tools/gen_vectors.py` executes every byte-level invalid fixture (encoding, receipt, AEAD, LPdu, framing, handshake) through the reference implementation and asserts the recorded error. Result at this revision: `protocol/vectors/self-test.json` — **165 checks, 0 failures**. 19 additional cases are receiver-state/timeout policy assertions that cannot be decided by a single byte string; they are listed in `self-test.json#policy_only_cases` and MUST be tested on-device (rows D8, E4–E8).
 
 ## G. A6 early-review closure (r2)
 

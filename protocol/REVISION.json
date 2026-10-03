@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "revision": "deceipt-proto-r2",
- "aggregate_sha256": "e1c0ab222a6cbcae9973c6d6c64213f5e71a254ec761871108dd7d025247df70",
+ "aggregate_sha256": "b228a5dc08b062c87b87d9cf53924b53e080c1bad4e8f2a67f0739cb2a505d96",
  "hash_rule": "SHA-256(<revision id> || 0x00 || <sorted 'path=sha256' rows joined by 0x00>) over every frozen protocol artifact: docs/protocol/*.md, protocol/schema/*, protocol/vectors/** and protocol/flows/** (the A2 artifacts docs/protocol/README.md adopts and pins).",
  "files": {
   "../schema/bounds-v1.json": "dd516e8b23b62e8fd989efc3e4a65776147be4b622cec79d7eb9daf7cbe8c378",
@@ -28,8 +28,8 @@
   "lpdu-valid.json": "954a2fe589c1db9e60792cda0471ae772d178408f306e812e504078b5d02fce9",
   "receipt-invalid.json": "42a667b8d031211d559399936717310acd35ac4f0f03100b9babce690789d181",
   "receipt-valid.json": "ecadbd08f8c27dd5f5eef488d320b9580e95a59829b61d459d840934335c22a1",
-  "../../docs/protocol/README.md": "4b67e6669859af05f2927c6aab65aad4d75ecacf69672dd44c0c971b942d8c22",
-  "../../docs/protocol/conformance.md": "1f71ebbe16c9e94776229589fb0778aaff10d793a7be22a2c010d9682ce3161a",
+  "../../docs/protocol/README.md": "fae75fdc80a4c559f6d0b74ed294ac4a1528b4122105f82938cd83800762e745",
+  "../../docs/protocol/conformance.md": "54bab669ad2813e554e6a83903989848ebc12f989417af462e40f8fb368c19b9",
   "../../docs/protocol/framing.md": "fc379174c4ac54a47058c8c6dcf4cbbc3ea72846c7d0a502f1162fec76e7b698",
   "../../docs/protocol/handshake.md": "cd662d3e20e06ec4ece05b36443d75ee61f25583e107b7be73691ca6dc50bf9a",
   "../../docs/protocol/receipt-v1.md": "be6c84a6f59e1a82bfc5912fd549ffcb376a5ffccb5102491fed5e4539cc4330",

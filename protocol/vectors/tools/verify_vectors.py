@@ -510,6 +510,22 @@ def main():
                 warnings.append("A2 metadata: %s declares %s (pinned revision is %s) - "
                                 "owner action required" % (rel, m, mine))
 
+    # ---- 13. normative counts in docs must match the frozen self-test ----
+    _st = load("self-test.json")
+    _checked, _policy = _st["checked"], len(_st["policy_only_cases"])
+    import glob as _glob
+    for _fp in _glob.glob(os.path.join(V, "..", "..", "docs", "protocol", "*.md")):
+        _txt = open(_fp, encoding="utf-8").read()
+        _name = os.path.basename(_fp)
+        _cm = _re.search(r"(\d+)\s+checks,\s*(\d+)\s+failures", _txt)
+        if _cm and int(_cm.group(1)) != _checked:
+            fails.append("stale check count %s in %s (self-test has %d)"
+                         % (_cm.group(1), _name, _checked))
+        _pm = _re.search(r"(\d+)\s+additional cases are receiver-state", _txt)
+        if _pm and int(_pm.group(1)) != _policy:
+            fails.append("stale policy-case count %s in %s (self-test has %d)"
+                         % (_pm.group(1), _name, _policy))
+
     # ---- report ----
     for w in warnings:
         print("WARN", w)

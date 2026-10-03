@@ -56,7 +56,7 @@ python3 protocol/vectors/tools/gen_vectors.py     # deterministic; rewrites vect
 
 Revision history: **r1** was the first freeze; **r2** closes A6's early-review findings (transcript reconstructibility from received bytes, `offer_hash` single definition, three session types incl. `SessionUnverifiedPeer`, final-frame bound, anchor-key correction, one-shot payload key, duplicate offer-mismatch error removed, `transcript_layout` label size, `protocol/flows/**` in hash scope, no placeholder fixtures). No A2 binding byte changed in r2.
 
-The generator runs a self-test that executes every byte-level invalid fixture through the reference implementation and fails the build if any recorded typed error does not match. `self-test.json` records the result (`checked: 153, failed: []` at this revision).
+The generator runs a self-test that executes every byte-level invalid fixture through the reference implementation and fails the build if any recorded typed error does not match. `self-test.json` records the result (`checked: 165, failed: []` at this revision).
 
 Independent re-derivation of every published value (including a live cross-check against A2's binding vectors):
 
