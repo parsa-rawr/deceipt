@@ -32,6 +32,8 @@
 	<string>Deceipt advertises a transfer service so your terminal can hand the receipt to your phone.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Deceipt uses the camera only to scan the merchant's transaction QR code.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Deceipt does not access your photo library; this key is required by the camera component and is never used to read your photos.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
