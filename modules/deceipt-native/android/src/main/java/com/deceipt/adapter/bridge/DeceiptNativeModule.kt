@@ -238,22 +238,8 @@ class DeceiptNativeModule(
     @ReactMethod
     fun merchantKeyStatus(promise: Promise) {
         onWorker(promise) {
-            val stored = manager.loadMerchantKey() ?: manager.merchantPublicKey?.let {
-                MerchantKeyStore.StoredKey(manager.merchantStorage, manager.merchantDeviceKeyId, it, manager.merchantCreatedAtMs)
-            }
-            val identity = stored?.let { s ->
-                linkedMapOf<String, Any?>(
-                    "deviceKeyIdHex" to Bytes.toHex(s.deviceKeyId ?: ByteArray(0)),
-                    "devicePublicKeyB64" to Bytes.toBase64(s.publicKey ?: ByteArray(0)),
-                    "storage" to s.storage,
-                    "createdAtMs" to s.createdAtMs,
-                )
-            }
-            val m = linkedMapOf<String, Any?>("provisioned" to (identity != null))
-            if (identity != null) m["identity"] = identity
-            manager.merchantCredential?.let { m["credentialB64"] = Bytes.toBase64(it) }
-            manager.merchantId?.let { m["merchantIdHex"] = Bytes.toHex(it) }
-            m
+            manager.loadMerchantKey()
+            merchantKeyStatusMap()
         }
     }
 
@@ -366,6 +352,9 @@ class DeceiptNativeModule(
         onWorker(promise) {
             val sessionIdHex = request.getString("sessionIdHex")!!
             val sessionId = Bytes.fromHex(sessionIdHex)
+            // Hydrate first: a fresh process may go mintBindingQr -> startMerchantSession
+            // without a prior merchantKeyStatus, and the credential is on disk.
+            manager.loadMerchantKey()
             manager.sessionHistory.remember(sessionId)
             val handle = manager.handle()
             val ble = MerchantBleSession(reactContext.applicationContext, ::emit)
@@ -564,6 +553,10 @@ class DeceiptNativeModule(
             val seed = Bytes.fromBase64(request.getString("deviceSeedB64")!!)
             val deviceKeyId = Bytes.fromHex(request.getString("deviceKeyIdHex")!!)
             val credential = Bytes.fromBase64(request.getString("credentialB64")!!)
+            manager.loadMerchantKey()
+            // Re-import the published credential over the current test key. The key is
+            // the SAME published test key, so this repairs an incomplete identity
+            // rather than declining because a key already exists.
             manager.provisionTestMerchant(seed, deviceKeyId, credential)
             merchantKeyStatusMap()
         }
@@ -580,18 +573,42 @@ class DeceiptNativeModule(
         }
     }
 
-    private fun merchantKeyStatusMap(): Map<String, Any?> =
-        manager.merchantPublicKey?.let { pub ->
-            linkedMapOf<String, Any?>(
-                "provisioned" to true,
-                "identity" to linkedMapOf<String, Any?>(
-                    "deviceKeyIdHex" to Bytes.toHex(manager.merchantDeviceKeyId ?: ByteArray(0)),
-                    "devicePublicKeyB64" to Bytes.toBase64(pub),
-                    "storage" to manager.merchantStorage,
-                    "createdAtMs" to manager.merchantCreatedAtMs,
-                ),
+    /**
+     * `provisioned` means "a signing key exists in platform storage" and is NOT
+     * sufficient: a device can hold a key whose credential import failed, and such
+     * a device cannot build a ServerHello or embed the credential at receipt label
+     * 20. `ready` is true only when the key, the credential bytes AND the 16-byte
+     * merchant id are all present; anything absent is listed in `missing`.
+     */
+    private fun merchantKeyStatusMap(): Map<String, Any?> {
+        val pub = manager.merchantPublicKey
+        if (pub == null) {
+            return linkedMapOf(
+                "provisioned" to false,
+                "ready" to false,
+                "missing" to listOf("signing_key", "credential", "merchant_id"),
             )
-        } ?: linkedMapOf("provisioned" to false)
+        }
+        val credential = manager.merchantCredential
+        val merchantId = manager.merchantId
+        val missing = ArrayList<String>()
+        if (credential == null) missing.add("credential")
+        if (merchantId == null) missing.add("merchant_id")
+        val m = linkedMapOf<String, Any?>(
+            "provisioned" to true,
+            "ready" to (missing.isEmpty()),
+            "identity" to linkedMapOf<String, Any?>(
+                "deviceKeyIdHex" to Bytes.toHex(manager.merchantDeviceKeyId ?: ByteArray(0)),
+                "devicePublicKeyB64" to Bytes.toBase64(pub),
+                "storage" to manager.merchantStorage,
+                "createdAtMs" to manager.merchantCreatedAtMs,
+            ),
+        )
+        if (missing.isNotEmpty()) m["missing"] = missing
+        credential?.let { m["credentialB64"] = Bytes.toBase64(it) }
+        merchantId?.let { m["merchantIdHex"] = Bytes.toHex(it) }
+        return m
+    }
 
     // -----------------------------------------------------------------------
     // Helpers
