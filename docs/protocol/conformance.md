@@ -114,3 +114,14 @@ Every `docs/security/early-contract-review.md` finding is closed in r2 except RX
 | # | Check | Fixture | Expected |
 |---:|---|---|---|
 | D9 | `REVISION.json` pins `protocol/flows/**` and every recorded hash matches on-disk | `protocol/REVISION.json` | no missing/mismatched rows |
+| D10 | No pinned artifact declares a revision other than the frozen one | `verify_vectors.py` revision-alignment guard | no stale `deceipt-proto-rN` string in `docs/protocol/*.md`; A2-owned `protocol/flows/**` metadata aligned (see residual note) |
+
+### Residual metadata note (r2)
+
+`protocol/flows/**` is inside the r2 hash scope (RX-02). A2 owns those files. At this
+writing A2 is aligning their internal `"revision"` / `$comment` strings from r1 to r2
+(metadata only — no binding byte changes). `protocol/vectors/tools/verify_vectors.py`
+prints a **WARN** line for any A2-owned pinned file still declaring r1, and **FAILS** on
+any A1-owned doc doing so. If any A2 warning is still present when the r2 aggregate is
+quoted, the pinned value is the one in `protocol/REVISION.json`; the warning names the
+exact file and is an owner action for A2, not a byte-level inconsistency in the vectors.

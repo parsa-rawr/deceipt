@@ -4,7 +4,7 @@
  "revision": "deceipt-proto-r2",
  "purpose": "Record that A1's implementation of the A2 binding contract is byte-identical to A2's published vectors, re-derived from A2's inputs, and that V1 reconciles byte-for-byte with A1's frozen revision r1.",
  "source": "protocol/flows/vectors/binding-v1.json (owner A2)",
- "a2_verification_status": "verified-live (revision deceipt-proto-r1)",
+ "a2_verification_status": "verified-live (revision deceipt-proto-r2)",
  "a2_bytes_match": true,
  "a2_checks": [
   {
