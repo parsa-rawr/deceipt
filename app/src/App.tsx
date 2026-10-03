@@ -24,7 +24,7 @@ import type {DeceiptNative} from './native/DeceiptNative';
 import {InMemoryDeceiptNative} from './native/mock/InMemoryDeceiptNative';
 import {adaptNativeModule, probeNativeModule, type ProbeResult} from './native/adapterShim';
 import {base64Decode} from './protocol/bytes';
-import {normalizationEngine, normalizationEngineIsExact} from './protocol/normalization';
+import {normalizationEngine, setNativeNfcSource} from './protocol/normalization';
 import {canGenerateSecureRandom, setNativeRandomSource} from './protocol/crypto';
 import {MemoryKeyValueStore, ReceiptStore} from './storage/receiptStore';
 import {TRUST_ANCHORS} from './config/trustAnchors';
@@ -62,6 +62,14 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
   // an identifier or a nonce. Hermes has no `globalThis.crypto`, so on device
   // this is the only secure source there is.
   useMemo(() => {
+    // The OS normalizer behind the bridge, used only when this engine cannot
+    // decide NFC itself (Hermes without Intl). Android
+    // java.text.Normalizer / iOS precomposedStringWithCanonicalMapping.
+    setNativeNfcSource(
+      binding.probe.compatible
+        ? {normalizeNfc: (text: string) => binding.adapter.normalizeNfc(text)}
+        : null,
+    );
     setNativeRandomSource(
       binding.probe.compatible
         ? {
@@ -96,7 +104,6 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
             <Text style={styles.value}>{describeAdapter(resolvedNative)}</Text>
             <Text style={styles.label} testID="nfc-engine">
               NFC engine: {normalizationEngine()}
-              {normalizationEngineIsExact() ? '' : ' (fallback tables predate Unicode 9; a few newer combining marks may not be reordered)'}
             </Text>
             <Text style={styles.label} testID="randomness-source">
               randomness: {canGenerateSecureRandom() ? (binding.isNative ? 'native CSPRNG' : 'WebCrypto (mock build)') : 'unavailable'}

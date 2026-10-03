@@ -712,6 +712,7 @@ export interface DeceiptTestProvisioning {
  * verifyReceiptContainer      | any                                       | exact-bytes verification, native builds Sig_structure
  * verifyCredential            | any                                       | sub-states preserved
  * randomBytes                 | any                                       | CSPRNG; native-only, never a JS PRNG
+ * normalizeNfc                | any                                       | OS NFC (ICU); used when the engine lacks String.prototype.normalize
  * mintBindingQr               | any (merchant)                            | SBT stays native
  * startMerchantSession        | after mintBindingQr                       | GATT server + advertising
  * beginTransfer               | MERCHANT_SESSION_AUTHENTICATED            | after ACCEPT; TransferableSession only
@@ -769,6 +770,23 @@ export interface DeceiptNative {
    * `CAPABILITY_UNAVAILABLE` rather than substituting a weaker source.
    */
   randomBytes(count: number): Promise<Base64>;
+  /**
+   * The OS's own NFC normalization: Android
+   * `java.text.Normalizer.normalize(text, Form.NFC)`, iOS
+   * `text.precomposedStringWithCanonicalMapping`. Both are ICU-backed.
+   *
+   * It exists because NFC is a REQUIRED receipt text rule (receipt-v1.md §8,
+   * lookalike/bidi defense) and Hermes builds are not guaranteed to have
+   * `String.prototype.normalize`. The shared layer uses the engine's normalizer
+   * when it has one and this method otherwise, so a receipt is never accepted on
+   * an unverified text field. Text in, text out — no base64, because the value
+   * is public display data, not bytes.
+   *
+   * The guarantee is exactness for the Unicode version the OS supports, which is
+   * the maintained, vendor-updated set; it is not a claim to carry the newest
+   * tables independently of the platform.
+   */
+  normalizeNfc(text: string): Promise<string>;
 
   // --- session lifecycle ---------------------------------------------------
   /** Merchant: mint the SBT and build the QR payload. SBT never crosses the bridge. */

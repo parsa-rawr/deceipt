@@ -102,7 +102,7 @@ describe('Hermes smoke: no globalThis.crypto and no TextDecoder', () => {
   it('parses, re-serializes and verifies the frozen receipt', async () => {
     await withoutPlatformGlobals(async () => {
       const vector = loadReceiptValid();
-      const parsed = parseReceiptPayload(base64Decode(base64Encode(hexToBytes(vector.receipt_body_hex))));
+      const parsed = await parseReceiptPayload(base64Decode(base64Encode(hexToBytes(vector.receipt_body_hex))));
       expect(parsed.receipt.merchant.displayName).toBe('Maple & Vine Cafe');
       expect(parsed.receipt.lines[0].description).toBe('Latte, 16oz');
       expect(parsed.receipt.totals.totalMinor).toBe(970);

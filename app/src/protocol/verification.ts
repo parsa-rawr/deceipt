@@ -29,7 +29,7 @@ import {
   RECEIPT_CONTENT_TYPE,
 } from './handshake';
 import type {CredentialBody, CredentialCheck} from './handshake';
-import {parseReceiptMap, recomputeTotals, type Receipt} from './receipt';
+import {confirmNfcChecks, parseReceiptMap, recomputeTotals, type Receipt, type DeferredNfcCheck} from './receipt';
 import type {OfferMetadata} from '../native/DeceiptNative';
 import type {TrustAnchor} from '../native/DeceiptNative';
 
@@ -192,14 +192,25 @@ export async function verifyReceipt(context: VerificationContext): Promise<Verif
   // non-canonical *payload* is RECEIPT_NONCANONICAL, checked before semantics.
   let receipt: Receipt;
   let ignoredExtensions: string[];
+  let pendingNfc: DeferredNfcCheck[];
   try {
     const parsed = parseReceiptMap(requireMap(container.payload));
     receipt = parsed.receipt;
     ignoredExtensions = parsed.ignoredNonCriticalExtensionKeys;
+    pendingNfc = parsed.deferredNfcChecks;
   } catch (error) {
     return rejection(asFatal(error, 'RECEIPT_SEMANTIC_INVALID'), subStates, bytes, {});
   }
   void ignoredExtensions;
+
+  // Every deferred NFC check is decided BEFORE any trust decision: an
+  // unverifiable text field must not reach the signature or authorization steps
+  // as if it had passed validation.
+  try {
+    await confirmNfcChecks(pendingNfc);
+  } catch (error) {
+    return rejection(asFatal(error, 'RECEIPT_TEXT_INVALID'), subStates, bytes, {receipt});
+  }
 
   // Step 11 (part 1): the receipt must embed the exact credential bytes.
   const embeddedCredential = receipt.merchantCredential;

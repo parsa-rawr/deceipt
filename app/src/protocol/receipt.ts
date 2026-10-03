@@ -14,7 +14,7 @@
  */
 
 import {MAX_ARITH_PRODUCT, CURRENCY_MINOR_UNIT_EXPONENT, RECEIPT_LIMITS} from './constants';
-import {normalizationEngine, normalizationEngineIsExact, toNfc} from './normalization';
+import {normalizeNfcAsync, toNfc} from './normalization';
 import {CborMap, CborValue, decodeCbor, encodeCbor} from './cbor';
 import {ProtocolError} from './errors';
 import {hexEncode} from './bytes';
@@ -507,6 +507,32 @@ export function recomputeTotals(receipt: Receipt): RecomputeSummary {
 const BIDI_CONTROLS = new Set([0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069]);
 
 /** Valid UTF-8 / NFC-normalized / no C0,C1 controls, surrogates or bidi controls. */
+/**
+ * A non-ASCII text value whose NFC form could not be decided synchronously,
+ * because this engine has no `String.prototype.normalize`. It is confirmed
+ * through the bridged platform normalizer before any receipt is accepted.
+ */
+export interface DeferredNfcCheck {
+  label: string;
+  value: string;
+}
+
+/** Collects the values a synchronous parse could not decide. */
+class NfcDeferral {
+  readonly checks: DeferredNfcCheck[] = [];
+
+  add(label: string, value: string): void {
+    this.checks.push({label, value});
+  }
+}
+
+/**
+ * The collector for the parse in progress. It is module state only because CBOR
+ * validation is synchronous; NO parse result escapes while it is populated — the
+ * async boundary below drains it before returning.
+ */
+let activeDeferral: NfcDeferral | null = null;
+
 export function checkText(value: string, maxBytes: number, label: string): void {
   const byteLength = utf8ByteLength(value);
   if (byteLength > maxBytes) {
@@ -542,10 +568,15 @@ export function checkText(value: string, maxBytes: number, label: string): void 
   }
   const normalized = toNfc(value);
   if (normalized === null) {
-    throw new ProtocolError(
-      'RECEIPT_TEXT_INVALID',
-      `${label} contains non-ASCII text and this runtime has no NFC implementation`,
-    );
+    // No synchronous engine. The value is recorded for confirmation through the
+    // OS normalizer. It is never accepted here: `parseReceiptPayloadAsync` drains
+    // the collector and fails the parse if confirmation does not pass, so no
+    // parse result can escape unvalidated.
+    if (activeDeferral === null) {
+      throw new ProtocolError('INTERNAL_ERROR', 'NFC deferral outside a parse');
+    }
+    activeDeferral.add(label, value);
+    return;
   }
   if (normalized !== value) {
     throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} is not NFC-normalized`);
@@ -553,9 +584,6 @@ export function checkText(value: string, maxBytes: number, label: string): void 
 }
 
 /** True when every code unit is in U+0000..U+007F (where NFC is the identity). */
-/** Re-exported so the UI can report the NFC engine actually in use. */
-export {normalizationEngine, normalizationEngineIsExact};
-
 export function isAscii(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     if (value.charCodeAt(index) > 0x7f) {
@@ -584,6 +612,12 @@ export interface DecodedReceipt {
   payloadBytes: Uint8Array;
   /** Fields that were present but not understood; critical ones already threw. */
   ignoredNonCriticalExtensionKeys: string[];
+  /**
+   * Non-ASCII values whose NFC form this engine cannot decide synchronously.
+   * Empty on any build with `String.prototype.normalize`. `verifyReceipt`
+   * confirms every entry through the platform normalizer before accepting.
+   */
+  deferredNfcChecks: DeferredNfcCheck[];
 }
 
 function requireMap(value: CborValue | undefined, label: string, allowed: number[]): CborMap {
@@ -936,7 +970,24 @@ export const KNOWN_EXTENSIONS: ReadonlySet<string> = new Set<string>();
  * Validate a decoded receipt map and build the typed model. Every violation is
  * a `ProtocolError` with the frozen identifier from verification.md §1 step 12.
  */
-export function parseReceiptMap(map: CborMap): {receipt: Receipt; ignoredNonCriticalExtensionKeys: string[]} {
+export function parseReceiptMap(map: CborMap): {
+  receipt: Receipt;
+  ignoredNonCriticalExtensionKeys: string[];
+  /** Non-ASCII values a synchronous parse could not decide; usually empty. */
+  deferredNfcChecks: DeferredNfcCheck[];
+} {
+  const outer = activeDeferral;
+  const collector = outer ?? new NfcDeferral();
+  activeDeferral = collector;
+  try {
+    const parsed = parseReceiptMapInner(map);
+    return {...parsed, deferredNfcChecks: collector === outer ? [] : collector.checks};
+  } finally {
+    activeDeferral = outer;
+  }
+}
+
+function parseReceiptMapInner(map: CborMap): {receipt: Receipt; ignoredNonCriticalExtensionKeys: string[]} {
   requireMap(map, 'receipt', TOP_LEVEL_LABELS);
 
   const version = requireUint(map.get(1), 'receipt_version');
@@ -1278,16 +1329,86 @@ function validateKindSemantics(receipt: Receipt): void {
  * Depth, item count and length caps are enforced by the CBOR decoder *before*
  * any allocation.
  */
-export function parseReceiptPayload(payloadBytes: Uint8Array): DecodedReceipt {
+/** Synchronous parse. INTERNAL: always use `parseReceiptPayloadAsync`. */
+function parseReceiptPayloadSync(payloadBytes: Uint8Array): {decoded: DecodedReceipt; pending: DeferredNfcCheck[]} {
   if (payloadBytes.length > RECEIPT_LIMITS.maxReceiptBytes) {
     throw new ProtocolError('RECEIPT_SIZE_EXCEEDED', `payload is ${payloadBytes.length} bytes, above ${RECEIPT_LIMITS.maxReceiptBytes}`);
   }
-  const decoded = decodeCbor(payloadBytes);
-  if (!(decoded.value instanceof CborMap)) {
-    throw new ProtocolError('RECEIPT_CONTAINER_MALFORMED', 'receipt payload must be a CBOR map');
+  const outer = activeDeferral;
+  const collector = outer ?? new NfcDeferral();
+  activeDeferral = collector;
+  try {
+    const decoded = decodeCbor(payloadBytes);
+    if (!(decoded.value instanceof CborMap)) {
+      throw new ProtocolError('RECEIPT_CONTAINER_MALFORMED', 'receipt payload must be a CBOR map');
+    }
+    const {receipt, ignoredNonCriticalExtensionKeys} = parseReceiptMap(decoded.value);
+    return {
+      decoded: {receipt, payloadBytes, ignoredNonCriticalExtensionKeys, deferredNfcChecks: []},
+      pending: collector === outer ? [] : collector.checks,
+    };
+  } finally {
+    activeDeferral = outer;
   }
-  const {receipt, ignoredNonCriticalExtensionKeys} = parseReceiptMap(decoded.value);
-  return {receipt, payloadBytes, ignoredNonCriticalExtensionKeys};
+}
+
+/**
+ * Parse and FULLY VALIDATE a receipt payload — the only public parse boundary.
+ *
+ * Every NFC check is decided before this resolves: synchronously when the engine
+ * can, otherwise through the OS normalizer behind the bridge. A payload whose
+ * non-ASCII text is not NFC is rejected with `RECEIPT_TEXT_INVALID`; there is no
+ * "unconfirmed but returned" state for a caller to misuse.
+ */
+export async function parseReceiptPayload(payloadBytes: Uint8Array): Promise<DecodedReceipt> {
+  const {decoded, pending} = parseReceiptPayloadSync(payloadBytes);
+  await confirmNfcChecks(pending);
+  return decoded;
+}
+
+/**
+ * Confirm the values a synchronous parse could not decide. Throws
+ * `RECEIPT_TEXT_INVALID` when a value is not NFC or when no exact engine exists,
+ * so an unverifiable receipt is never accepted.
+ */
+export async function confirmNfcChecks(checks: DeferredNfcCheck[]): Promise<void> {
+  if (checks.length === 0) {
+    return;
+  }
+  for (const check of checks) {
+    let normalized: string;
+    try {
+      normalized = await normalizeNfcAsync(check.value);
+    } catch {
+      throw new ProtocolError(
+        'RECEIPT_TEXT_INVALID',
+        `${check.label} contains non-ASCII text and this runtime has no exact NFC implementation`,
+      );
+    }
+    if (normalized !== check.value) {
+      throw new ProtocolError('RECEIPT_TEXT_INVALID', `${check.label} is not NFC-normalized`);
+    }
+  }
+}
+
+/**
+ * Validate every text field of an in-memory receipt before it is SIGNED. The
+ * signing path must not attest to text the receiver would reject.
+ */
+export async function validateReceiptText(receipt: Receipt): Promise<void> {
+  const collector = new NfcDeferral();
+  const outer = activeDeferral;
+  activeDeferral = collector;
+  try {
+    checkText(receipt.merchant.displayName, RECEIPT_LIMITS.maxTextDisplayNameBytes, 'merchant.display_name');
+    checkText(receipt.merchant.merchantReference, RECEIPT_LIMITS.maxTextDisplayNameBytes, 'merchant.merchant_reference');
+    for (const line of receipt.lines) {
+      checkText(line.description, RECEIPT_LIMITS.maxTextDescriptionBytes, `lines[${line.lineId}].description`);
+    }
+  } finally {
+    activeDeferral = outer;
+  }
+  await confirmNfcChecks(collector.checks);
 }
 
 /** Read only the dedup key and the offer-relevant identity fields. */

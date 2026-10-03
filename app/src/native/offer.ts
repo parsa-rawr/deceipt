@@ -20,9 +20,13 @@ export interface OfferIdentity {
   kind: 1 | 2 | 3;
 }
 
-/** Read the offer identity fields directly out of the exact signed bytes. */
-export function buildReceiptOfferFromReceipt(coseSign1Bytes: Uint8Array): OfferIdentity {
-  const parsed = parseReceiptPayload(parseCoseSign1(coseSign1Bytes).payload);
+/**
+ * Read the offer identity fields directly out of the exact signed bytes. Async
+ * because parsing validates NFC through the OS normalizer when the engine cannot
+ * decide it synchronously — no caller may treat an unvalidated parse as usable.
+ */
+export async function buildReceiptOfferFromReceipt(coseSign1Bytes: Uint8Array): Promise<OfferIdentity> {
+  const parsed = await parseReceiptPayload(parseCoseSign1(coseSign1Bytes).payload);
   return {
     merchantReference: parsed.receipt.merchant.merchantReference,
     totalAmountMinor: parsed.receipt.totals.totalMinor,

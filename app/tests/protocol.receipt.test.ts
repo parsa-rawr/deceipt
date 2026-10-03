@@ -67,17 +67,17 @@ function offerFrom(hex: string | null): OfferMetadata | undefined {
 describe('receipt body reconstruction (conformance A1/A2/A3)', () => {
   const vector = loadReceiptValid();
 
-  it('parses the frozen body and re-serializes it byte-identically', () => {
+  it('parses the frozen body and re-serializes it byte-identically', async () => {
     const payload = hexDecode(vector.receipt_body_hex);
-    const parsed = parseReceiptPayload(payload);
+    const parsed = await parseReceiptPayload(payload);
     const reencoded = serializeReceipt(parsed.receipt);
     expect(reencoded.length).toBe(vector.receipt_body_len);
     expect(bytesEqual(reencoded, payload)).toBe(true);
     expect(hexEncode(reencoded)).toBe(vector.receipt_body_hex);
   });
 
-  it('reproduces the stated arithmetic from the field tables', () => {
-    const parsed = parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+  it('reproduces the stated arithmetic from the field tables', async () => {
+    const parsed = await parseReceiptPayload(hexDecode(vector.receipt_body_hex));
     const arithmetic = vector.arithmetic;
     expect(parsed.receipt.totals.subtotalMinor).toBe(arithmetic.subtotal_minor);
     expect(parsed.receipt.totals.discountTotalMinor).toBe(arithmetic.discount_total_minor);
@@ -91,8 +91,8 @@ describe('receipt body reconstruction (conformance A1/A2/A3)', () => {
     }
   });
 
-  it('parses the 256-line long receipt', () => {
-    const parsed = parseReceiptPayload(hexDecode(vector.long_receipt.receipt_body_hex));
+  it('parses the 256-line long receipt', async () => {
+    const parsed = await parseReceiptPayload(hexDecode(vector.long_receipt.receipt_body_hex));
     expect(parsed.receipt.lines).toHaveLength(vector.long_receipt.lines);
     expect(parsed.receipt.totals.totalMinor).toBe(vector.long_receipt.total_minor);
     expect(hexEncode(serializeReceipt(parsed.receipt))).toBe(vector.long_receipt.receipt_body_hex);
@@ -173,7 +173,7 @@ describe('receipt verification against the frozen invalid fixtures (conformance 
 describe('arithmetic (conformance A11/A12)', () => {
   const arithmetic = loadVector<ArithmeticVector>(vectorPaths.arithmeticValid);
 
-  it('declares integer-only round-half-away-from-zero', () => {
+  it('declares integer-only round-half-away-from-zero', async () => {
     expect(arithmetic.rounding_mode).toContain('round-half-away-from-zero');
   });
 
@@ -187,14 +187,14 @@ describe('arithmetic (conformance A11/A12)', () => {
     expect(roundHalfAwayFromZero(numerator, denominator)).toBe(expected);
   });
 
-  it('computes each frozen quantity exactly, without a float path', () => {
+  it('computes each frozen quantity exactly, without a float path', async () => {
     expect(computeLineAmountMinor(360, {scale: 2, value: 75})).toBe(270);
     expect(computeLineAmountMinor(1, {scale: 3, value: 1005})).toBe(1);
     expect(computeLineAmountMinor(3, {scale: 1, value: 5})).toBe(2);
     expect(computeLineAmountMinor(7, {scale: 2, value: 25})).toBe(2);
   });
 
-  it('rejects an over-large product before dividing', () => {
+  it('rejects an over-large product before dividing', async () => {
     expect(() => computeLineAmountMinor(1_000_000_000_000, {scale: 0, value: 1_000_000})).toThrow(ProtocolError);
   });
 

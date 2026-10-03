@@ -246,7 +246,7 @@ describe('handshake bytes', () => {
 describe('receipt serialization', () => {
   it('reproduces the frozen 669-byte receipt body byte-for-byte', async () => {
     const vector = loadReceiptValid();
-    const parsed = parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+    const parsed = await parseReceiptPayload(hexDecode(vector.receipt_body_hex));
     const reencoded = serializeReceipt(parsed.receipt);
     expect(reencoded.length).toBe(vector.receipt_body_len);
     expect(hexEncode(reencoded)).toBe(vector.receipt_body_hex);

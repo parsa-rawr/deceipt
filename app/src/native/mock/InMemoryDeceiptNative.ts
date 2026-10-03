@@ -407,6 +407,19 @@ export class InMemoryDeceiptNative implements DeceiptNative {
     return base64Encode(nextMockRandom(count));
   }
 
+  /**
+   * MOCK: the platform normalizer. The host's `String.prototype.normalize` is an
+   * acceptable stand-in here because it is the same ICU-backed operation the real
+   * adapters call; what the mock is modeling is the *presence* of an exact
+   * normalizer, not its tables.
+   */
+  async normalizeNfc(text: string): Promise<string> {
+    if (typeof text.normalize !== 'function') {
+      throw new ProtocolError('CAPABILITY_UNAVAILABLE', 'this runtime cannot normalize');
+    }
+    return text.normalize('NFC');
+  }
+
   async verifyCredential(credentialB64: Base64, anchors: TrustAnchor[], nowUnix?: number): Promise<CredentialVerification> {
     const check = await verifyCredential(base64Decode(credentialB64), anchors, nowUnix ?? this.now());
     return {
@@ -474,7 +487,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
     session.frameSize = request.frameSize ?? maxFramePayloadForMtu(185);
     session.claimCount = 0;
     session.accepts = 0;
-    session.offerIdentity = buildReceiptOfferFromReceipt(session.ciphertext);
+    session.offerIdentity = await buildReceiptOfferFromReceipt(session.ciphertext);
     this.teardownReason = 'completed';
     this.emit({type: 'advertising_started', sessionHandle: session.handle, serviceUuid: GATT.serviceUuid});
     return this.snapshotOfMerchant('ADVERTISING');

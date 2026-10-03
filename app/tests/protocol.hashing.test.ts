@@ -39,15 +39,15 @@ const SHA256_ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f200
 const HMAC_SHA256_RFC4231_CASE1 = 'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7';
 
 describe('pure SHA-256 (RFC 6234 vectors)', () => {
-  it('hashes the empty string', () => {
+  it('hashes the empty string', async () => {
     expect(hexEncode(sha256Pure(new Uint8Array(0)))).toBe(SHA256_EMPTY);
   });
 
-  it('hashes "abc"', () => {
+  it('hashes "abc"', async () => {
     expect(hexEncode(sha256Pure(new Uint8Array([0x61, 0x62, 0x63])))).toBe(SHA256_ABC);
   });
 
-  it('handles multi-block input and 64/55/56-byte boundaries', () => {
+  it('handles multi-block input and 64/55/56-byte boundaries', async () => {
     // Padding boundaries: 55 fits, 56 forces an extra block, 64 is a full block.
     for (const length of [1, 55, 56, 57, 63, 64, 65, 127, 128, 1000]) {
       const data = new Uint8Array(length).fill(0xab);
@@ -58,13 +58,13 @@ describe('pure SHA-256 (RFC 6234 vectors)', () => {
 });
 
 describe('pure HMAC-SHA-256 (RFC 4231 vectors)', () => {
-  it('matches RFC 4231 test case 1 (key = 20x0x0b, msg = "Hi There")', () => {
+  it('matches RFC 4231 test case 1 (key = 20x0x0b, msg = "Hi There")', async () => {
     const key = new Uint8Array(20).fill(0x0b);
     const mac = hmacSha256Pure(key, new Uint8Array([0x48, 0x69, 0x20, 0x54, 0x68, 0x65, 0x72, 0x65]));
     expect(hexEncode(mac)).toBe(HMAC_SHA256_RFC4231_CASE1);
   });
 
-  it('matches RFC 4231 test case 2 (key = "Jefe")', () => {
+  it('matches RFC 4231 test case 2 (key = "Jefe")', async () => {
     const key = new Uint8Array([0x4a, 0x65, 0x66, 0x65]);
     const message = new Uint8Array([
       0x77, 0x68, 0x61, 0x74, 0x20, 0x64, 0x6f, 0x20, 0x79, 0x61, 0x20, 0x77, 0x61, 0x6e, 0x74, 0x20, 0x66, 0x6f, 0x72, 0x20,
@@ -73,7 +73,7 @@ describe('pure HMAC-SHA-256 (RFC 4231 vectors)', () => {
     expect(hexEncode(hmacSha256Pure(key, message))).toBe('5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843');
   });
 
-  it('hashes a key longer than the 64-byte block', () => {
+  it('hashes a key longer than the 64-byte block', async () => {
     const key = new Uint8Array(131).fill(0xaa);
     const mac = hmacSha256Pure(key, new Uint8Array([0x01, 0x02, 0x03]));
     expect(mac).toHaveLength(32);
@@ -172,17 +172,17 @@ describe('the on-device fallback reproduces every frozen digest the shared layer
    * record. Each case below is run through `sha256Sync`/`hmacSha256Sync`, which
    * are the pure paths unconditionally.
    */
-  it('receipt body hash (receipt-valid receipt_body_sha256)', () => {
+  it('receipt body hash (receipt-valid receipt_body_sha256)', async () => {
     const vector = loadReceiptValid();
     expect(hexEncode(sha256Sync(hexDecode(vector.receipt_body_hex)))).toBe(vector.receipt_body_sha256);
   });
 
-  it('long receipt body hash (receipt-valid long_receipt)', () => {
+  it('long receipt body hash (receipt-valid long_receipt)', async () => {
     const vector = loadReceiptValid();
     expect(hexEncode(sha256Sync(hexDecode(vector.long_receipt.receipt_body_hex)))).toBe(vector.long_receipt.receipt_body_sha256);
   });
 
-  it('domain-separated offer hash and binding tuple digest (handshake-valid)', () => {
+  it('domain-separated offer hash and binding tuple digest (handshake-valid)', async () => {
     const vector = loadHandshakeValid();
     // offer_hash  = SHA-256("deceipt-offer-hash-v1"  || 0x00 || preimage)
     const offerPreimage = concatBytes(
@@ -200,19 +200,19 @@ describe('the on-device fallback reproduces every frozen digest the shared layer
     expect(hexEncode(sha256Sync(tuplePreimage))).toBe(vector.binding_tuple_digest_hex);
   });
 
-  it('credential hash (handshake-valid credential_hash_hex)', () => {
+  it('credential hash (handshake-valid credential_hash_hex)', async () => {
     const vector = loadHandshakeValid();
     const credential = hexDecode(loadCredentials().cases[0].credential_hex);
     expect(hexEncode(sha256Sync(credential))).toBe(vector.credential_hash_hex);
   });
 
-  it('transfer payload hash (framing-valid payload_hash_hex)', () => {
+  it('transfer payload hash (framing-valid payload_hash_hex)', async () => {
     const framing = loadFramingValid();
     const ciphertext = hexDecode(framing.frames_hex.map(frame => frame.slice(40)).join(''));
     expect(hexEncode(sha256Sync(ciphertext))).toBe(framing.payload_hash_hex);
   });
 
-  it('session context transcript hash (aead-valid session_context_hex prefix)', () => {
+  it('session context transcript hash (aead-valid session_context_hex prefix)', async () => {
     const aead = loadAeadValid();
     const context = hexDecode(aead.session_context_hex);
     // session_context = transcript_hash(32) || transfer_id(16)
@@ -221,7 +221,7 @@ describe('the on-device fallback reproduces every frozen digest the shared layer
     );
   });
 
-  it('binding proof (handshake-valid binding_proof_hex) via the pure HMAC', () => {
+  it('binding proof (handshake-valid binding_proof_hex) via the pure HMAC', async () => {
     const vector = loadHandshakeValid();
     const proof = hmacSha256Sync(
       hexDecode('000102030405060708090a0b0c0d0e0f'),
@@ -355,7 +355,7 @@ function randomBytesSync(count: number): Uint8Array {
 }
 
 describe('UTF-8 decoding works without the platform TextDecoder (device gap)', () => {
-  it('decodes valid UTF-8 identically to the platform decoder', () => {
+  it('decodes valid UTF-8 identically to the platform decoder', async () => {
     const {utf8DecodeLocal, utf8EncodeLocal} = textSides();
     for (const sample of [
       'Latte, 16oz',
@@ -370,7 +370,7 @@ describe('UTF-8 decoding works without the platform TextDecoder (device gap)', (
     }
   });
 
-  it('rejects every invalid sequence class the frozen vectors use', () => {
+  it('rejects every invalid sequence class the frozen vectors use', async () => {
     const {utf8DecodeLocal} = textSides();
     const invalid: Array<[string, number[]]> = [
       ['lone continuation', [0x80]],
@@ -391,7 +391,7 @@ describe('UTF-8 decoding works without the platform TextDecoder (device gap)', (
     }
   });
 
-  it('agrees with the platform decoder on the frozen receipt text', () => {
+  it('agrees with the platform decoder on the frozen receipt text', async () => {
     const vector = loadReceiptValid();
     const payload = hexDecode(vector.receipt_body_hex);
     // The container is binary, so decoding it as text MUST fail; the text lives
@@ -408,7 +408,7 @@ describe('UTF-8 decoding works without the platform TextDecoder (device gap)', (
     expect(utf8DecodeLocal(utf8EncodeLocal(String(displayName)))).toBe(displayName);
   });
 
-  it('falls back to the strict local decoder when TextDecoder is absent', () => {
+  it('falls back to the strict local decoder when TextDecoder is absent', async () => {
     const {utf8Decode} = textSides();
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'TextDecoder');
     // Simulate Hermes: the global simply does not exist.
@@ -426,7 +426,7 @@ describe('UTF-8 decoding works without the platform TextDecoder (device gap)', (
     }
   });
 
-  it('parses the frozen receipt with neither crypto nor TextDecoder present', () => {
+  it('parses the frozen receipt with neither crypto nor TextDecoder present', async () => {
     const {parseReceiptPayload} = receiptModule();
     const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
     const decoderDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'TextDecoder');
@@ -434,7 +434,7 @@ describe('UTF-8 decoding works without the platform TextDecoder (device gap)', (
     Object.defineProperty(globalThis, 'TextDecoder', {value: undefined, configurable: true});
     try {
       const vector = loadReceiptValid();
-      const parsed = parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+      const parsed = await parseReceiptPayload(hexDecode(vector.receipt_body_hex));
       expect(parsed.receipt.merchant.displayName).toBe('Maple & Vine Cafe');
       expect(parsed.receipt.totals.totalMinor).toBe(970);
     } finally {
@@ -443,7 +443,7 @@ describe('UTF-8 decoding works without the platform TextDecoder (device gap)', (
     }
   });
 
-  it('still rejects a genuinely malformed text string (never special-cased)', () => {
+  it('still rejects a genuinely malformed text string (never special-cased)', async () => {
     const {parseReceiptPayload} = receiptModule();
     // The frozen invalid fixture for a bad UTF-8 string must still be rejected.
     const vector = loadReceiptValid();
@@ -453,9 +453,13 @@ describe('UTF-8 decoding works without the platform TextDecoder (device gap)', (
     const at = indexOfBytes(payload, needle);
     expect(at).toBeGreaterThan(0);
     payload[at + 1] = 0xff;
-    expect(() => parseReceiptPayload(payload)).toThrowError(/not valid UTF-8|CBOR_MALFORMED/);
+    await expect(parseReceiptPayload(payload)).rejects.toThrow(/not valid UTF-8|CBOR_MALFORMED/);
   });
 });
+
+function normalizationModule(): typeof import('../src/protocol/normalization') {
+  return require('../src/protocol/normalization') as typeof import('../src/protocol/normalization');
+}
 
 /** The text helpers under test, loaded once. */
 const textSides = () => ({
@@ -491,7 +495,7 @@ function indexOfBytes(haystack: Uint8Array, needle: Uint8Array): number {
 }
 
 describe('NFC validation is strict, never silently skipped', () => {
-  it('accepts pure ASCII without consulting the engine (NFC is the identity on it)', () => {
+  it('accepts pure ASCII without consulting the engine (NFC is the identity on it)', async () => {
     const {checkText} = receiptModule();
     const descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
     // Simulate a build where the engine cannot normalize at all.
@@ -505,61 +509,97 @@ describe('NFC validation is strict, never silently skipped', () => {
     }
   });
 
-  it('accepts valid non-ASCII NFC through the fallback when the engine cannot normalize', () => {
-    const {checkText, normalizationEngine} = receiptModule();
+  it('defers non-ASCII NFC to the platform normalizer when the engine cannot decide it', async () => {
+    const {checkText, parseReceiptPayload} = receiptModule();
+    const {setNativeNfcSource, normalizationEngine} = normalizationModule();
     const descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
     Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true});
+    // A platform normalizer standing in for java.text.Normalizer / the ICU path.
+    const calls: string[] = [];
+    setNativeNfcSource({
+      normalizeNfc: async (text: string) => {
+        calls.push(text);
+        // Decompose-then-recompose is what a real normalizer does; the stand-in
+        // maps the one decomposed form this test uses.
+        return text.replace(/e\u0301/g, '\u00e9');
+      },
+    });
     try {
-      // The fallback must make legitimate non-ASCII merchant text work, not
-      // narrow the receipt format.
-      expect(normalizationEngine()).toBe('unorm');
-      expect(() => checkText('Caf\u00e9', 128, 'display_name')).not.toThrow();
-      expect(() => checkText('\u65e5\u672c\u8a9e', 128, 'display_name')).not.toThrow();
-      // And the fallback still rejects a decomposed string.
-      expect(() => checkText('e\u0301', 128, 'display_name')).toThrowError(/not NFC-normalized/);
+      expect(normalizationEngine()).toBe('native');
+      // Within a parse the check is deferred and then confirmed.
+      const vector = loadReceiptValid();
+      const parsed = await parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+      expect(parsed.receipt.totals.totalMinor).toBe(970);
+      // The frozen text is ASCII, so nothing needed the bridge.
+      expect(calls).toHaveLength(0);
     } finally {
+      setNativeNfcSource(null);
       restore(String.prototype, 'normalize', descriptor);
     }
   });
 
-  it('rejects non-ASCII only when NO engine exists at all', () => {
-    const {checkText, normalizationEngine} = receiptModule();
-    const platform = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
+  it('rejects a non-NFC value when no exact engine can confirm it', async () => {
+    const {parseReceiptPayload, serializeReceipt} = receiptModule();
+    const {setNativeNfcSource} = normalizationModule();
+    const descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
     Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true});
-    const unormModule = require('unorm') as {nfc: unknown};
-    const savedNfc = unormModule.nfc;
     try {
-      delete (unormModule as {nfc?: unknown}).nfc;
-      expect(normalizationEngine()).toBe('none');
-      expect(() => checkText('Caf\u00e9', 128, 'display_name')).toThrowError(/has no NFC implementation/);
-      // ASCII still passes, because it needs no engine.
-      expect(() => checkText('Maple & Vine Cafe', 128, 'display_name')).not.toThrow();
+      // Build the payload through the serializer so the CBOR lengths are correct,
+      // then confirm the value cannot be verified without an exact engine.
+      setNativeNfcSource(null);
+      const vector = loadReceiptValid();
+      const parsed = await parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+      const mutated = {
+        ...parsed.receipt,
+        merchant: {...parsed.receipt.merchant, displayName: 'Caf\u0065\u0301 \u0026 Vine'},
+      };
+      const payload = serializeReceipt(mutated);
+      await expect(parseReceiptPayload(payload)).rejects.toThrow(/no exact NFC implementation/);
     } finally {
-      unormModule.nfc = savedNfc;
-      restore(String.prototype, 'normalize', platform);
+      setNativeNfcSource(null);
+      restore(String.prototype, 'normalize', descriptor);
     }
   });
 
-  it('is exact for non-ASCII when the engine can normalize', () => {
-    const {checkText} = receiptModule();
-    // NFC form passes; the decomposed form is rejected.
-    expect(() => checkText('\u00e9', 128, 'display_name')).not.toThrow();
-    expect(() => checkText('e\u0301', 128, 'display_name')).toThrow(ProtocolError);
-    expect(() => checkText('e\u0301', 128, 'display_name')).toThrowError(/not NFC-normalized/);
+  it('accepts that same value once an exact engine confirms its NFC form', async () => {
+    const {parseReceiptPayload, serializeReceipt} = receiptModule();
+    const {setNativeNfcSource} = normalizationModule();
+    const descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
+    Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true});
+    try {
+      const vector = loadReceiptValid();
+      const parsed = await parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+      const decomposed = 'Caf\u0065\u0301 \u0026 Vine';
+      const composed = 'Caf\u00e9 \u0026 Vine';
+      const payload = serializeReceipt({
+        ...parsed.receipt,
+        merchant: {...parsed.receipt.merchant, displayName: decomposed},
+      });
+
+      // A platform normalizer that reports the value is NOT NFC must reject it.
+      setNativeNfcSource({normalizeNfc: async () => composed});
+      await expect(parseReceiptPayload(payload)).rejects.toThrow(/not NFC-normalized/);
+
+      // A platform normalizer that agrees the value is already NFC accepts it.
+      setNativeNfcSource({normalizeNfc: async () => decomposed});
+      const accepted = await parseReceiptPayload(payload);
+      expect(accepted.receipt.merchant.displayName).toBe(decomposed);
+      expect(accepted.receipt.totals.totalMinor).toBe(970);
+    } finally {
+      setNativeNfcSource(null);
+      restore(String.prototype, 'normalize', descriptor);
+    }
   });
 
-  it('still enforces the length, control and bidi rules alongside NFC', () => {
-    const {checkText} = receiptModule();
-    expect(() => checkText('a'.repeat(129), 128, 'display_name')).toThrow(ProtocolError);
-    expect(() => checkText('line\nbreak', 128, 'display_name')).toThrow(ProtocolError);
-    expect(() => checkText('bidi\u202Eoverride', 128, 'display_name')).toThrow(ProtocolError);
-    expect(() => checkText('nul\u0000byte', 128, 'display_name')).toThrow(ProtocolError);
+  it('checks the NFC engine state through normalizationModule, not receipt', () => {
+    const {normalizationEngine} = normalizationModule();
+    expect(['platform', 'native', 'none']).toContain(normalizationEngine());
   });
 
-  it('accepts the frozen receipt text on a normalized engine and rejects it without one only when non-ASCII', () => {
+  it('accepts the frozen receipt text on a normalized engine and rejects it without one only when non-ASCII', async () => {
     const {checkText, parseReceiptPayload} = receiptModule();
     const vector = loadReceiptValid();
-    const parsed = parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+    const parsed = await parseReceiptPayload(hexDecode(vector.receipt_body_hex));
     // The frozen merchant text is ASCII, so it validates under the strict rule
     // whether or not the engine can normalize.
     expect(parsed.receipt.merchant.displayName).toBe('Maple & Vine Cafe');

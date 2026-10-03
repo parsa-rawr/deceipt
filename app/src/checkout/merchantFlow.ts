@@ -8,7 +8,7 @@
 
 import {base64Decode, base64Encode, hexEncode} from '../protocol/bytes';
 import {secureRandomBytes} from '../protocol/crypto';
-import {serializeReceipt, type Receipt} from '../protocol/receipt';
+import {serializeReceipt, validateReceiptText, type Receipt} from '../protocol/receipt';
 import {computeBindingValues, buildReceiptOfferFromReceipt} from '../native/offer';
 import {TIMEOUTS_MS} from '../protocol/constants';
 import type {DeceiptNative, MerchantKeyStatus, MintBindingQrResponse, SessionHandle, StartMerchantSessionRequest} from '../native/DeceiptNative';
@@ -97,9 +97,14 @@ export async function prepareMerchantOffer(
   receipt: Receipt,
   nowUnix: number,
 ): Promise<PreparedMerchantOffer> {
+  // The receipt's text must be fully validated (including NFC through the OS
+  // normalizer when needed) BEFORE it is signed: signing attests to bytes the
+  // receiver would reject otherwise, and the failure would surface only as a
+  // rejected transfer.
+  await validateReceiptText(receipt);
   const payload = serializeReceipt(receipt);
   const signed = await native.merchantSignReceipt(base64Encode(payload));
-  const identity = buildReceiptOfferFromReceipt(base64Decode(signed.coseSign1B64));
+  const identity = await buildReceiptOfferFromReceipt(base64Decode(signed.coseSign1B64));
   const sessionIdHex = hexEncode(await secureRandomBytes(16));
   const transferIdHex = hexEncode(await secureRandomBytes(16));
   const receiptIdHex = hexEncode(receipt.receiptId);

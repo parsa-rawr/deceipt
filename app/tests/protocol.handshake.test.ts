@@ -70,7 +70,7 @@ const frozenAnchorList = (): TrustAnchor[] =>
 describe('canonical transcript (conformance C1/C2)', () => {
   const vector = loadHandshakeValid();
 
-  it('lays out the frozen 372-byte transcript at the documented offsets', () => {
+  it('lays out the frozen 372-byte transcript at the documented offsets', async () => {
     expect(vector.transcript_len).toBe(372);
     const transcript = hexDecode(vector.transcript_hex);
     expect(transcript.length).toBe(372);
@@ -85,7 +85,7 @@ describe('canonical transcript (conformance C1/C2)', () => {
     expect(hexEncode(transcript.subarray(TRANSCRIPT_OFFSETS.bindingTuple))).toBe(vector.binding_tuple_hex);
   });
 
-  it('rebuilds the transcript byte-for-byte from its parts', () => {
+  it('rebuilds the transcript byte-for-byte from its parts', async () => {
     const rebuilt = buildTranscript({
       protocolVersion: vector.protocol_version,
       suiteId: vector.suite_id,
@@ -132,21 +132,21 @@ describe('canonical transcript (conformance C1/C2)', () => {
 describe('COSE container and protected header', () => {
   const vector = loadHandshakeValid();
 
-  it('accepts the receipt and credential containers', () => {
+  it('accepts the receipt and credential containers', async () => {
     const receipt = parseCoseSign1(hexDecode(loadReceiptInvalid().cases[0].cose_sign1_hex), 65536);
     expect(checkProtectedHeader(receipt.protectedMap, RECEIPT_CONTENT_TYPE).length).toBe(16);
     const credential = parseCoseSign1(hexDecode(loadCredentials().cases[0].credential_hex));
     expect(checkProtectedHeader(credential.protectedMap, CREDENTIAL_CONTENT_TYPE).length).toBe(16);
   });
 
-  it('rejects a non-canonical outer array', () => {
+  it('rejects a non-canonical outer array', async () => {
     const container = hexDecode(loadReceiptInvalid().cases[0].cose_sign1_hex);
     const nonCanonical = hexDecode(loadReceiptInvalid().cases.find(c => c.case === 'receipt_container_noncanonical')!.cose_sign1_hex);
     expect(() => parseCoseSign1(nonCanonical)).toThrow(ProtocolError);
     expect(container.length).toBeGreaterThan(0);
   });
 
-  it('builds the Sig_structure the container was signed over', () => {
+  it('builds the Sig_structure the container was signed over', async () => {
     const receipt = parseCoseSign1(hexDecode(loadReceiptInvalid().cases[0].cose_sign1_hex), 65536);
     const structure = sigStructure(receipt.protectedBstr, receipt.payload);
     const expected = hexDecode(loadReceiptValid().sig_structure_hex);
@@ -157,7 +157,7 @@ describe('COSE container and protected header', () => {
     const receipt = parseCoseSign1(hexDecode(loadReceiptValid().cose_sign1_hex), 65536);
     // The device public key is not in the container; it comes from the
     // credential the receipt embeds at label 20 (Pass B).
-    const embedded = parseReceiptPayload(hexDecode(loadReceiptValid().receipt_body_hex)).receipt.merchantCredential;
+    const embedded = (await parseReceiptPayload(hexDecode(loadReceiptValid().receipt_body_hex))).receipt.merchantCredential;
     const credential = parseCoseSign1(embedded);
     const devicePublicKey = parseCredentialDeviceKey(credential.payload);
     const ok = await ed25519Verify(devicePublicKey, sigStructure(receipt.protectedBstr, receipt.payload), receipt.signature);
@@ -168,12 +168,12 @@ describe('COSE container and protected header', () => {
     const receipt = parseCoseSign1(hexDecode(loadReceiptValid().cose_sign1_hex), 65536);
     const payload = new Uint8Array(receipt.payload);
     payload[payload.length - 1] ^= 0x01;
-    const embedded = parseReceiptPayload(hexDecode(loadReceiptValid().receipt_body_hex)).receipt.merchantCredential;
+    const embedded = (await parseReceiptPayload(hexDecode(loadReceiptValid().receipt_body_hex))).receipt.merchantCredential;
     const devicePublicKey = parseCredentialDeviceKey(parseCoseSign1(embedded).payload);
     expect(await ed25519Verify(devicePublicKey, sigStructure(receipt.protectedBstr, payload), receipt.signature)).toBe(false);
   });
 
-  it('exposes the SERVER_HELLO fields the client verifies', () => {
+  it('exposes the SERVER_HELLO fields the client verifies', async () => {
     const message = decodeControlMessage(hexDecode(vector.server_hello_hex), 1);
     expect(message.type).toBe(17);
     if (message.type !== 17) {
@@ -185,7 +185,7 @@ describe('COSE container and protected header', () => {
     expect(message.merchantCredential.length).toBeLessThanOrEqual(1024);
   });
 
-  it('exposes the CLIENT_HELLO binding fields', () => {
+  it('exposes the CLIENT_HELLO binding fields', async () => {
     const message = decodeControlMessage(hexDecode(vector.client_hello_hex), 1);
     if (message.type !== 1) {
       throw new Error('unreachable');
@@ -247,7 +247,7 @@ describe('handshake invalid fixtures (conformance C8)', () => {
     expect(thrown!.name).toBe(testCase.expected_error);
   });
 
-  it('rejects a merchant frame payload above the client ceiling (FRAME_SIZE_INVALID)', () => {
+  it('rejects a merchant frame payload above the client ceiling (FRAME_SIZE_INVALID)', async () => {
     const above = cases.find(testCase => testCase.case === 'frame_payload_above_reported_capacity')!;
     const message = decodeControlMessage(hexDecode(above.client_hello_hex!), 1);
     if (message.type !== 1) {
@@ -257,7 +257,7 @@ describe('handshake invalid fixtures (conformance C8)', () => {
     expect(() => assertFrameSize(message.maxFramePayload, above.merchant_max_frame_payload!, 185)).toThrow(ProtocolError);
   });
 
-  it('lists the receiver-state and native-crypto fixtures explicitly', () => {
+  it('lists the receiver-state and native-crypto fixtures explicitly', async () => {
     const deferred = cases.filter(testCase =>
       ['BINDING_UNKNOWN_SESSION', 'BINDING_PROOF_INVALID', 'BINDING_STALE', 'BINDING_CONSUMED', 'HANDSHAKE_TRANSCRIPT_MISMATCH', 'HANDSHAKE_SIGNATURE_INVALID', 'WRONG_TRANSACTION'].includes(
         testCase.expected_error,
@@ -299,13 +299,13 @@ describe('LPdu segmentation (conformance D3/D4)', () => {
     vectorPaths.lpduValid,
   );
 
-  it('reproduces the frozen fragment bytes', () => {
+  it('reproduces the frozen fragment bytes', async () => {
     const fragments = segmentLpdu(hexDecode(valid.server_hello_pdu_hex), valid.frag_payload_max, 0);
     expect(fragments.map(hexEncode)).toEqual(valid.fragments_hex);
     expect(fragments).toHaveLength(valid.fragment_count);
   });
 
-  it('reassembles the frozen fragments to the original PDU', () => {
+  it('reassembles the frozen fragments to the original PDU', async () => {
     const pdu = reassembleLpdu(valid.fragments_hex.map(hexDecode));
     expect(hexEncode(pdu)).toBe(valid.server_hello_pdu_hex);
   });
@@ -326,7 +326,7 @@ describe('LPdu segmentation (conformance D3/D4)', () => {
     expect(thrown?.name).toBe(testCase.expected_error);
   });
 
-  it('reports a zero frag_count and an out-of-order stream', () => {
+  it('reports a zero frag_count and an out-of-order stream', async () => {
     const zero = invalid.find(testCase => testCase.case === 'frag_count_zero')!;
     expect(() => reassembleLpdu(zero.fragments_hex!.map(hexDecode))).toThrow(ProtocolError);
     const receiver = new LpduReceiver();
@@ -415,12 +415,12 @@ describe('framing (conformance D5/D6)', () => {
     ack_example_plaintext_hex: string;
   }>(vectorPaths.framingValid);
 
-  it('derives frame size from the reported MTU, never a fixed ATT MTU', () => {
+  it('derives frame size from the reported MTU, never a fixed ATT MTU', async () => {
     expect(attPayloadMax(valid.att_mtu_example)).toBe(182);
     expect(maxFramePayloadForMtu(valid.att_mtu_example)).toBe(valid.frame_size);
   });
 
-  it('splits the ciphertext into the frozen frames', () => {
+  it('splits the ciphertext into the frozen frames', async () => {
     const ciphertext = hexDecode(valid.frames_hex.map(frame => frame.slice(40)).join(''));
     const frames = splitIntoFrames(ciphertext, hexDecode(valid.transfer_id_hex), valid.frame_size);
     expect(frames).toHaveLength(valid.frame_count);
@@ -428,7 +428,7 @@ describe('framing (conformance D5/D6)', () => {
     expect(ciphertext.length).toBe(valid.ciphertext_len);
   });
 
-  it('reassembles the frozen frames through the receiver window', () => {
+  it('reassembles the frozen frames through the receiver window', async () => {
     const receiver = new FrameReceiver(valid.frame_count, hexDecode(valid.transfer_id_hex));
     let status = receiver.push(decodeDataFrame(hexDecode(valid.frames_hex[0])));
     for (const frame of valid.frames_hex.slice(1)) {
@@ -465,7 +465,7 @@ describe('framing (conformance D5/D6)', () => {
     expect(() => exerciseFramingCase(testCase)).toThrow(ProtocolError);
   });
 
-  it('treats a byte-identical duplicate and a below-window frame as non-fatal notices', () => {
+  it('treats a byte-identical duplicate and a below-window frame as non-fatal notices', async () => {
     for (const name of ['sequence_replayed_identical', 'sequence_below_window']) {
       const testCase = invalid.find(candidate => candidate.case === name)!;
       const receiver = new FrameReceiver(testCase.frame_count ?? 6, hexDecode('ffeeddccbbaa99887766554433221100'));
@@ -475,7 +475,7 @@ describe('framing (conformance D5/D6)', () => {
     }
   });
 
-  it('reports each framing fixture with its recorded error name', () => {
+  it('reports each framing fixture with its recorded error name', async () => {
     for (const testCase of byteDecidable.filter(candidate => candidate.expected_error !== 'FRAME_SEQUENCE_REPLAYED')) {
       let thrown: ProtocolError | null = null;
       try {
@@ -490,13 +490,13 @@ describe('framing (conformance D5/D6)', () => {
     }
   });
 
-  it('accepts the frozen final frame of 24 bytes and rejects an over-long final frame', () => {
+  it('accepts the frozen final frame of 24 bytes and rejects an over-long final frame', async () => {
     assertFramePayloadLength(24, valid.frame_size, true);
     expect(() => assertFramePayloadLength(valid.frame_size + 1, valid.frame_size, true)).toThrow(ProtocolError);
     expect(() => assertFramePayloadLength(4, valid.frame_size, false)).toThrow(ProtocolError);
   });
 
-  it('lists the flow-control fixtures that need the sender/receiver state machine', () => {
+  it('lists the flow-control fixtures that need the sender/receiver state machine', async () => {
     const deferred = invalid.filter(testCase =>
       ['TRANSFER_HASH_MISMATCH', 'TRANSFER_BEGIN_MISMATCH', 'TRANSFER_TIMEOUT', 'TRANSFER_INCOMPLETE', 'TRANSFER_CANCELLED'].includes(
         testCase.expected_error,
@@ -534,7 +534,7 @@ describe('AEAD envelope counters (conformance C6/C7)', () => {
     expect(thrown!.name).toBe(testCase.expected_error);
   });
 
-  it('lists the AEAD_AUTH_FAILED fixtures as native-only', () => {
+  it('lists the AEAD_AUTH_FAILED fixtures as native-only', async () => {
     // Recorded explicitly rather than silently skipped: these require A4/A5's
     // AES-256-GCM and are not decidable in the shared TypeScript layer.
     expect(nativeOnly.length).toBeGreaterThan(0);
@@ -543,12 +543,12 @@ describe('AEAD envelope counters (conformance C6/C7)', () => {
 });
 
 describe('session authentication distinction (conformance C9)', () => {
-  it('refuses a keys-only session on the transfer path', () => {
+  it('refuses a keys-only session on the transfer path', async () => {
     expect(() => assertSessionAuthenticated({kind: 'SessionKeysOnly'})).toThrow(ProtocolError);
     expect(() => assertSessionAuthenticated({kind: 'SessionAuthenticated'})).not.toThrow();
   });
 
-  it('accepts only the frozen protocol version', () => {
+  it('accepts only the frozen protocol version', async () => {
     expect(supportsProtocolVersion(1)).toBe(true);
     expect(supportsProtocolVersion(2)).toBe(false);
   });
