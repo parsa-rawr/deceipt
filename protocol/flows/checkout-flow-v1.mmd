@@ -1,7 +1,7 @@
-%% Deceipt PoC - checkout flow v1 (owner A2, PROPOSAL)
-%% Companion to docs/flows/transaction-binding-and-checkout-v1.md
+%% Deceipt PoC - checkout flow v1 (owner A2)
+%% Selection model: QR-MANDATORY (resolves A6 RX-04). There is NO picker-tap-to-connect edge.
 %% RSSI appears ONLY as a crossed-out forbidden input. It is never a selection edge.
-%% QR is selection/bootstrap only; the receipt travels over GATT DATA.
+%% Companion to docs/flows/transaction-binding-and-checkout-v1.md
 
 flowchart TB
     START([Customer app opens]) --> PERM{BLE + camera<br/>permission?}
@@ -9,46 +9,37 @@ flowchart TB
     PERMFAIL --> PERM
     PERM -- granted --> READY["ready"]
 
-    READY --> CHOICE{How does the user<br/>intend a transaction?}
-    CHOICE -- "scan QR (P1)" --> SELECTING
-    CHOICE -- "open picker (P0)" --> SELECTING
-
     subgraph SELECT["selecting - DESIGN 7.3 ambiguity rule"]
         SCAN["scan: candidates =<br/>peripherals advertising<br/>Deceipt Service UUID"]
-        SCAN --> ELIG{"eligible count"}
+        SCAN --> LIST["display guidance only:<br/>'Scan the code at the terminal<br/>you are paying'<br/>list ordered by peripheral_id,<br/>NOT tappable-to-connect"]
+        LIST --> ELIG{"eligible count"}
         ELIG -- "0" --> KEEP["keep scanning<br/>'No Deceipt terminal found'"]
         KEEP --> SCAN
-        ELIG -- "1" --> AUTO["may auto-connect"]
-        ELIG -- "2+" --> PICKER["explicit picker<br/>rows sorted by peripheral_id<br/>NO RSSI ranking"]
-        PICKER --> TAP["user taps ONE candidate"]
-        QRQ["P1: QR names session_id + SBT;<br/>eligibility = structural match to<br/>session_id (NOT signal strength)"] --> ELIG
+        ELIG -- "1 session_id via<br/>user QR scan" --> CONNECTING
+        ELIG -- "2+ peripherals claim<br/>the SAME session_id" --> DUP["recoverable_failure<br/>TRANSPORT_PEER_AMBIGUOUS<br/>fail closed"]
     end
 
     RSSI["RSSI / txPower / distance"] -. "FORBIDDEN input" .-> ELIG
-    RSSI -. "FORBIDDEN input" .-> PICKER
+    RSSI -. "FORBIDDEN input" .-> LIST
 
-    AUTO --> CONNECTING
-    TAP --> CONNECTING
-    QRQ --> CONNECTING
-
-    CONNECTING["connecting<br/>BLE central connect to SELECTED peer only"]
+    CONNECTING["connecting<br/>BLE central connect to the ONE session<br/>named by the scanned QR"]
     CONNECTING --> HELLO["ClientHello<br/>session_id, client_nonce,<br/>client_ephemeral_pubkey, binding_proof"]
-    HELLO --> BCHECK{"merchant: binding_proof =<br/>HMAC-SHA-256(SBT, proof_msg)?"}
-    BCHECK -- "no / unknown session" --> BF["recoverable_failure<br/>BINDING_PROOF_INVALID /<br/>BINDING_UNKNOWN_SESSION"]
+    HELLO --> BCHECK{"merchant validates ClientHello:<br/>ceph decodes on P-256, then<br/>binding_proof = HMAC-SHA-256(SBT, ...)?"}
+    BCHECK -- "no / unknown session /<br/>absent fields" --> BF["recoverable_failure<br/>BINDING_PROOF_INVALID /<br/>BINDING_UNKNOWN_SESSION /<br/>BINDING_REQUIRED /<br/>HANDSHAKE_ECDH_INVALID_POINT"]
     BCHECK -- "yes" --> SHELLO["ServerHello + merchant credential<br/>+ signature over transcript<br/>(transcript covers binding_tuple_digest)"]
     SHELLO --> VCRED{"credential + transcript<br/>signature valid?"}
     VCRED -- "no" --> BF
     VCRED -- "yes" --> KEY["derive ephemeral session keys<br/>ECDH + HKDF (A1 pass C)"]
 
-    KEY --> OFFER["ReceiptOffer<br/>session_id, transfer_id, receipt_id,<br/>merchant_id, total, currency,<br/>issued_at, offer_hash"]
-    OFFER --> CMP{"offer_hash matches<br/>selected transaction?"}
+    KEY --> OFFER["RECEIPT_OFFER<br/>transfer_id, receipt_id, merchant_reference,<br/>total, currency, issued_at, session_id"]
+    OFFER --> CMP{"offer_hash matches<br/>QR-bound transaction?"}
     CMP -- "no" --> WT["recoverable_failure<br/>WRONG_TRANSACTION<br/>no receipt kept"]
     CMP -- "yes" --> ACCEPT["user reviews merchant + total<br/>taps Accept"]
     ACCEPT -- "cancel" --> UC["recoverable_failure<br/>USER_CANCELLED"]
     ACCEPT -- "accept" --> TRANSFER
 
-    TRANSFER["transferring<br/>TransferBegin + DATA frames<br/>reassemble ciphertext"]
-    TRANSFER -- "disconnect / BT off" --> BTOFF["recoverable_failure<br/>BLUETOOTH_OFF / disconnect"]
+    TRANSFER["transferring<br/>TRANSFER_BEGIN + DATA frames<br/>reassemble ciphertext"]
+    TRANSFER -- "disconnect / BT off" --> BTOFF["recoverable_failure<br/>TRANSPORT_BLUETOOTH_OFF / disconnect"]
     TRANSFER --> DEC["AEAD authenticate + decrypt"]
     DEC --> UNTRUSTED["RECEIPT_UNTRUSTED<br/>decryption success != trust"]
 
@@ -57,12 +48,12 @@ flowchart TB
     VERIFYING -- "all pass" --> SAVED
 
     SAVED["saved<br/>store verification outcome<br/>trusted / unknown-key / policy"]
-    SAVED --> ACK["ReceiptAck + disconnect"]
+    SAVED --> ACK["RECEIPT_ACK + disconnect"]
     ACK --> DONE([done])
 
     classDef forbidden fill:#ffe0e0,stroke:#c00,stroke-dasharray:4 2;
     classDef fail fill:#fff3cd,stroke:#a80;
     classDef ok fill:#e0f5e0,stroke:#080;
     class RSSI forbidden;
-    class PERMFAIL,BF,WT,UC,BTOFF,REJ fail;
+    class PERMFAIL,BF,WT,UC,BTOFF,REJ,DUP fail;
     class SAVED,DONE ok;

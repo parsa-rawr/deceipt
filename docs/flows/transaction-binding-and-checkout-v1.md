@@ -1,13 +1,12 @@
 # Deceipt PoC — Transaction Binding & Checkout Flow (v1)
 
 **Owner:** A2 (transaction binding + checkout flow)
-**Status:** v1 — **adopted verbatim by A1 into the frozen revision `deceipt-proto-r1`** (`docs/protocol/handshake.md` §10).
-**Revision note:** binding vectors regenerated after A1's cross-check found the published `client_ephemeral_pubkey` was not a valid P-256 point (see §13). V1 now reconciles byte-for-byte with `protocol/vectors/handshake-valid.json`.
+**Status:** v1 — binding bytes **adopted verbatim by A1 into the frozen revision `deceipt-proto-r1`** (`docs/protocol/handshake.md` §10). **Selection model: QR-mandatory** (§4, resolution of A6 RX-04).
+**Revision note:** binding vectors regenerated after A1's cross-check found the published `client_ephemeral_pubkey` was not a valid P-256 point; V1 reconciles byte-for-byte with `protocol/vectors/handshake-valid.json`. A1 is revising to `deceipt-proto-r2` (offer_hash member-definition fix, A6 R2-01); **these vectors will be reconciled again once r2 lands** — see §12/§14.
 **Consumes:** `DESIGN.md` §2.5, §4.4–4.5, §6.3–6.4, §7.1–7.4, §8, §9, §11, §13.
-**Feeds:** A1 (pass C/D — **closed**, see §11), A3 (checkout UI + state machine), A6 (adversarial review), A0 (freeze gate).
+**Feeds:** A1 (pass C/D — closed in r1), A3 (checkout UI + state machine), A6 (adversarial review), A0 (freeze gate).
 
-> **Labelling rule for this document.** Everything normative about *peer ambiguity* is `DESIGN.md` §7.3 and is restated here as an invariant. The **QR bootstrap remains a proposal** as a *product* flow; its **bytes** were adopted by A1 into `deceipt-proto-r1`. A1 or A0 may still replace the product flow; the byte-level binding contract below is frozen only insofar as A1 adopted it.
-> Values marked **[FROZEN r1]** are byte-identical to A1's revision and must not change without a revision bump.
+> **Labelling rule.** The **QR bootstrap is the single, mandatory binding path for v1** (§4). Values marked **[FROZEN r1]** are byte-identical to A1's `deceipt-proto-r1` and must not change without a revision bump. The removal of the QR-less path is recorded in §4 and §14.
 
 ---
 
@@ -38,19 +37,21 @@ Non-goals: receipt schema (A1 pass A), merchant trust hierarchy (A1 pass B), tra
 **Definitions used by this contract:**
 
 - **Candidate** — a BLE peripheral whose advertisement carries the assigned Deceipt Transfer Service UUID.
-- **Eligible** — a candidate that additionally passes *only* non-radio, cryptographic/structural checks: correct service UUID, supported protocol version in the advertisement, and (in the primary flow) possession of the scanned session-binding token. Eligibility is **never** a function of signal strength.
-- **Selected** — the single candidate the user explicitly chose (QR scan, or an item tap in the picker). Only a `selected` candidate may be connected to for receipt transfer.
+- **Eligible** — a candidate that additionally passes *only* non-radio, cryptographic/structural checks: correct service UUID, supported protocol version in the advertisement, and **possession of the scanned session-binding material (`session_id` + `SBT`)**. Eligibility is **never** a function of signal strength.
+- **Selected** — the single candidate named by the user's QR scan. Only a `selected` candidate may be connected to for receipt transfer.
+
+**How v1 satisfies §7.3 (QR-mandatory — see §4):** the *explicit disambiguation act* is the QR scan. The app **never** connects to any candidate without a QR-named session, so the `2+ eligible` auto-connect hazard cannot arise; the `2+ candidates` case is resolved by the user intentionally scanning the one terminal they are paying. A set of `2+ eligible` candidates — which under QR-mandatory can only mean two or more peripherals advertising the *same* `session_id` (clone/impostor) — **fails closed**.
 
 **Normative constraints on any implementation (A3/A4/A5):**
 
-- RSSI (and any radio-derived proximity, distance, or "closest"/"nearest" score) MUST NOT appear in the eligibility predicate, the selection decision, the connection target, the display order of the picker, or any trust decision.
+- RSSI (and any radio-derived proximity, distance, or "closest"/"nearest" score) MUST NOT appear in the eligibility predicate, the selection decision, the connection target, the display order of any candidate list, or any trust decision.
 - If RSSI is recorded at all it is diagnostics only, must be labelled as such in the UI, and must not be an input to `select()`.
-- Display ordering of 2+ candidates MUST be a deterministic, non-radio tiebreak over the peripheral identifier bytes (e.g. ascending `peripheral_id`), so that ordering is stable and carries no proximity meaning.
-- Ambiguity **fails closed**: two or more eligible candidates with no explicit user selection is an error state, never an automatic pick.
+- Any candidate list is display-only guidance ("which terminal to scan"). It MUST use a deterministic, non-radio tiebreak over the peripheral identifier bytes (ascending `peripheral_id`) and MUST NOT be tappable-to-connect.
+- Ambiguity **fails closed**: two or more eligible candidates is an error state, never an automatic pick.
 
 ---
 
-## 3. Primary flow (P1) — QR bootstrap over BLE delivery [PROPOSAL as product flow; bytes FROZEN r1]
+## 3. Primary flow (P1) — QR bootstrap over BLE delivery [FROZEN r1]
 
 ### 3.1 Overview
 
@@ -85,7 +86,7 @@ The QR is a **selection and bootstrap channel only**. It carries no receipt, no 
 
 ### 3.2 Why a QR at all
 
-With two phones and no pairing, nothing else gives the customer a *fresh, merchant-generated, unambiguous* pointer to exactly one transaction without radio inference. The QR is out-of-band, physical, and intentional: the user points a camera at one terminal. That is the explicit user act §7.3 requires, and it collapses "2+ eligible candidates" to a single named session.
+With two phones and no pairing, nothing else gives the customer a *fresh, merchant-generated, unambiguous* pointer to exactly one transaction without radio inference. The QR is out-of-band, physical, and intentional: the user points a camera at one terminal. That is the explicit user act §7.3 requires, and it collapses "2+ candidates" to a single named session. It is **also required by the frozen wire contract** — see §4.
 
 ### 3.3 QR content and exact bytes [FROZEN r1]
 
@@ -106,6 +107,7 @@ Rules:
 - The QR MUST NOT contain merchant name, amount, receipt id, line items, customer data, or any credential. (If the terminal screen separately displays the amount as text, that text is *display*, not protocol input.)
 - `session_id` is random 16 bytes per checkout session; not derived from merchant identity.
 - Implementations MUST reject `qr_format_version != 1` and MUST reject a payload whose declared lengths differ from the fixed sizes above.
+- **[pending r2]** If A1 resolves A6 R4-01 by transmitting the full `binding_tuple` source via the QR (option b), this map gains `transfer_id`/`receipt_id` fields. Do not add them until A1 publishes r2 (§12/§14).
 
 **Vector (V1) [FROZEN r1]:**
 
@@ -127,33 +129,36 @@ deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFgg79xE86bQiPzSPun
 
 `SBT` is kept in merchant memory for the session only, and **never** is logged or committed. It is destroyed on consumption (§3.8) or expiry.
 
-**Rationale for using 16 random bytes directly as the HMAC-SHA-256 key** (flagged low-end by A1, §10 of the handshake spec):
+**Rationale for using 16 random bytes directly as the HMAC-SHA-256 key** (flagged low-end by A1):
 
 - The SBT is **128 bits of CSPRNG entropy** (not password-derived, not user-chosen, not structured). HMAC-SHA-256 with an *n*-bit uniformly random key provides *n*-bit security; the effective security here is therefore **128 bits**, which is the PoC's target strength and is not attackable by brute force within the 300 s QR TTL.
 - HMAC is not vulnerable to the SHA-256 length-extension issue, so a key shorter than the 64-byte block adds no structural weakness — it only caps security at the key entropy.
 - The SBT is **single-use** (`BINDING_CONSUMED`), **short-lived** (`T_BINDING_QR`, §3.8), and compared in **constant time**. Reuse across sessions is forbidden by construction (fresh CSPRNG per checkout).
 - The binding proof is **not** the receipt trust decision: even a full SBT compromise yields only session identification, never a trusted receipt (`DESIGN.md` §9 steps 10–11 still required).
 
-**Recorded hardening path (NOT in r1 — requires a revision bump and A1 re-adoption):** for a future revision, derive the HMAC key with HKDF-SHA-256 from a 16-byte salt plus a longer secret, e.g. `k_binding = HKDF-SHA-256(ikm = SBT_32_random, salt = session_id, info = "deceipt-binding-key-v1")`, and use `k_binding` as the HMAC key. This raises the key to 256 bits at zero protocol risk. It is **not** applied to r1 because A1 adopted and froze the construction below; changing it would change every `binding_proof` byte and every vector.
+**Recorded hardening path (NOT in r1 — requires a revision bump and A1 re-adoption):** derive the HMAC key with HKDF-SHA-256 from a 16-byte salt plus a longer secret, e.g. `k_binding = HKDF-SHA-256(ikm = SBT_32_random, salt = session_id, info = "deceipt-binding-key-v1")`, and use `k_binding` as the HMAC key. This raises the key to 256 bits at zero protocol risk. It is **not** applied to r1 because A1 adopted and froze the construction below; changing it would change every `binding_proof` byte and every vector.
 
 ### 3.5 Offer hash — exact bytes [FROZEN r1]
 
-The QR must name the exact intended receipt before the receipt is transferred. `offer_hash` is a domain-separated SHA-256 over the *identity* fields of the checkout (not the receipt's full content):
+The QR must name the exact intended receipt before the receipt is transferred. `offer_hash` is a domain-separated SHA-256 over the *identity* fields of the checkout (not the receipt's full content).
+
+**CBOR array element order (this order is what reproduces the frozen `efdc44f3…d4c5` value; it MUST NOT be reordered):**
 
 ```
 offer_hash = SHA-256(
     "deceipt-offer-hash-v1" || 0x00 || cbor(
-        [ bytes(16) session_id,
-          bytes(16) transfer_id,
-          bytes(16) receipt_id,
-          tstr      merchant_reference,
-          uint      total_amount_minor,
-          uint      currency,                 -- ISO-4217 tstr, e.g. "CAD"
-          uint      issued_at_unix ] )
+        [ bytes(16) session_id,            -- RECEIPT_OFFER label 12
+          bytes(16) transfer_id,           -- RECEIPT_OFFER label 2
+          bytes(16) receipt_id,            -- RECEIPT_OFFER label 3
+          tstr      merchant_reference,    -- RECEIPT_OFFER label 4
+          uint      total_amount_minor,    -- RECEIPT_OFFER label 5
+          tstr      currency,              -- RECEIPT_OFFER label 6; ISO-4217, e.g. "CAD"
+          uint      issued_at_unix ] )     -- RECEIPT_OFFER label 7
 )
 ```
 
-- `merchant_reference` and `issued_at_unix` are the names used by A1's `RECEIPT_OFFER` (labels 4 and 7).
+- **`currency` is a `tstr` (ISO-4217 code), not a `uint`.** The array's scalar types are exactly: `bstr, bstr, bstr, tstr, uint, tstr, uint`.
+- **Element order ↔ label mapping** (array position → `RECEIPT_OFFER` label): `session_id=12, transfer_id=2, receipt_id=3, merchant_reference=4, total_amount_minor=5, currency=6, issued_at_unix=7`. A receiver recomputes the hash from those offer fields in **this array order**; it is *not* the label order and *not* the label-list order `2,3,4,5,6,7,12`. (A6 R2-01: an implementation following a label-list order computes a different hash and false-rejects every transaction.)
 - `total_amount_minor` is an integer + ISO-4217 `currency`; **no floating point** (§4.2).
 - A1 recomputes this value from the authenticated `RECEIPT_OFFER` fields, so the QR and the offer cannot disagree.
 - The domain separator and the `0x00` byte make this value unusable as any other Deceipt hash.
@@ -193,6 +198,8 @@ binding_tuple_digest = SHA-256("deceipt-binding-tuple-v1" || 0x00 || binding_tup
 ```
 
 A1's frozen transcript carries **both** `binding_tuple_digest` (offset 250) and the full `binding_tuple` (length-prefixed by a `u8` at offset 284), so the merchant's `ServerHello` signature covers the transaction binding and the derived session keys are transcript-bound (`docs/protocol/handshake.md` §3).
+
+> **[transcript-reconstruction dependency, A6 R4-01]** A6 found that the *receiver* cannot rebuild the signed transcript from the messages as currently defined, because `session_id`, the offer-hash members and the raw `binding_tuple` are not all reachable before key derivation. This is A1's wire-contract fix. A2's requirement is unchanged: the 32-byte `binding_tuple_digest` and the 87-byte `binding_tuple` MUST both be inside the merchant-signed transcript and both reachable by the receiver. A1's chosen resolution may put the tuple source in `SERVER_HELLO` (option a) or in the QR (option b); A2 reconciles the QR layout if (b) is chosen (§12/§14).
 
 **Vector (V1) [FROZEN r1]:**
 
@@ -249,10 +256,10 @@ Three independent clocks, all fail-closed, reconciled to A1's `handshake.md` §7
 | Clock | Owner | Value | Effect |
 |---|---|---|---|
 | QR validity | merchant | `T_BINDING_QR = 300 s`; `expires_at_unix` in QR | Client refuses to start a session from an expired QR → `BINDING_STALE`. |
-| Session lifetime | merchant | `T_SESSION = 120 s`; `T_ADVERTISE = 60 s` | Session, `SBT`, and `session_id` are destroyed; `ServerHello` is unavailable; client surfaces recoverable expiry (`SESSION_EXPIRED`). |
+| Session lifetime | merchant | `T_SESSION = 120 s`; `T_ADVERTISE = 60 s` | Session, `SBT`, and `session_id` are destroyed; `ServerHello` unavailable; client surfaces recoverable expiry (`SESSION_EXPIRED`). |
 | Consumption | merchant | on first accepted `ClientHello` with valid `binding_proof` | Session marked **claimed**; a second `ClientHello` for the same `session_id` is rejected (`BINDING_CONSUMED`). |
 
-**Stale binding** (QR expired, or session torn down before the client connected) → `BINDING_STALE`. Client offers the §4 fallback (manual selection), which re-establishes intent explicitly.
+**Stale binding** (QR expired, or session torn down before the client connected) → `BINDING_STALE`. The customer scans a fresh QR (§4).
 
 **Consumed binding** (proof already used once) → `BINDING_CONSUMED`. This is the anti-replay guard for the *binding*, independent of §6 AEAD replay handling and §4.5 receipt-ID dedup.
 
@@ -260,7 +267,7 @@ Three independent clocks, all fail-closed, reconciled to A1's `handshake.md` §7
 
 | Property | Established by binding? |
 |---|---|
-| User intended this terminal/transaction | **Yes** — explicit QR scan (or picker tap). |
+| User intended this terminal/transaction | **Yes** — explicit QR scan. |
 | This BLE session is the one named by the QR | **Yes** — `session_id` + `binding_proof`. |
 | Possession of the QR/session secret | **Yes** — HMAC over `SBT`. |
 | The receipt is authentic | **No.** Only the merchant signature over exact received bytes + key authorization (design §9 steps 10–11) does that. |
@@ -269,21 +276,40 @@ Three independent clocks, all fail-closed, reconciled to A1's `handshake.md` §7
 
 ---
 
-## 4. Fallback path (P0) — manual disambiguation, no QR [PROPOSAL]
+## 4. Selection model: QR-MANDATORY for v1 (resolution of A6 RX-04)
 
-When QR bootstrap is unavailable (peripheral did not render, token expired, camera denied) or when the merchant does not use a QR, the §7.3 rule runs directly:
+**Decision: the QR bootstrap is the single binding path.** There is **no QR-less connection path** in v1. This section replaces the former "P0 manual picker" fallback and resolves A6 RX-04.
+
+### 4.1 Why QR is mandatory — the wire contract forbids the alternative
+
+- A1's frozen `CLIENT_HELLO` requires `session_id` (label 4, `required: true`) and `binding_proof` (label 7, `required: true`). `protocol/vectors/handshake-invalid.json#binding_required_fields_absent` yields **fatal `BINDING_REQUIRED`** when either is absent.
+- There is **no** `session_id`-less handshake variant and **no** P0 error path anywhere in `docs/protocol/`.
+- `binding_proof = HMAC-SHA-256(SBT, …)` — the client cannot compute it without `SBT`, and `SBT` is only obtainable from the QR (§3.4).
+- Therefore a client that connects without a QR cannot produce a valid `CLIENT_HELLO`, so `selecting → connecting` **has no wire-level realisation** without the QR.
+- RSSI-free disambiguation (§2.5/§7.3) requires **possession of the binding material**: the only non-radio way to single out one terminal's transaction is to hold the secret that terminal generated. That secret is delivered by the QR.
+
+### 4.2 Candidate rule under QR-mandatory
 
 ```
-scan -> candidates = peripherals advertising Deceipt Transfer Service UUID
-       eligible   = candidates passing structural/version checks (NO RSSI)
-       0 eligible -> keep scanning (show "no Deceipt terminal found")
-       1 eligible -> may auto-connect (single unambiguous sender)
-       2+ eligible -> DISAMBIGUATE: show explicit picker; connect only after a tap
+scan for candidates advertising the Deceipt Transfer Service UUID
+  |
+  +-- 0 candidates -> keep scanning; UI: "No Deceipt terminal found nearby."
+  |
+  +-- 1..N candidates -> display-only guidance only:
+  |     "Scan the code shown at the terminal you are paying."
+  |     (list is non-tappable-to-connect, ordered by peripheral_id, NEVER by RSSI)
+  |
+  +-- user scans a QR -> the QR's session_id names ONE session -> connecting
+  |
+  +-- 2+ peripherals claim the SAME session_id (clone/impostor) -> FAIL CLOSED
+         TRANSPORT_PEER_AMBIGUOUS (0x020b, fatal)
 ```
 
-In the picker, each row shows only non-sensitive, non-radio display metadata supplied by the advertisement/`RECEIPT_OFFER`. If the advertisement carries no merchant name (§7.2 forbids merchant name in advertisements), rows are labelled by a deterministic short label derived from the peripheral identifier, and the user is told to match it against the terminal. **Any tap is the explicit selection**; no row is highlighted, sorted, or auto-chosen by signal strength.
+The app **never** auto-connects. Because selection is always a QR scan, the `2+ eligible → auto-connect` hazard of §7.3 cannot occur; the §7.3 requirement is met by the explicit, physical, non-radio QR act, and the residual ambiguous case (duplicate `session_id`) fails closed.
 
-The fallback loses one property the QR has: the binding tuple's `session_id` is unknown before connecting, so the client cannot pre-filter by session. It must therefore connect, read the merchant's `RECEIPT_OFFER`, and *then* present `ACCEPT` only for the offer the user selected. Session binding in P0 is derived post-connect from the authenticated `transfer_id`/`receipt_id` in the offer, and the user's tap is the intent record. This is strictly weaker than P1 (no proof-of-possession), which is why P1 is the primary demo flow and P0 is the documented fallback.
+### 4.3 QR unavailable
+
+If the merchant cannot render a QR, expired it, the camera is denied, or the customer cannot scan: **the customer cannot receive a receipt in v1.** This is a deliberate v1 limitation, not a defect — the alternative (a binding-less connect path) would require a change to A1's frozen wire contract. The UI states: "This terminal isn't showing a checkout code yet." with a *rescan* affordance. Any future binding-less path MUST be requested from A1 as an explicit wire-contract revision; it is **not** assumed here.
 
 ---
 
@@ -293,11 +319,10 @@ Seven contract states. `DESIGN.md` §8.1 names the transfer-internal states (IDL
 
 ```
 ready
-  │  user acts (scan QR | open picker)
+  │  user acts (scan QR)
   ▼
-selecting ──(0 eligible)──▶ ready        (keep scanning)
-  │  (1 eligible → may auto)  |  (2+ eligible → explicit tap required)
-  │  explicit selection of exactly one candidate/transaction
+selecting ──(0 candidates)──▶ ready        (keep scanning)
+  │  QR scanned → exactly one session selected (explicit user act)
   ▼
 connecting ──(connect fail/timeout)──▶ recoverable_failure
   │  ClientHello/ServerHello, point decode, binding check, credential+signature check
@@ -313,17 +338,17 @@ saved
 
 State notes:
 
-- `selecting` is where the §7.3 rule lives. It is the **only** state permitted to change the selected candidate, and it requires an explicit user act.
+- `selecting` is where the §7.3 rule lives. It is the **only** state permitted to change the selected session, and the only trigger is a QR scan (the explicit user act). A candidate list in this state is display-only and cannot transition the machine.
 - `transferring` never implies trust; the receipt is `RECEIPT_UNTRUSTED` until `verifying` completes (§8.1, §9).
 - `verifying` is local-only work; no transport success can shortcut it.
 - `saved` records the §5.3 verification outcome (trusted / unknown-key / rejected-by-policy). Dedup (§9 step 13) may turn a re-received receipt into `saved` **without** re-adding it.
-- `recoverable_failure` always carries a typed reason and an explicit retry/fallback affordance; it never auto-retries into a different peer.
+- `recoverable_failure` always carries a typed reason and an explicit retry affordance; it never auto-retries into a different peer.
 
 Transition guards (normative):
 
 | Transition | Guard |
 |---|---|
-| `selecting → connecting` | exactly one candidate selected by explicit user act; 2+ eligible with no selection is unreachable |
+| `selecting → connecting` | **exactly one QR scan** names a session; 2+ peripherals claiming the same `session_id` is `TRANSPORT_PEER_AMBIGUOUS` (fail closed); there is no candidate-tap edge into this transition |
 | `connecting → transferring` | point decode ok AND binding check passed AND merchant credential+transcript signature verified (§9 steps 3–4) |
 | `transferring → verifying` | full AEAD payload authenticated/decrypted (§9 step 7) |
 | `verifying → saved` | **all** of §9 steps 10–15 pass; any failure goes to `recoverable_failure` |
@@ -334,16 +359,18 @@ Transition guards (normative):
 
 | Situation | State | User sees (no crypto internals) | Recovery |
 |---|---|---|---|
-| **Wrong terminal / wrong transaction** | `connecting → recoverable_failure` | "This isn't the transaction you selected." (`WRONG_TRANSACTION` / `RECEIPT_OFFER_MISMATCH`); no partial receipt is kept. | Rescan QR / reopen picker. |
-| **Expired transaction** | `selecting` or `connecting → recoverable_failure` | "This checkout code has expired. Ask the merchant to show a new one." | Rescan a fresh QR; P0 fallback. |
+| **Wrong terminal / wrong transaction** | `connecting → recoverable_failure` | "This isn't the transaction you selected." (`WRONG_TRANSACTION`, `0x0614`); no partial receipt is kept. | Rescan the intended terminal's QR. |
+| **Expired transaction** | `selecting` or `connecting → recoverable_failure` | "This checkout code has expired. Ask the merchant to show a new one." (`BINDING_STALE`) | Rescan a fresh QR. |
+| **QR unavailable / not rendering** | `selecting` | "This terminal isn't showing a checkout code yet." | Rescan when it appears. |
 | **Denied Bluetooth permission** | pre-`selecting` | "Deceipt needs Bluetooth to receive your receipt." Explanation + Settings deep-link. | Grant permission; retry. |
-| **Denied camera permission** | pre-`selecting` | "Scanning needs camera access." Camera-free picker fallback offered. | Grant, or use picker. |
+| **Denied camera permission** | pre-`selecting` | "Scanning needs camera access." | Grant; retry. |
 | **Cancellation (user)** | any → `recoverable_failure(USER_CANCELLED)` | Immediate; "Cancelled." No half-imported receipt retained. | Rescan / retry. |
 | **Bluetooth disabled** | any → `recoverable_failure(TRANSPORT_BLUETOOTH_OFF)` | "Bluetooth is off." | Enable; retry. |
-| **No eligible terminal** | `selecting → ready` | "No Deceipt terminal found nearby." Keeps scanning. | Wait / retry. |
-| **Multiple terminals, none selected** | `selecting` | Picker with explicit tap; copy states selection is manual and never by signal strength. | User taps one. |
+| **No terminal found** | `selecting → ready` | "No Deceipt terminal found nearby." Keeps scanning. | Wait / retry. |
+| **2+ terminals, none scanned** | `selecting` | "Scan the code shown at the terminal you are paying." Guidance only; the list is not tappable-to-connect and is never sorted by signal strength. | Scan one terminal's QR. |
+| **Duplicate `session_id` advertised** | `selecting → recoverable_failure` | "More than one terminal is claiming this checkout." (`TRANSPORT_PEER_AMBIGUOUS`) | Retry; report. |
 
-Rules: no state ever displays "verified" before §9 completes; a failure never shows a receipt as trusted; `recoverable_failure` never auto-targets a different peripheral.
+Rules: no state ever displays "verified" before §9 completes; a failure never shows a receipt as trusted; `recoverable_failure` never auto-targets a different peripheral. The error identifier used for offer mismatch is **`WRONG_TRANSACTION`** only (A6 R7-01: `RECEIPT_OFFER_MISMATCH` is not the frozen identifier used by any vector or doc).
 
 ---
 
@@ -378,7 +405,7 @@ Never shown: key identifiers, signature bytes, nonces, transcript hashes, sessio
 
 Counts below are the **protocol-required, code-observable** steps an implementation must take, enumerated from the state machine. They are **not** a claim about perceived taps: OS permission prompts, camera focus, and real-device timing are unknown until A4/A5 device testing and are excluded here. No "zero taps" claim is made.
 
-**P1 (QR) happy path — protocol step count: 5 user-visible phases**
+**Happy path — protocol step count: 5 user-visible phases**
 
 | # | Phase | Automatic? |
 |---|---|---|
@@ -390,8 +417,6 @@ Counts below are the **protocol-required, code-observable** steps an implementat
 
 Protocol actions between the user's scan and the accept: connect, `ClientHello`, point decode, binding verify, `ServerHello` + credential/signature verify, digest recompute, key derivation, `RECEIPT_OFFER`, binding compare — 9 protocol actions, 0 user taps.
 
-**P0 (picker) happy path — 5 user-visible phases:** permissions; open picker; **tap one candidate** (extra explicit act that P1 folds into the scan); review offer/Accept; save.
-
 **Failure paths add exactly one explicit recovery act** (rescan / retry / enable Bluetooth), never a silent auto-retry to a different peer.
 
 These are minimum protocol steps; perceived taps are pending A4/A5 device runs and OS-prompt behaviour.
@@ -402,49 +427,48 @@ These are minimum protocol steps; perceived taps are pending A4/A5 device runs a
 
 Scenario: 3 merchants A, B, C all advertising the Deceipt service UUID within radio range; customer intends only B.
 
-**P1 walk:**
 ```
 ready
  └─ user scans B's QR
 selecting: candidates {A,B,C}; QR names session_id_B
-           eligible = candidates matching session_id_B  -> {B}   (structural match, not RSSI)
-           1 eligible -> may auto-connect; selected = B by the user's scan
+           eligible = candidates matching session_id_B  -> {B}   (structural/secret match, not RSSI)
+           exactly one session selected by the user's explicit act
 connecting: ClientHello{session_id_B, cnonce, ceph, proof}
            A and C cannot answer:  they hold no session_id_B / SBT_B  -> BINDING_UNKNOWN_SESSION
            B validates ClientHello (ceph decodes), verifies proof -> ServerHello ->
            binding + credential + sig verified
 transferring -> verifying -> saved
 ```
+
 A and C are eliminated by **possession of B's session secret**, not by signal strength. If the user had scanned A's QR, B and C would equally fail.
 
-**P0 walk (no QR):**
-```
-selecting: eligible = {A,B,C}; |eligible| >= 2
-           -> DISAMBIGUATE. No auto-connect. No RSSI ranking.
-           picker rows ordered by peripheral_id bytes (deterministic, no proximity)
-           user taps B  -> selected = B
-connecting -> ... -> saved
-```
-If the user taps nothing, the app stays in `selecting`; it never picks the strongest signal.
+**With 2+ terminals and no scan yet:** the app shows only display guidance ("Scan the code shown at the terminal you are paying"), ordered by `peripheral_id`, non-tappable-to-connect; it **never** auto-connects and never picks the strongest signal. The user's selection is the physical act of scanning one terminal.
 
-**Code-level check the reviewer can make:** every write to `selected` is reachable only from a user-act handler (`onQRScanned`, `onCandidateTapped`); the type of the eligibility predicate excludes RSSI/`rssi`/`txPower`/`distance`; picker sort key is `peripheral_id`. (Named in `protocol/flows/checkout-flow-v1.json` as `selection_invariants`.)
+**With 2+ peripherals advertising the same `session_id`** (clone/impostor): `TRANSPORT_PEER_AMBIGUOUS` — fail closed, no connection.
+
+**Code-level check the reviewer can make:** every write to `selected` is reachable only from a user-act handler (`onQRScanned`); there is no `onCandidateTapped`-to-connect edge; the type of the eligibility predicate excludes RSSI/`rssi`/`txPower`/`distance`; any guidance list sort key is `peripheral_id`. (Named in `protocol/flows/checkout-flow-v1.json` as `selection_invariants`.)
 
 ---
 
-## 11. Handoff to A1 — CLOSED (adopted into `deceipt-proto-r1`)
+## 11. Handoff to A1 — CLOSED in r1; r2 reconciliation pending
 
-A1 has **adopted** this contract verbatim (`docs/protocol/handshake.md` §10). The dependency is satisfied:
+A1 **adopted** this contract's binding bytes verbatim (`docs/protocol/handshake.md` §10). The dependency is satisfied:
 
 | Requirement | Status in `deceipt-proto-r1` |
 |---|---|
 | `binding_tuple_digest` required in the signed transcript | **Yes** — transcript offset 250; full `binding_tuple` at offset 285, len-prefixed at 284 |
 | `ClientHello` carries `session_id`, `client_nonce`, `client_ephemeral_pubkey`, `binding_proof` | **Yes** — labels 4, 5, 6, 7 |
-| `RECEIPT_OFFER` carries the offer-hash members | **Yes** — labels 2–7, 12 (`session_id`, `transfer_id`, `receipt_id`, `merchant_reference`, `total_amount_minor`, `currency`, `issued_at`, `session_id`) |
+| `RECEIPT_OFFER` carries the offer-hash members | **Yes** — labels 2, 3, 4, 5, 6, 7, 12 |
 | Wire IDs for the three 16-byte identifiers | **Yes** — `bstr(16)`, pass D |
 | Typed binding errors | **Yes** — `BINDING_*` codes `0x0312..0x0316`, `WRONG_TRANSACTION` `0x0614`, plus `HANDSHAKE_ECDH_INVALID_POINT` |
 | 32-byte `client_nonce` | **Yes** (`handshake.md` §1) |
 
-**Remaining A2→A1 items:** none open. The only change A1 made to A2's published bytes was procedural: A2's original `client_ephemeral_pubkey` values were not valid P-256 points; A1 used valid points, so A1's `binding_proof` differs from A2's *original* value. A2 has regenerated vectors to reconcile (§13).
+**Open cross-checks with A1 (not A2-owned):**
+
+- **A6 R2-01** — `offer_hash` member set/type contradiction across `wire.md` §7 and `framing.md` §7 (labels `3,4,5,6,7,10` — wrong) vs `handshake.md` §10 and this contract (correct: array order `session_id(12), transfer_id(2), receipt_id(3), merchant_reference(4), total(5), currency(6), issued_at(7)`). A1 is fixing this in `deceipt-proto-r2`; A2's prose/JSON now match A1's frozen `efdc44f3…` value.
+- **A6 R4-01** — receiver transcript reconstruction (blocker, A1-owned). If A1's resolution moves the `binding_tuple` source into the QR (option b), A2 updates the QR layout (§3.3).
+- **A6 RX-02** — `protocol/flows/**` is outside `REVISION.json`'s hash scope; A1 owns revision scope. A2 keeps its artifact revision marker explicit and will re-mark on r2.
+- **A6 RX-04** — resolved by A2 in §4 (QR-mandatory).
 
 ---
 
@@ -452,11 +476,14 @@ A1 has **adopted** this contract verbatim (`docs/protocol/handshake.md` §10). T
 
 | Item | Status |
 |---|---|
-| QR bootstrap as the PoC primary **product** flow | **PROPOSAL** — A1 adopted its bytes; product flow still A0-replaceable |
+| QR bootstrap as the PoC binding path | **MANDATORY for v1** (§4); bytes FROZEN r1 |
+| QR-less / picker-connect path | **REMOVED** — not realisable in r1 (§4.1); any replacement requires an A1 wire revision |
 | `qr_format_version`, domain separators, `proof_message` layout | **FROZEN r1** (adopted by A1) |
 | Transcript field placement of `binding_tuple_digest` | **FROZEN r1** — A1 pass C, offset 250 |
 | Wire IDs for session/transfer/receipt | **FROZEN r1** — A1 pass D |
+| `offer_hash` member set/type | **A2 prose/JSON corrected**; A1 fixing conflicting docs in r2 |
 | HKDF-expanded SBT key | **Recorded hardening path**, not in r1 (§3.4) |
+| r2 reconciliation of A2 vectors | **PENDING** — A1 will notify; do not regenerate until r2 lands (§14) |
 | Production disambiguation UX | §14 provisional, out of PoC scope |
 | Perceived tap count on real devices | pending A4/A5 |
 
@@ -470,21 +497,37 @@ Flow overview: `protocol/flows/checkout-flow-v1.mmd` (diagram), `docs/flows/READ
 
 A1's `protocol/vectors/binding-crosscheck.json` recorded a **high** finding: the `client_ephemeral_pubkey_hex` in A2's original V1/V2/V3 was **not a valid P-256 point**, so no ECDH was possible and the vectors could not be used as handshake vectors. A2's HMAC/offer/tuple/digest values were internally correct (HMAC treats the key material as opaque bytes).
 
-**Fix applied (this revision):**
+**Fix applied:**
 
 - Vectors regenerated by `protocol/flows/tools/gen_binding_vectors.py` using **valid, reproducible P-256 points** derived exactly as A1's reference does (`SHA-256("deceipt-testkey:p256:" || name || "#counter")` reduced mod `n`).
-- **V1 now reconciles byte-for-byte with A1's frozen `handshake-valid.json`:** identical inputs, and identical `offer_hash`, `binding_tuple`, `binding_tuple_digest`, and `binding_proof`.
-- V2 (same transaction, wrong SBT) and V3 (different transaction) use valid points; V3's outputs differ from V1.
-- **V4 added as a negative vector:** a point with the final byte flipped, which fails `secp256r1` decode and MUST be rejected at `ClientHello` with `HANDSHAKE_ECDH_INVALID_POINT` before any binding check.
-- Every non-negative vector's point is asserted to decode (`client_ephemeral_pubkey_valid_p256 == true`); V4's is asserted `false`.
+- **V1 reconciles byte-for-byte with A1's frozen `handshake-valid.json`.**
+- V2 (same transaction, wrong SBT) and V3 (different transaction) use valid points.
+- **V4** added: a point with the final byte flipped, which fails `secp256r1` decode and MUST be rejected at `ClientHello` with `HANDSHAKE_ECDH_INVALID_POINT`.
+- Every non-negative vector's point is asserted to decode; V4's is asserted not to.
+- Independently re-verified by A6 (`docs/security/early-contract-review.md` RX-01: "the fix is verified", all four vectors reproduce from inputs).
 
 **Regenerated values:**
 
 | Vector | valid P-256 | `offer_hash` | `binding_tuple_digest` | `binding_proof` |
 |---|---|---|---|---|
 | V1 (== A1 r1) | yes | `efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5` | `d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2` | `fa19790fda7c85c1c745d4299c4177f9bcd15090de78961a38b7ebc36565083e` |
-| V2 (wrong SBT) | yes | `efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5` (same) | `d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2` (same) | `49b9edb37943d3c4c3607e429a85118050b3a3f7c3f70fcaf6444ec4df81e4fc` |
+| V2 (wrong SBT) | yes | `efdc44f3…4c5` (same) | `d9d3d7df…9e2` (same) | `49b9edb37943d3c4c3607e429a85118050b3a3f7c3f70fcaf6444ec4df81e4fc` |
 | V3 (other txn) | yes | `043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac` | `e7b28cffce49a18686d8cf97a18566416724ea1d8ca78c2c788660ffdad1d14f` | `45aa8fcd46cee2030c95ddf443febcd2cf7445d24abb44daeb440da9f8be8edb` |
-| V4 (bad point) | **no** | `efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5` (same) | `d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2` (same) | `17b28db865405a3328aef05d0409b2adce1d6ff0c37ad307073c7d4524d6aa02` (informational; rejected before use) |
+| V4 (bad point) | **no** | `efdc44f3…4c5` (same) | `d9d3d7df…9e2` (same) | `17b28db865405a3328aef05d0409b2adce1d6ff0c37ad307073c7d4524d6aa02` (informational; rejected before use) |
 
-All four vectors and their exact bytes live in `protocol/flows/vectors/binding-v1.json`, regenerated by `protocol/flows/tools/gen_binding_vectors.py`.
+All four vectors and their exact bytes live in `protocol/flows/vectors/binding-v1.json`.
+
+---
+
+## 14. Change record: A6 early review (RX-04 + R2-01)
+
+**RX-04 (minor, A2) — resolved.** A6 found the former P0 picker path had no wire-level realisation: `CLIENT_HELLO` requires `session_id` + `binding_proof`, absence is fatal `BINDING_REQUIRED`, and no binding-less variant exists in r1.
+
+- **Chosen resolution: QR-mandatory for v1** (§4). Rationale: (a) it matches the frozen wire contract with no change; (b) RSSI-free disambiguation requires possession of the binding material, which only the QR delivers; (c) a binding-less connect path would be a change to A1's frozen wire contract and must be requested explicitly, not assumed.
+- The former **§4 P0 branch and its `selecting → connecting` picker edge are removed**; the `2+ candidates` case is now display guidance plus explicit physical selection, with the residual duplicate-`session_id` case failing closed (`TRANSPORT_PEER_AMBIGUOUS`). §5, §6, §9 and §10 updated to match.
+
+**R2-01 (major, A1 + A2) — A2 portion fixed.** §3.5 previously wrote `uint currency` for a `tstr` `currency` and listed offer-hash members ambiguously. Corrected: `currency` is `tstr`; the array element order is stated explicitly and mapped to `RECEIPT_OFFER` labels (`12,2,3,4,5,6,7` in array order — not the label-list order `2,3,4,5,6,7,12`). This order is the one that reproduces the frozen `efdc44f3…d4c5` value and is now unambiguous in both prose and JSON. **No binding bytes changed**, so the vectors still reconcile with r1.
+
+**R7-01 (minor, A1) — A2 text aligned.** §6 now cites only `WRONG_TRANSACTION` (`0x0614`), the frozen identifier; `RECEIPT_OFFER_MISMATCH` is no longer presented as an alternative name.
+
+**Pending:** A1 is revising to `deceipt-proto-r2`. Per Main's instruction, A2 will **not** regenerate vectors until r2 lands; on notification A2 reconciles byte-for-byte and verifies. If r2 changes `offer_hash` inputs or moves the `binding_tuple` source into the QR (R4-01 option b), the affected vectors/QR layout will be regenerated then.

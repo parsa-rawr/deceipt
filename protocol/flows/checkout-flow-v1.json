@@ -1,9 +1,11 @@
 {
-  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. Binding bytes ADOPTED by A1 into frozen revision deceipt-proto-r1 (docs/protocol/handshake.md section 10); the QR bootstrap remains a provisional PRODUCT flow that A1/A0 may replace. Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
+  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. Binding bytes ADOPTED by A1 into frozen revision deceipt-proto-r1 (docs/protocol/handshake.md section 10). Selection model: QR-MANDATORY for v1 (resolves A6 RX-04). Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
   "schema": "deceipt.checkout-flow/v1",
-  "status": "binding_bytes_adopted_in_deceipt-proto-r1__product_flow_provisional",
+  "status": "binding_bytes_adopted_in_deceipt-proto-r1__selection_qr_mandatory",
   "owner": "A2",
-  "revision": "deceipt-proto-r1",
+  "revision_consumes": "deceipt-proto-r1",
+  "revision_reconciled_against": "deceipt-proto-r1",
+  "revision_reconciliation_pending": "deceipt-proto-r2 (A1 offer_hash member-definition fix, A6 R2-01; A2 regenerates vectors after r2 lands)",
   "consumes": ["DESIGN.md#2.5", "DESIGN.md#7.2", "DESIGN.md#7.3", "DESIGN.md#8", "DESIGN.md#9", "DESIGN.md#11", "DESIGN.md#13"],
   "adopted_by": "A1 docs/protocol/handshake.md section 10",
 
@@ -11,28 +13,38 @@
     "no_rssi": {
       "statement": "RSSI, tx_power, distance, and any radio-derived proximity MUST NOT be an input to eligibility, selection, ordering, connection target, or trust.",
       "forbidden_fields_in_selection": ["rssi", "RSSI", "txPower", "tx_power", "distance", "proximity", "signalStrength"],
-      "picker_sort_key": "peripheral_id",
-      "picker_sort_direction": "ascending",
+      "candidate_list_sort_key": "peripheral_id",
+      "candidate_list_sort_direction": "ascending",
+      "candidate_list_is_display_only": true,
       "diagnostics_only": true
     },
     "ambiguity_rule": {
       "source": "DESIGN.md#7.3",
       "zero_candidates": "continue_scanning",
-      "one_eligible": "may_auto_connect",
-      "two_or_more_eligible": "explicit_disambiguation_required",
+      "one_candidate": "display_guidance_no_auto_connect",
+      "two_or_more_candidates": "display_guidance__selection_is_the_explicit_QR_scan",
+      "duplicate_session_id_advertised": "fail_closed TRANSPORT_PEER_AMBIGUOUS",
       "fails_closed": true
     },
     "session_binding_distinct_from_key_trust": true,
     "decryption_implies_trust": false
   },
 
+  "selection_model": {
+    "name": "qr_mandatory_v1",
+    "resolves": "A6 RX-04",
+    "auto_connect": false,
+    "selection_act": "user scans the QR at the terminal; the QR's session_id names exactly one session",
+    "qr_less_path": "removed; not realisable in deceipt-proto-r1 because CLIENT_HELLO requires session_id (label 4) + binding_proof (label 7); absence is fatal BINDING_REQUIRED and no binding-less variant exists",
+    "justification": "RSSI-free disambiguation requires possession of the binding material (SBT), which only the QR delivers; a binding-less connect path would require an explicit A1 wire revision"
+  },
   "primary_flow": "P1_qr_bootstrap_ble_delivery",
-  "fallback_flow": "P0_manual_disambiguation_picker",
 
   "qr": {
     "prefix": "deceipt1:",
     "encoding": "base64url_nopad",
     "format_version": 1,
+    "pending_r2": "if A1 resolves A6 R4-01 by moving the binding_tuple source into the QR (option b), this map gains transfer_id/receipt_id fields; do not add until r2 is published",
     "cbor": {
       "type": "map",
       "definite_length": true,
@@ -60,9 +72,12 @@
       "alg": "SHA-256",
       "prefix_ascii": "deceipt-offer-hash-v1",
       "separator_hex": "00",
-      "message": "prefix || 00 || cbor([session_id(16), transfer_id(16), receipt_id(16), merchant_reference(tstr), total_amount_minor(uint), currency(tstr), issued_at_unix(uint)])",
+      "message_element_order": ["session_id(bstr16)", "transfer_id(bstr16)", "receipt_id(bstr16)", "merchant_reference(tstr)", "total_amount_minor(uint)", "currency(tstr)", "issued_at_unix(uint)"],
+      "element_order_to_receipt_offer_labels": {"session_id": 12, "transfer_id": 2, "receipt_id": 3, "merchant_reference": 4, "total_amount_minor": 5, "currency": 6, "issued_at_unix": 7},
+      "ordering_warning": "the array order above is what reproduces the frozen efdc44f3...d4c5 value; it is NOT the label-list order 2,3,4,5,6,7,12 (A6 R2-01)",
+      "currency_type": "tstr (ISO-4217), NOT uint (A6 R2-01 prose fix)",
       "length": 32,
-      "recomputed_from": "RECEIPT_OFFER labels 2,3,4,5,6,7,12",
+      "recomputed_from": "RECEIPT_OFFER fields in the message_element_order above",
       "frozen_value_v1": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
     },
     "binding_tuple": {
@@ -87,7 +102,8 @@
       "message": "prefix || 00 || binding_tuple",
       "length": 32,
       "transcript_offset": 250,
-      "coverd_by": "ServerHello.transcript_signature (Ed25519)",
+      "covered_by": "ServerHello.transcript_signature (Ed25519)",
+      "receiver_reachability_dependency": "A6 R4-01 (A1-owned): the receiver must be able to rebuild the full signed transcript; A2 requires both binding_tuple_digest and the raw binding_tuple source be reachable. If A1 moves it into the QR (option b), A2 adds QR fields.",
       "frozen_value_v1": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2"
     },
     "binding_proof": {
@@ -113,10 +129,10 @@
   },
 
   "client_hello_additions": [
-    {"name": "session_id", "type": "bstr", "length": 16, "field": 4},
+    {"name": "session_id", "type": "bstr", "length": 16, "field": 4, "required": true},
     {"name": "client_nonce", "type": "bstr", "length": 32, "field": 5},
     {"name": "client_ephemeral_pubkey", "type": "bstr", "length": 65, "curve": "P-256", "form": "uncompressed 0x04||X||Y", "field": 6},
-    {"name": "binding_proof", "type": "bstr", "length": 32, "field": 7}
+    {"name": "binding_proof", "type": "bstr", "length": 32, "field": 7, "required": true}
   ],
 
   "merchant_binding_check": [
@@ -135,9 +151,10 @@
   "states": ["ready", "selecting", "connecting", "transferring", "verifying", "saved", "recoverable_failure"],
 
   "transitions": [
-    {"from": "ready", "to": "selecting", "trigger": "user scans QR or opens picker"},
-    {"from": "selecting", "to": "ready", "trigger": "0 eligible candidates", "behavior": "keep scanning"},
-    {"from": "selecting", "to": "connecting", "guard": "exactly one candidate selected by explicit user act; 2+ eligible with no selection is unreachable"},
+    {"from": "ready", "to": "selecting", "trigger": "user opens the scanner / scanner active"},
+    {"from": "selecting", "to": "ready", "trigger": "0 candidates", "behavior": "keep scanning"},
+    {"from": "selecting", "to": "connecting", "guard": "exactly one QR scan names a session; there is no candidate-tap-to-connect edge"},
+    {"from": "selecting", "to": "recoverable_failure", "trigger": "2+ peripherals advertising the same session_id (clone/impostor)", "error": "TRANSPORT_PEER_AMBIGUOUS"},
     {"from": "connecting", "to": "recoverable_failure", "trigger": "connect failure/timeout"},
     {"from": "connecting", "to": "transferring", "guard": "point decodes AND binding check passed AND merchant credential + transcript signature verified (DESIGN.md#9 steps 3-4)"},
     {"from": "transferring", "to": "recoverable_failure", "trigger": "cancel | disconnect | bluetooth_off"},
@@ -147,21 +164,24 @@
   ],
 
   "selection_invariants": {
-    "selected_writers": ["onQRScanned", "onCandidateTapped"],
+    "selected_writers": ["onQRScanned"],
+    "forbidden_writers": ["onCandidateTapped_to_connect"],
     "eligibility_predicate_excludes": ["rssi", "txPower", "distance"],
-    "connection_target": "selected_only",
-    "auto_connect_requires": "exactly_one_eligible_candidate",
+    "connection_target": "session_named_by_scanned_QR_only",
+    "auto_connect": false,
+    "candidate_list_tappable_to_connect": false,
     "recovery_may_auto_target_different_peer": false
   },
 
   "errors": [
     {"code": "BINDING_UNKNOWN_SESSION", "meaning": "session_id does not resolve to a live session", "owner": "A1", "wire_code": "0x0312"},
     {"code": "BINDING_PROOF_INVALID", "meaning": "binding_proof HMAC mismatch", "owner": "A1", "wire_code": "0x0313"},
-    {"code": "BINDING_STALE", "meaning": "QR or session expired before use", "owner": "A1", "wire_code": "0x0314"},
-    {"code": "BINDING_CONSUMED", "meaning": "binding already used once", "owner": "A1", "wire_code": "0x0315"},
-    {"code": "BINDING_REQUIRED", "meaning": "binding required but absent", "owner": "A1", "wire_code": "0x0316"},
+    {"code": "BINDING_REQUIRED", "meaning": "session_id or binding_proof absent in CLIENT_HELLO", "owner": "A1", "wire_code": "0x0314"},
+    {"code": "BINDING_STALE", "meaning": "QR or session expired before use", "owner": "A1", "wire_code": "0x0315"},
+    {"code": "BINDING_CONSUMED", "meaning": "binding already used once", "owner": "A1", "wire_code": "0x0316"},
     {"code": "HANDSHAKE_ECDH_INVALID_POINT", "meaning": "client_ephemeral_pubkey does not decode on P-256", "owner": "A1"},
-    {"code": "WRONG_TRANSACTION", "meaning": "offer does not match the selected/QR-bound transaction", "owner": "A1", "wire_code": "0x0614"},
+    {"code": "WRONG_TRANSACTION", "meaning": "offer does not match the selected/QR-bound transaction; the ONLY frozen identifier for this condition (A6 R7-01)", "owner": "A1", "wire_code": "0x0614"},
+    {"code": "TRANSPORT_PEER_AMBIGUOUS", "meaning": "2+ peripherals advertising the same session_id", "owner": "A1", "wire_code": "0x020b"},
     {"code": "USER_CANCELLED", "meaning": "user cancelled", "owner": "A3"},
     {"code": "TRANSPORT_BLUETOOTH_OFF", "meaning": "Bluetooth disabled", "owner": "A3"},
     {"code": "PERMISSION_DENIED", "meaning": "Bluetooth or camera permission denied", "owner": "A3"},
@@ -169,15 +189,16 @@
   ],
 
   "user_visible_failures": {
-    "wrong_terminal": {"state": "recoverable_failure", "message": "This isn't the transaction you selected.", "recovery": "rescan_or_reopen_picker"},
+    "wrong_terminal": {"state": "recoverable_failure", "message": "This isn't the transaction you selected.", "recovery": "rescan_intended_qr"},
     "expired_transaction": {"state": "recoverable_failure", "message": "This checkout code has expired. Ask the merchant to show a new one.", "recovery": "rescan_fresh_qr"},
+    "qr_unavailable": {"state": "selecting", "message": "This terminal isn't showing a checkout code yet.", "recovery": "rescan_when_available", "note": "v1 limitation: no QR means no receipt (section 4.3)"},
     "denied_bluetooth_permission": {"state": "pre_selecting", "message": "Deceipt needs Bluetooth to receive your receipt.", "recovery": "settings_deeplink_then_retry"},
-    "denied_camera_permission": {"state": "pre_selecting", "message": "Scanning needs camera access.", "recovery": "grant_or_use_picker"},
+    "denied_camera_permission": {"state": "pre_selecting", "message": "Scanning needs camera access.", "recovery": "grant_then_retry"},
     "cancellation": {"state": "recoverable_failure", "message": "Cancelled.", "recovery": "rescan_or_retry"},
     "bluetooth_disabled": {"state": "recoverable_failure", "message": "Bluetooth is off.", "recovery": "enable_then_retry"},
-    "no_eligible_terminal": {"state": "selecting", "message": "No Deceipt terminal found nearby.", "recovery": "keep_scanning"},
-    "multiple_unselected": {"state": "selecting", "message": "Select a terminal to receive from.", "recovery": "explicit_tap",
-      "copy_must_state": "selection is manual and never by signal strength"}
+    "no_terminal": {"state": "selecting", "message": "No Deceipt terminal found nearby.", "recovery": "keep_scanning"},
+    "multiple_unscanned": {"state": "selecting", "message": "Scan the code shown at the terminal you are paying.", "recovery": "scan_one_qr", "copy_must_state": "guidance only; never sorted or selected by signal strength"},
+    "duplicate_session_id": {"state": "recoverable_failure", "message": "More than one terminal is claiming this checkout.", "recovery": "retry"}
   },
 
   "customer_display": {
@@ -190,31 +211,37 @@
     "claim": "protocol-required_observed_step_count_only",
     "zero_taps_claimed": false,
     "note": "OS permission prompts and real-device timing unknown until A4/A5 device testing",
-    "P1_phases": [
+    "phases": [
       {"n": 1, "phase": "grant_permissions", "automatic": false},
       {"n": 2, "phase": "scan_qr", "automatic": false},
       {"n": 3, "phase": "connect_handshake_binding", "automatic": true},
       {"n": 4, "phase": "review_offer_accept", "automatic": false},
       {"n": 5, "phase": "save_and_verify", "automatic": true}
     ],
-    "P1_internal_protocol_actions_between_scan_and_accept": 9,
-    "P0_extra_user_act_vs_P1": ["tap_one_candidate"],
+    "internal_protocol_actions_between_scan_and_accept": 9,
     "failure_path_extra_explicit_acts": 1
   },
 
   "a1_dependencies": {
-    "status": "closed - adopted into deceipt-proto-r1 (handshake.md section 10)",
+    "status": "closed in deceipt-proto-r1 (handshake.md section 10); r2 reconciliation pending",
     "items": [
       {"requirement": "binding_tuple_digest required in signed transcript", "satisfied": true, "where": "transcript offset 250"},
       {"requirement": "ClientHello carries session_id, client_nonce, client_ephemeral_pubkey, binding_proof", "satisfied": true, "where": "fields 4,5,6,7"},
-      {"requirement": "RECEIPT_OFFER carries offer-hash members", "satisfied": true, "where": "labels 2-7,12"},
+      {"requirement": "RECEIPT_OFFER carries offer-hash members", "satisfied": true, "where": "labels 2,3,4,5,6,7,12"},
       {"requirement": "wire IDs for 16-byte identifiers", "satisfied": true, "where": "bstr(16)"},
       {"requirement": "typed binding errors", "satisfied": true, "where": "0x0312..0x0316, 0x0614"},
       {"requirement": "32-byte client_nonce", "satisfied": true, "where": "handshake.md section 1"}
     ]
   },
 
+  "a6_review_resolutions": {
+    "RX-04": {"resolved_by": "A2", "resolution": "QR-mandatory for v1; P0 QR-less path removed", "detail": "CLIENT_HELLO requires session_id + binding_proof; no binding-less variant exists in r1"},
+    "R2-01": {"a2_portion": "fixed", "detail": "currency is tstr; offer_hash element order stated explicitly and mapped to labels; no binding bytes changed"},
+    "R7-01": {"a2_portion": "aligned", "detail": "only WRONG_TRANSACTION (0x0614) cited"},
+    "R4-01_RX-02": {"owner": "A1", "a2_note": "A2 reconciles QR layout / vectors if r2 changes offer_hash inputs or moves binding_tuple source into the QR"}
+  },
+
   "vectors_file": "protocol/flows/vectors/binding-v1.json",
   "vector_generator": "protocol/flows/tools/gen_binding_vectors.py",
-  "vectors_note": "V1 reconciles byte-for-byte with A1 protocol/vectors/handshake-valid.json; all non-negative vectors use valid P-256 points; V4 is a deliberate invalid-point negative vector. See docs/flows/transaction-binding-and-checkout-v1.md section 13 (defect fix record)."
+  "vectors_note": "V1 reconciles byte-for-byte with A1 protocol/vectors/handshake-valid.json (deceipt-proto-r1); all non-negative vectors use valid P-256 points; V4 is a deliberate invalid-point negative vector. Do NOT regenerate until A1 publishes deceipt-proto-r2. See docs/flows/transaction-binding-and-checkout-v1.md sections 13-14."
 }
