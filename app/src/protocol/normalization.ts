@@ -36,15 +36,20 @@
  * that receipt-v1.md §8 requires. The OS normalizer is exact, is already
  * maintained, and needs no new package.
  *
- * ## Synchronous parsing, asynchronous normalizer
+ * ## Synchronous parsing, asynchronous boundary
  *
  * `check_text` runs inside receipt parsing, which is synchronous, while the
- * bridge is asynchronous. Rather than making the whole parse async (invasive) or
- * hiding a global pending list (easy to get wrong), `parseReceiptPayload`
- * COLLECTS the non-ASCII values it could not check into `deferredNfcChecks`, and
- * `verifyReceipt` confirms exactly those values before any receipt can be
- * accepted. On an engine with `String.prototype.normalize` the list is always
- * empty and no async work happens at all.
+ * bridge is asynchronous. Rather than exposing a deferred state a caller could
+ * misuse, the public parse boundary is async and fully validated:
+ * `parseReceiptPayload` returns a Promise and does not resolve until every NFC
+ * check is decided. Internally it collects the values the synchronous pass could
+ * not decide (always none when the engine has `String.prototype.normalize`) and
+ * confirms them through the OS normalizer before returning.
+ *
+ * The engine decides whether the bridge is CONSULTED, not whether the call is
+ * asynchronous: `parseReceiptPayload` is awaited by its callers either way.
+ * `verifyReceipt` likewise confirms any deferred values before its signature and
+ * authorization steps.
  */
 
 export type NormalizationEngine = 'platform' | 'native' | 'none';
