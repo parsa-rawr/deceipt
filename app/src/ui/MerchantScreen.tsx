@@ -29,6 +29,7 @@ import {
   type PreparedMerchantOffer,
 } from '../checkout/merchantFlow';
 import {buildDemoReceipt} from '../demo/demoReceipt';
+import {runNfcProbe, summarizeNfcProbe, type NfcProbeReport} from '../dev/nfcProbe';
 import {ensureDemoMerchant, isMerchantReady, missingMerchantParts} from '../demo/merchantProvision';
 import {Card, Field, ActionButton, StatusPill, colors, formatMoney, styles} from './primitives';
 import {QrView} from './QrView';
@@ -47,6 +48,7 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
   const [provisionNote, setProvisionNote] = useState<string | null>(null);
   const [provisioning, setProvisioning] = useState(false);
   const [prepareStep, setPrepareStep] = useState<MerchantPrepareProgress | null>(null);
+  const [probeReport, setProbeReport] = useState<NfcProbeReport | null>(null);
   const [prepared, setPrepared] = useState<PreparedMerchantOffer | null>(null);
   const [sessionHandle, setSessionHandle] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
@@ -178,6 +180,34 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
       setPhase('failed');
     }
   }, [native, now, append]);
+
+  /**
+   * TEMPORARY DEV PROBE. One shot, visible output, no production policy. It needs
+   * a prepared receipt as its document and uses the merchant key/credential
+   * already loaded. Remove with the other diagnostics.
+   */
+  const onRunNfcProbe = useCallback(async () => {
+    setProbeReport(null);
+    try {
+      const status = await native.merchantKeyStatus();
+      const merchantIdHex = status.merchantIdHex ?? '';
+      const credentialB64 = status.credentialB64 ?? '';
+      if (merchantIdHex.length !== 32 || credentialB64.length === 0) {
+        append('probe needs a complete merchant enrollment');
+        return;
+      }
+      const base = await buildDemoReceipt({
+        merchantId: hexToBytes(merchantIdHex),
+        credentialBytes: base64ToBytes(credentialB64),
+      });
+      const report = await runNfcProbe(base);
+      setProbeReport(report);
+      append(summarizeNfcProbe(report));
+    } catch (error) {
+      setProbeReport({engineBefore: 'n/a', engineDuring: 'n/a', cases: [], failures: [describe(error)]});
+      append(`probe failed: ${describe(error)}`);
+    }
+  }, [native, append]);
 
   const onAdvertise = useCallback(async () => {
     if (prepared === null) {
@@ -327,6 +357,33 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
         variant="destructive"
         disabled={sessionHandle === null}
       />
+
+      <Card testID="nfc-probe-card">
+        <Text style={styles.sectionTitle}>NFC bridge probe</Text>
+        <Text style={styles.label}>
+          One-shot diagnostic. Disables the JS normalizer per case to force the bridged OS normalizer, then restores
+          it. Temporary: removed with the other diagnostics.
+        </Text>
+        <ActionButton
+          label="Run NFC probe"
+          onPress={() => void onRunNfcProbe()}
+          testID="run-nfc-probe"
+          accessibilityLabel="run-nfc-probe"
+          variant="secondary"
+        />
+        {probeReport !== null ? (
+          <>
+            <Text style={styles.label} testID="nfc-probe-summary">
+              {summarizeNfcProbe(probeReport)}
+            </Text>
+            {probeReport.cases.map(item => (
+              <Text key={item.name} style={[styles.label, item.passed ? undefined : styles.error]}>
+                {item.passed ? 'PASS' : 'FAIL'} {item.name} [{item.expectation}] {item.observed}
+              </Text>
+            ))}
+          </>
+        ) : null}
+      </Card>
 
       <Card testID="merchant-log-card">
         <Text style={styles.sectionTitle}>Events</Text>

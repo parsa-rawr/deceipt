@@ -122,7 +122,7 @@ export class ReceiptStore {
   }
 
   async read(receiptIdHex: string): Promise<StoredReceipt | null> {
-    const raw = await this.store.get(RECEIPT_PREFIX + receiptIdHex);
+    const raw = await this.readRaw(RECEIPT_PREFIX + receiptIdHex);
     if (raw === null) {
       return null;
     }
@@ -173,20 +173,37 @@ export class ReceiptStore {
   }
 
   private async writeRecord(key: string, record: StoredReceipt): Promise<void> {
-    try {
-      await this.store.set(RECEIPT_PREFIX + key, JSON.stringify(record));
-    } catch {
-      throw new ProtocolError('STORAGE_FAILED', `could not persist receipt ${key}`);
-    }
+    await this.writeRaw(RECEIPT_PREFIX + key, JSON.stringify(record));
     const index = await this.readIndex();
     if (!index.includes(key)) {
       index.push(key);
-      await this.store.set(INDEX_KEY, JSON.stringify(index));
+      await this.writeRaw(INDEX_KEY, JSON.stringify(index));
+    }
+  }
+
+  /**
+   * Read through the backing store, converting an untyped backend failure into
+   * the frozen `STORAGE_FAILED` so callers (and the UI) always see a typed error
+   * rather than a raw Error reaching a redbox.
+   */
+  private async readRaw(key: string): Promise<string | null> {
+    try {
+      return await this.store.get(key);
+    } catch (error) {
+      throw new ProtocolError('STORAGE_FAILED', describeStorageError('read', error));
+    }
+  }
+
+  private async writeRaw(key: string, value: string): Promise<void> {
+    try {
+      await this.store.set(key, value);
+    } catch (error) {
+      throw new ProtocolError('STORAGE_FAILED', describeStorageError('write', error));
     }
   }
 
   private async readIndex(): Promise<string[]> {
-    const raw = await this.store.get(INDEX_KEY);
+    const raw = await this.readRaw(INDEX_KEY);
     if (raw === null) {
       return [];
     }
@@ -197,6 +214,12 @@ export class ReceiptStore {
       throw new ProtocolError('STORAGE_FAILED', 'the receipt index is unreadable');
     }
   }
+}
+
+/** A short, non-secret description of a backend failure. */
+function describeStorageError(operation: string, error: unknown): string {
+  const detail = error instanceof Error ? error.message : 'unknown backend failure';
+  return `could not ${operation} receipt storage: ${detail}`;
 }
 
 export type ImportKind = 'TRUSTED_STORED' | 'UNVERIFIED_STORED' | 'REJECTED_EVIDENCE' | 'ALREADY_IMPORTED_IDENTICAL' | 'DUPLICATE_CONFLICT';
@@ -281,7 +304,12 @@ export class MerchantIdentityCache {
   constructor(private readonly store: KeyValueStore) {}
 
   async read(): Promise<StoredMerchantIdentity | null> {
-    const raw = await this.store.get(MERCHANT_KEY);
+    let raw: string | null;
+    try {
+      raw = await this.store.get(MERCHANT_KEY);
+    } catch (error) {
+      throw new ProtocolError('STORAGE_FAILED', describeStorageError('read', error));
+    }
     if (raw === null) {
       return null;
     }
@@ -293,10 +321,18 @@ export class MerchantIdentityCache {
   }
 
   async write(identity: StoredMerchantIdentity): Promise<void> {
-    await this.store.set(MERCHANT_KEY, JSON.stringify(identity));
+    try {
+      await this.store.set(MERCHANT_KEY, JSON.stringify(identity));
+    } catch (error) {
+      throw new ProtocolError('STORAGE_FAILED', describeStorageError('write', error));
+    }
   }
 
   async clear(): Promise<void> {
-    await this.store.remove(MERCHANT_KEY);
+    try {
+      await this.store.remove(MERCHANT_KEY);
+    } catch (error) {
+      throw new ProtocolError('STORAGE_FAILED', describeStorageError('clear', error));
+    }
   }
 }

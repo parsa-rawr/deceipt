@@ -666,3 +666,30 @@ function decodeQrImage(image: {data: Uint8Array; size: number}): string | null {
 async function bindingModule(): Promise<typeof import('../src/protocol/binding')> {
   return require('../src/protocol/binding') as typeof import('../src/protocol/binding');
 }
+
+describe('storage failure is typed, never a raw backend error', () => {
+  it('converts an unavailable backend into STORAGE_FAILED', async () => {
+    const {ReceiptStore} = await storeModule();
+    const failing = {
+      get: async (): Promise<string | null> => {
+        throw new Error('no durable storage backend');
+      },
+      set: async (): Promise<void> => {
+        throw new Error('no durable storage backend');
+      },
+      remove: async (): Promise<void> => {
+        throw new Error('no durable storage backend');
+      },
+    };
+    const store = new ReceiptStore(failing);
+    // Every entry point must surface the typed identifier, not the raw Error, so
+    // the UI copy can say what happened instead of redboxing.
+    await expect(store.list()).rejects.toMatchObject({name: 'STORAGE_FAILED'});
+    await expect(store.read('aa')).rejects.toMatchObject({name: 'STORAGE_FAILED'});
+    await expect(store.seenReceiptPayloads()).rejects.toMatchObject({name: 'STORAGE_FAILED'});
+  });
+});
+
+async function storeModule(): Promise<typeof import('../src/storage/receiptStore')> {
+  return require('../src/storage/receiptStore') as typeof import('../src/storage/receiptStore');
+}

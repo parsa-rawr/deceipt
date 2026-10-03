@@ -34,7 +34,7 @@ target 'DeceiptApp' do
     # Third-party pods may ship a deployment target below the SDK's supported
     # floor (e.g. AsyncStorage declares 13.0 while Xcode 27 supports >= 15.0),
     # which fails the build. Clamp every pod target up to the app's floor.
-    app_floor = '15.1'
+    app_floor = min_ios_version_supported
     installer.pods_project.build_configurations.each do |build_config|
       current = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
       if current.nil? || current.to_f < app_floor.to_f
