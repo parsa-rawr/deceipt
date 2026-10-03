@@ -138,6 +138,7 @@ export interface HandshakeValidVector {
   binding_tuple_len: number;
   binding_tuple_digest_hex: string;
   binding_proof_message_hex: string;
+  binding_proof_message_len: number;
   binding_proof_hex: string;
   transcript_hex: string;
   transcript_hash_hex: string;

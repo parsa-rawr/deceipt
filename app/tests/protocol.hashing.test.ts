@@ -1,0 +1,151 @@
+/**
+ * Hashing conformance.
+ *
+ * React Native 0.87 does not polyfill `globalThis.crypto` on Hermes, so the
+ * shared layer cannot rely on WebCrypto for digests. These tests pin the pure
+ * TypeScript SHA-256/HMAC-SHA-256 against the frozen vectors, with WebCrypto
+ * deleted from `globalThis`, so a regression that only holds on the Node host
+ * cannot pass.
+ */
+
+import {ed25519Verify, hmacSha256, hmacSha256Pure, hmacSha256Sync, sha256, sha256Pure, sha256Sync} from '../src/protocol/crypto';
+import {hexDecode, hexEncode} from '../src/protocol/bytes';
+import {computeBindingTupleDigest, computeOfferHash, bindingProofMessage} from '../src/protocol/binding';
+import {buildTranscript, transcriptHash} from '../src/protocol/handshake';
+import {loadHandshakeValid, loadTestKeys} from './fixtures';
+
+const SHA256_EMPTY = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const SHA256_ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+const HMAC_SHA256_RFC4231_CASE2 = 'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7';
+
+describe('pure SHA-256 (RFC 6234 vectors)', () => {
+  it('hashes the empty string', () => {
+    expect(hexEncode(sha256Pure(new Uint8Array(0)))).toBe(SHA256_EMPTY);
+  });
+
+  it('hashes "abc"', () => {
+    expect(hexEncode(sha256Pure(new Uint8Array([0x61, 0x62, 0x63])))).toBe(SHA256_ABC);
+  });
+
+  it('handles multi-block input and 64/55/56-byte boundaries', () => {
+    // Padding boundaries: 55 fits, 56 forces an extra block, 64 is a full block.
+    for (const length of [1, 55, 56, 57, 63, 64, 65, 127, 128, 1000]) {
+      const data = new Uint8Array(length).fill(0xab);
+      expect(hexEncode(sha256Pure(data))).toBe(hexEncode(sha256Sync(data)));
+      expect(sha256Pure(data)).toHaveLength(32);
+    }
+  });
+});
+
+describe('pure HMAC-SHA-256 (RFC 4231 vectors)', () => {
+  it('matches RFC 4231 test case 2', () => {
+    const key = new Uint8Array(20).fill(0x0b);
+    const mac = hmacSha256Pure(key, new Uint8Array([0x48, 0x69, 0x20, 0x54, 0x68, 0x65, 0x72, 0x65]));
+    expect(hexEncode(mac)).toBe(HMAC_SHA256_RFC4231_CASE2);
+  });
+
+  it('hashes a key longer than the 64-byte block', () => {
+    const key = new Uint8Array(131).fill(0xaa);
+    const mac = hmacSha256Pure(key, new Uint8Array([0x01, 0x02, 0x03]));
+    expect(mac).toHaveLength(32);
+    // A longer key is pre-hashed, then padded; the result must be stable.
+    expect(hexEncode(mac)).toBe(hexEncode(hmacSha256Sync(key, new Uint8Array([0x01, 0x02, 0x03]))));
+  });
+});
+
+describe('pure digests reproduce the frozen r4 vectors with WebCrypto absent', () => {
+  const withoutCrypto = async <T>(run: () => Promise<T>): Promise<T> => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    // Delete the host's WebCrypto so this exercises the Hermes path.
+    Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
+    try {
+      return await run();
+    } finally {
+      if (descriptor === undefined) {
+        delete (globalThis as {crypto?: unknown}).crypto;
+      } else {
+        Object.defineProperty(globalThis, 'crypto', descriptor);
+      }
+    }
+  };
+
+  it('reproduces the frozen offer hash and binding tuple digest', async () => {
+    const vector = loadHandshakeValid();
+    await withoutCrypto(async () => {
+      const offerHash = await computeOfferHash({
+        sessionId: hexDecode('00112233445566778899aabbccddeeff'),
+        transferId: hexDecode('ffeeddccbbaa99887766554433221100'),
+        receiptId: hexDecode('0123456789abcdef0123456789abcdef'),
+        merchantReference: 'merchant.poc.test-alpha',
+        totalAmountMinor: 970,
+        currency: 'CAD',
+        issuedAtUnix: 1767225540,
+      });
+      expect(hexEncode(offerHash)).toBe(vector.offer_hash_hex);
+      const digest = await computeBindingTupleDigest(hexDecode(vector.binding_tuple_hex));
+      expect(hexEncode(digest)).toBe(vector.binding_tuple_digest_hex);
+    });
+  });
+
+  it('reproduces the frozen transcript hash', async () => {
+    const vector = loadHandshakeValid();
+    await withoutCrypto(async () => {
+      const rebuilt = buildTranscript({
+        protocolVersion: vector.protocol_version,
+        suiteId: vector.suite_id,
+        clientNonce: hexDecode('c0ffee0000000000000000000000000000000000000000000000000000000001'),
+        clientEphemeralPubkey: hexDecode(
+          '0414e02cf948541686573b744c58e8f92e70f93009333c81edc9a5f7bbda5445e88dbc8b8c812b139c60a85eea163240781d840eb17fb3ab28788aef78dec1bf5c',
+        ),
+        serverNonce: hexDecode('5e57e50000000000000000000000000000000000000000000000000000000001'),
+        serverEphemeralPubkey: hexDecode(
+          '041ba8c9100cde3121a29562d5ed4f8b21fc45067c7a0cb44b9ae47699ed567706b9dbe40d599f161825bd8a90abccb8cc5aa56856c2803f00265e492ed0227db2',
+        ),
+        transferId: hexDecode('ffeeddccbbaa99887766554433221100'),
+        sessionId: hexDecode('00112233445566778899aabbccddeeff'),
+        bindingTupleDigest: hexDecode(vector.binding_tuple_digest_hex),
+        maxFramePayload: 162,
+        bindingTuple: hexDecode(vector.binding_tuple_hex),
+      });
+      expect(hexEncode(await transcriptHash(rebuilt))).toBe(vector.transcript_hash_hex);
+    });
+  });
+
+  it('reproduces the frozen binding proof (HMAC over the 122-byte message)', async () => {
+    const vector = loadHandshakeValid();
+    const sbt = hexDecode('000102030405060708090a0b0c0d0e0f');
+    await withoutCrypto(async () => {
+      const message = bindingProofMessage(
+        hexDecode('c0ffee0000000000000000000000000000000000000000000000000000000001'),
+        hexDecode(
+          '0414e02cf948541686573b744c58e8f92e70f93009333c81edc9a5f7bbda5445e88dbc8b8c812b139c60a85eea163240781d840eb17fb3ab28788aef78dec1bf5c',
+        ),
+      );
+      expect(message.length).toBe(vector.binding_proof_message_len);
+      expect(hexEncode(message)).toBe(vector.binding_proof_message_hex);
+      const proof = await hmacSha256(sbt, message);
+      expect(hexEncode(proof)).toBe(vector.binding_proof_hex);
+    });
+  });
+
+  it('agrees with the WebCrypto path when a host implementation is present', async () => {
+    const data = hexDecode(loadHandshakeValid().transcript_hex);
+    const viaFallback = sha256Pure(data);
+    const viaWebCrypto = await sha256(data);
+    expect(hexEncode(viaWebCrypto)).toBe(hexEncode(viaFallback));
+  });
+});
+
+describe('Ed25519 is not hand-rolled', () => {
+  it('still verifies the frozen signature through WebCrypto on this host', async () => {
+    const vector = loadHandshakeValid();
+    const deviceKey = loadTestKeys().keys.find(key => key.name === 'merchant-test-1')!;
+    expect(
+      await ed25519Verify(
+        hexDecode(deviceKey.public_key_hex),
+        hexDecode(vector.transcript_hex),
+        hexDecode(vector.transcript_signature_hex),
+      ),
+    ).toBe(true);
+  });
+});

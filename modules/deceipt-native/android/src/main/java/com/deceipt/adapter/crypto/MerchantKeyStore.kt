@@ -1,14 +1,14 @@
-package com.deceipt.native.crypto
+package com.deceipt.adapter.crypto
 
 import android.content.Context
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64 as AndroidBase64
-import com.deceipt.native.protocol.Bounds
-import com.deceipt.native.protocol.Bytes
-import com.deceipt.native.protocol.Cose
-import com.deceipt.native.protocol.ProtocolError
+import com.deceipt.adapter.protocol.Bounds
+import com.deceipt.adapter.protocol.Bytes
+import com.deceipt.adapter.protocol.Cose
+import com.deceipt.adapter.protocol.ProtocolError
 import java.io.File
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -22,7 +22,7 @@ import javax.crypto.spec.GCMParameterSpec
 /**
  * Merchant device key custody on Android.
  *
- * VERDICT (see docs/security/android-key-storage.md for the full research note):
+ * VERDICT (see modules/deceipt-native/android/ANDROID-KEY-STORAGE.md for the full research note):
  * holding an Ed25519 key directly in Android Keystore requires **API 33+**
  * (Android 13); `AndroidKeyStore` gained Curve25519/Ed25519 there, hardware-backed
  * only where the device's KeyMint/StrongBox supports it. The Deceipt PoC floor is
@@ -38,7 +38,7 @@ import javax.crypto.spec.GCMParameterSpec
  * The fallback is EXPLICITLY NOT hardware-backed non-exportability: the seed is
  * decrypted into the app process to sign. It is still device-bound — the wrapped
  * blob is unreadable without the Keystore AES key, which never leaves the TEE/SE
- * and is destroyed on uninstall. See `docs/security/android-key-storage.md`.
+ * and is destroyed on uninstall. See `modules/deceipt-native/android/ANDROID-KEY-STORAGE.md`.
  */
 object MerchantKeyStore {
 
@@ -190,23 +190,24 @@ object MerchantKeyStore {
     fun signReceipt(context: Context, deviceKeyId: ByteArray, payload: ByteArray): Triple<ByteArray, ByteArray, ByteArray> {
         val protectedBytes = Cose.receiptProtectedHeader(deviceKeyId)
         val sigStructure = Cose.sigStructure(protectedBytes, payload)
-        val signature: ByteArray
+        val signature = signRaw(context, deviceKeyId, sigStructure)
+        if (signature.size != Ed25519.SIGNATURE_BYTES) throw ProtocolError("INTERNAL_ERROR", "signature length")
+        val container = Cose.build(protectedBytes, payload, signature)
+        return Triple(container, signature, protectedBytes)
+    }
+
+    /** Sign arbitrary bytes (the handshake transcript, or a COSE Sig_structure). */
+    fun signRaw(context: Context, deviceKeyId: ByteArray, message: ByteArray): ByteArray {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (ks.containsAlias(DIRECT_ALIAS)) {
             val entry = ks.getEntry(DIRECT_ALIAS, null) as? KeyStore.PrivateKeyEntry
             if (entry != null) {
                 val s = Signature.getInstance("Ed25519").apply { initSign(entry.privateKey) }
-                s.update(sigStructure)
-                signature = s.sign()
-            } else {
-                signature = signWrapped(context, sigStructure)
+                s.update(message)
+                return s.sign()
             }
-        } else {
-            signature = signWrapped(context, sigStructure)
         }
-        if (signature.size != Ed25519.SIGNATURE_BYTES) throw ProtocolError("INTERNAL_ERROR", "signature length")
-        val container = Cose.build(protectedBytes, payload, signature)
-        return Triple(container, signature, protectedBytes)
+        return signWrapped(context, message)
     }
 
     private fun signWrapped(context: Context, sigStructure: ByteArray): ByteArray {

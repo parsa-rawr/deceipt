@@ -38,7 +38,6 @@ final class EngineLoopbackTests: XCTestCase {
     func testFullLoopbackTransferReachesReceiptUntrusted() throws {
         let hv = try VectorFixtures.json("protocol/vectors/handshake-valid.json")
         let rv = try VectorFixtures.json("protocol/vectors/receipt-valid.json")
-        let av = try VectorFixtures.json("protocol/vectors/aead-valid.json")
         let keys = try testKeys()
 
         let receiptCose = try VectorFixtures.hex(rv, "cose_sign1_hex")
@@ -127,6 +126,5 @@ final class EngineLoopbackTests: XCTestCase {
         customer.sendReceiptAck(receiptId: tuple.receiptId, outcomeCode: 1)
         XCTAssertTrue(spin(2.0) { customerTornDown != nil }, "customer tore down after RECEIPT_ACK")
         XCTAssertEqual(customer.state, .disconnect)
-        _ = av
     }
 }

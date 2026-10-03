@@ -19,7 +19,7 @@ import type {
 } from '../native/DeceiptNative';
 import {DeceiptBridgeError} from '../native/bridgeError';
 import {ProtocolError} from '../protocol/errors';
-import {base64Decode, hexEncode} from '../protocol/bytes';
+import {base64Decode, base64Encode, hexEncode} from '../protocol/bytes';
 import {parseBindingQr} from '../protocol/binding';
 import {verifyReceipt, type VerificationResult} from '../protocol/verification';
 import {ReceiptStore, type ImportOutcome} from '../storage/receiptStore';
@@ -312,6 +312,15 @@ export class CheckoutController {
         sessionCredentialBytes: this.credentialBytes(),
         offer: this.model.offer ?? undefined,
         seenReceipts,
+        // Prefer the adapter's verifier: Ed25519 must run in native custody, and
+        // Hermes has no WebCrypto for the shared fallback to use on device.
+        signatureVerifier: async (devicePublicKey, coseSign1Bytes) => {
+          const outcome = await this.options.native.verifyReceiptContainer(
+            base64Encode(coseSign1Bytes),
+            base64Encode(devicePublicKey),
+          );
+          return {signatureValid: outcome.signatureValid, deviceKeyIdHex: outcome.deviceKeyIdHex};
+        },
       });
     } catch (error) {
       this.failFrom(error);

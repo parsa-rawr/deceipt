@@ -9,7 +9,7 @@ apply plugin: "com.android.library"
 apply plugin: "org.jetbrains.kotlin.android"
 
 android {
-    namespace "com.deceipt.native"
+    namespace "com.deceipt.adapter"
     compileSdk rootProject.ext.compileSdkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     ndkVersion rootProject.ext.ndkVersion
@@ -36,20 +36,19 @@ android {
     }
 
     sourceSets {
-        // Vector fixtures are copied in-repo so the JVM test path is hermetic.
-        test.resources.srcDirs += ["src/test/resources"]
+        // Protocol/crypto/session live in the pure-JVM :deceipt-protocol module.
+        // This module holds only the Android surfaces (BLE, Keystore, RN bridge).
+        main.java.srcDirs = ["src/main/java"]
     }
 
-    packagingOptions {
-        resources {
-            excludes += ["META-INF/*.kotlin_module"]
-        }
+    buildFeatures {
+        buildConfig = true
     }
 }
 
 dependencies {
     implementation("com.facebook.react:react-android")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
-
-    testImplementation("junit:junit:4.13.2")
+    // The frozen protocol core (radio-independent, unit-tested on the JVM).
+    implementation(project(":deceipt-protocol"))
 }

@@ -233,9 +233,15 @@ public final class DeceiptSessionEngine {
     private var advertiseTimer: DispatchSourceTimer?
 
     public func beginTransfer() {
-        guard let keys, let merchant else { return }
+        guard let merchant else { return }
+        // The keys-only refusal must precede the keys check: a session that
+        // never verified a peer MUST NOT transfer even if it somehow has keys.
         guard peerAuthLevel != .keysOnly else {
             fail("PEER_NOT_AUTHENTICATED", phase: BridgePhase.transfer, detail: "keys-only session cannot transfer")
+            return
+        }
+        guard let keys else {
+            fail("PEER_NOT_AUTHENTICATED", phase: BridgePhase.transfer, detail: "no session keys")
             return
         }
         setState(.transfer)
@@ -479,7 +485,7 @@ public final class DeceiptSessionEngine {
         let serverEphemeral = localEphemeral.publicKeyBytes
         let serverNonce = DeceiptCrypto.randomBytes(32)
         let digest = DeceiptBinding.bindingTupleDigest(merchant.bindingTuple)
-        let frameSize = min(merchantFrameSize(peerMax: Int(ch.maxFramePayload)), Int(ch.maxFramePayload))
+        let frameSize = min(DeceiptBounds.maxFramePayloadForMtu(transport.attMtu), Int(ch.maxFramePayload))
         let transcript = DeceiptHandshake.buildTranscript(
             protocolVersion: UInt16(DeceiptProto.protocolVersion), suiteId: UInt16(DeceiptProto.suiteId),
             clientNonce: ch.clientNonce, clientEphemeralPubkey: ch.clientEphemeralPubkey,
@@ -523,17 +529,9 @@ public final class DeceiptSessionEngine {
         sendReceiptOffer()
     }
 
-    private func merchantFrameSize(peerMax: Int) -> Int {
-        min(DeceiptBounds.maxFramePayloadForMtu(transport.attMtu), peerMax)
-    }
-
     private func sendReceiptOffer() {
         guard let merchant else { return }
         let credentialHash = DeceiptCrypto.sha256(merchant.credentialBytes)
-        let offerHash = DeceiptBinding.computeOfferHash(.init(
-            sessionId: merchant.sessionId, transferId: merchant.transferId, receiptId: merchant.receiptId,
-            merchantReference: merchant.offer.merchantReference, totalAmountMinor: merchant.offer.totalAmountMinor,
-            currency: merchant.offer.currency, issuedAtUnix: merchant.offer.issuedAt))
         let msg = CborValue.map([
             (.int(1), .uint(DeceiptMessageType.receiptOffer)),
             (.int(2), .bytes(merchant.transferId)),
@@ -550,7 +548,6 @@ public final class DeceiptSessionEngine {
         ])
         if (try? sendControl(CborEncoder.encode(msg), direction: .m2c)) != nil {
             setState(.receiptOffered)
-            _ = offerHash
         }
     }
 

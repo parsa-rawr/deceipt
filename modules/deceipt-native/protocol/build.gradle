@@ -1,0 +1,38 @@
+// Deceipt protocol core — a PURE JVM (Kotlin) library (A5 scope).
+//
+// Holds the frozen protocol: deterministic CBOR, COSE_Sign1, Ed25519, P-256,
+// HKDF/AES-GCM, the handshake transcript, framing/LPdu and the session state
+// machine. It has NO Android or React Native dependency, so the radio-independent
+// vector tests run on the plain JVM path with nothing to download or emulate.
+
+apply plugin: "org.jetbrains.kotlin.jvm"
+
+kotlin {
+    jvmToolchain(17)
+}
+
+sourceSets {
+    main {
+        kotlin.srcDirs = ["src/main/kotlin"]
+    }
+    test {
+        kotlin.srcDirs = ["src/test/kotlin"]
+        // The frozen vector fixtures are read straight from protocol/vectors so
+        // the tests can never drift from the published revision (no copies).
+        resources.srcDirs = ["../../../protocol/vectors"]
+    }
+}
+
+dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-stdlib")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+
+    testImplementation("junit:junit:4.13.2")
+}
+
+tasks.withType(Test).configureEach {
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
+    }
+}
