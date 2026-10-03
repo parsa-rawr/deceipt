@@ -16,7 +16,7 @@ import {loadHandshakeValid, loadTestKeys} from './fixtures';
 
 const SHA256_EMPTY = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const SHA256_ABC = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
-const HMAC_SHA256_RFC4231_CASE2 = 'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7';
+const HMAC_SHA256_RFC4231_CASE1 = 'b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7';
 
 describe('pure SHA-256 (RFC 6234 vectors)', () => {
   it('hashes the empty string', () => {
@@ -38,10 +38,19 @@ describe('pure SHA-256 (RFC 6234 vectors)', () => {
 });
 
 describe('pure HMAC-SHA-256 (RFC 4231 vectors)', () => {
-  it('matches RFC 4231 test case 2', () => {
+  it('matches RFC 4231 test case 1 (key = 20x0x0b, msg = "Hi There")', () => {
     const key = new Uint8Array(20).fill(0x0b);
     const mac = hmacSha256Pure(key, new Uint8Array([0x48, 0x69, 0x20, 0x54, 0x68, 0x65, 0x72, 0x65]));
-    expect(hexEncode(mac)).toBe(HMAC_SHA256_RFC4231_CASE2);
+    expect(hexEncode(mac)).toBe(HMAC_SHA256_RFC4231_CASE1);
+  });
+
+  it('matches RFC 4231 test case 2 (key = "Jefe")', () => {
+    const key = new Uint8Array([0x4a, 0x65, 0x66, 0x65]);
+    const message = new Uint8Array([
+      0x77, 0x68, 0x61, 0x74, 0x20, 0x64, 0x6f, 0x20, 0x79, 0x61, 0x20, 0x77, 0x61, 0x6e, 0x74, 0x20, 0x66, 0x6f, 0x72, 0x20,
+      0x6e, 0x6f, 0x74, 0x68, 0x69, 0x6e, 0x67, 0x3f,
+    ]);
+    expect(hexEncode(hmacSha256Pure(key, message))).toBe('5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843');
   });
 
   it('hashes a key longer than the 64-byte block', () => {
