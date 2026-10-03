@@ -26,6 +26,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Deceipt uses Bluetooth to transfer your receipt directly from the merchant's terminal. It does not use Bluetooth to track your location.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Deceipt advertises a transfer service so your terminal can hand the receipt to your phone.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Deceipt uses the camera only to scan the merchant's transaction QR code.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
