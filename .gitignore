@@ -1,0 +1,83 @@
+# Deceipt .gitignore — THIS REPOSITORY IS PUBLIC (github.com/parsa-rawr/deceipt).
+# Real key material, session secrets, and production trust-root material MUST NEVER be committed.
+# See docs/security/repo-hygiene.md.
+
+# ---- Node / RN ----
+node_modules/
+npm-debug.log
+yarn-error.log
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.metro-health-check*
+.metro-cache/
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ---- Build artifacts / derived output ----
+build/
+dist/
+out/
+coverage/
+*.app
+*.ipa
+*.apk
+*.aab
+*.jsbundle
+app/android/app/build/
+app/android/build/
+app/android/.gradle/
+app/android/.cxx/
+app/android/local.properties
+app/ios/build/
+app/ios/Pods/
+app/ios/*.xcworkspace/xcuserdata/
+app/ios/*.xcodeproj/xcuserdata/
+app/ios/.xcode.env.local
+app/ios/DerivedData/
+vendor/bundle/
+vendor/gems/
+.gradle/
+Dangerfile
+
+# ---- Env ----
+.env
+.env.*
+!.env.example
+
+# ---- Key material (NEVER commit; public repo) ----
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.keychain
+*.mobileprovision
+*.provisionprofile
+*.der
+*.cer
+*.crt
+*.csr
+merchant-keys/
+session-keys/
+trust-root/
+/deceipt-keys/
+# LOCAL-ONLY secret stores at repo root (anchored; do not match protocol/vectors/keys)
+/keys/
+/secrets/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~

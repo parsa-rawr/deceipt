@@ -1,0 +1,58 @@
+flowchart TB
+    subgraph M["Phone A — Merchant"]
+        R["Create DeceiptReceiptV1"]
+        C["Deterministic canonical encoding"]
+        S["Sign exact receipt bytes\nEd25519 merchant signing key"]
+        SR["SignedReceiptV1\nReceipt + credential evidence + signature"]
+        EH["Create ephemeral transfer session\nEphemeral ECDH key + nonce"]
+        HS["Sign handshake transcript\nwith authorized merchant key"]
+        AE["AEAD encrypt SignedReceiptV1\nwith derived session key"]
+        GF["Fragment ciphertext into\nGATT DATA frames"]
+
+        R --> C --> S --> SR
+        EH --> HS
+        SR --> AE --> GF
+    end
+
+    subgraph B["BLE / GATT — UNTRUSTED TRANSPORT"]
+        ADV["Advertise fixed\nDeceipt Service UUID"]
+        CMD["COMMAND\nB → A\nWrite with response"]
+        EVT["EVENT\nA → B\nIndicate"]
+        DATA["DATA\nA → B\nNotify"]
+        NET["BLE packets may be observed,\nreordered, dropped, replayed,\nor originated by a malicious peer"]
+
+        ADV --> CMD
+        CMD <--> EVT
+        EVT --> DATA
+        DATA --> NET
+    end
+
+    subgraph CUST["Phone B — Customer"]
+        DISC["Discover Deceipt sender\nNo RSSI-based trust/selection"]
+        CH["ClientHello\nEphemeral ECDH key + nonce"]
+        VH["Verify merchant credential\nand handshake signature"]
+        KD["Derive ephemeral session keys\nECDH + HKDF"]
+        RA["Reassemble encrypted payload"]
+        DEC["AEAD authenticate + decrypt"]
+        UT["SIGNED RECEIPT IS STILL UNTRUSTED"]
+        VR["Verify receipt signature\nover exact received receipt bytes"]
+        VA["Verify signing key authorization\nfor claimed merchant"]
+        VS["Validate schema, semantics,\nrevocation policy, deduplication"]
+        OK["Store/display as verified\naccording to policy"]
+        ACK["ReceiptAck + disconnect"]
+
+        DISC --> CH --> VH --> KD --> RA --> DEC --> UT --> VR --> VA --> VS --> OK --> ACK
+    end
+
+    HS --> EVT
+    CH --> CMD
+    GF --> DATA
+    ADV --> DISC
+    DATA --> RA
+
+    ROOT["Deceipt trust anchor(s)\nPublic verification material only"] --> VH
+    ROOT --> VA
+
+    NOTE1["Encryption protects transfer confidentiality/integrity.\nIt does NOT make the receipt trustworthy."] -.-> DEC
+    NOTE2["Merchant signature + authorization establish\nreceipt authenticity independently of BLE."] -.-> VR
+    NOTE3["RSSI is never a cashier/session trust signal."] -.-> DISC
