@@ -19,6 +19,7 @@
  * app never selects it on its own.
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {KeyValueStore} from './receiptStore';
 
 /** The AsyncStorage surface this module uses (structural, so no hard dependency). */
@@ -36,27 +37,25 @@ export function setDurableStore(store: KeyValueStore | null): void {
 }
 
 /**
- * Resolve the AsyncStorage module without importing it at module scope, so a
- * build that has not installed it still loads and can report the problem rather
- * than failing at import time.
+ * AsyncStorage is a COMMITTED dependency, so it is imported statically. A
+ * `require()` guarded by try/catch would be worse than useless: Metro resolves
+ * static requires at bundle time, so the guard would either fail the build or be
+ * untestable dead code. The real failure mode worth reporting is the NATIVE
+ * module missing from a build that installed the JS package — that is what the
+ * capability probe below catches, at runtime, once.
  */
 function resolveAsyncStorage(): AsyncStorageLike | null {
-  try {
-    const module = require('@react-native-async-storage/async-storage') as
-      | {default?: AsyncStorageLike}
-      | AsyncStorageLike;
-    const candidate = (module as {default?: AsyncStorageLike}).default ?? (module as AsyncStorageLike);
-    if (
-      typeof candidate.getItem === 'function' &&
-      typeof candidate.setItem === 'function' &&
-      typeof candidate.removeItem === 'function'
-    ) {
-      return candidate;
-    }
-    return null;
-  } catch {
-    return null;
+  const candidate: unknown = AsyncStorage;
+  if (
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    typeof (candidate as AsyncStorageLike).getItem === 'function' &&
+    typeof (candidate as AsyncStorageLike).setItem === 'function' &&
+    typeof (candidate as AsyncStorageLike).removeItem === 'function'
+  ) {
+    return candidate as AsyncStorageLike;
   }
+  return null;
 }
 
 /** True when a durable backend is available. */
@@ -64,7 +63,11 @@ export function hasDurableStore(): boolean {
   return injected !== null || resolveAsyncStorage() !== null;
 }
 
-/** The name of the resolved backend, for the UI to report honestly. */
+/**
+ * The name of the resolved backend, for the UI to report honestly. `unavailable`
+ * means the JS package is present but the native module is not — the state a
+ * build that skipped its pod install / Gradle sync lands in.
+ */
 export function durableStoreName(): string {
   if (injected !== null) {
     return 'injected';

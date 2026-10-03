@@ -26,7 +26,8 @@ import {adaptNativeModule, probeNativeModule, type ProbeResult} from './native/a
 import {base64Decode} from './protocol/bytes';
 import {normalizationEngine, setNativeNfcSource} from './protocol/normalization';
 import {canGenerateSecureRandom, setNativeRandomSource} from './protocol/crypto';
-import {MemoryKeyValueStore, ReceiptStore} from './storage/receiptStore';
+import {ReceiptStore} from './storage/receiptStore';
+import {durableStoreName, hasDurableStore, resolveDurableStore} from './storage/durableStore';
 import {TRUST_ANCHORS} from './config/trustAnchors';
 import {MerchantScreen} from './ui/MerchantScreen';
 import {CustomerScreen} from './ui/CustomerScreen';
@@ -86,7 +87,36 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
     );
     return undefined;
   }, [binding]);
-  const resolvedStore = useMemo(() => store ?? new ReceiptStore(new MemoryKeyValueStore()), [store]);
+  /**
+   * The receipt store. DURABLE by default: `resolveDurableStore` binds
+   * AsyncStorage and THROWS when no backend exists, and that failure is reported
+   * in the adapter card rather than silently degrading to an in-memory store —
+   * history that appears saved but vanishes on restart is worse than a visible
+   * failure. `MemoryKeyValueStore` remains only an injected test double.
+   */
+  const resolvedStore = useMemo(() => {
+    if (store !== undefined) {
+      return store;
+    }
+    try {
+      return new ReceiptStore(resolveDurableStore());
+    } catch {
+      // Keep the app renderable so the problem is VISIBLE; every store call then
+      // fails with STORAGE_FAILED rather than quietly losing receipts.
+      const unavailable = {
+        get: async (): Promise<string | null> => {
+          throw new Error('no durable storage backend');
+        },
+        set: async (): Promise<void> => {
+          throw new Error('no durable storage backend');
+        },
+        remove: async (): Promise<void> => {
+          throw new Error('no durable storage backend');
+        },
+      };
+      return new ReceiptStore(unavailable);
+    }
+  }, [store]);
   const clock = useMemo(() => now ?? wallClock, [now]);
 
   return (

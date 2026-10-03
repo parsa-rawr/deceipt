@@ -27,6 +27,7 @@ import {
   type SavedReceiptView,
 } from '../checkout/machine';
 import {ReceiptStore} from '../storage/receiptStore';
+import {QrScanner} from './QrScanner';
 import {
   ActionButton,
   Card,
@@ -58,6 +59,7 @@ export interface CustomerScreenProps {
 export function CustomerScreen({native, store, anchors, now, controllerFactory}: CustomerScreenProps): React.JSX.Element {
   const [model, setModel] = useState<CheckoutModel | null>(null);
   const [qrText, setQrText] = useState('');
+  const [scanning, setScanning] = useState(false);
   const [permissions, setPermissions] = useState<PermissionReport | null>(null);
   const [history, setHistory] = useState<SavedReceiptView[]>([]);
   const [log, setLog] = useState<string[]>([]);
@@ -185,6 +187,30 @@ export function CustomerScreen({native, store, anchors, now, controllerFactory}:
 
       <Card>
         <Text style={styles.sectionTitle}>Checkout code</Text>
+        {scanning ? (
+          <QrScanner
+            onScan={payload => {
+              setQrText(payload);
+              setScanning(false);
+              void controller.onQRScanned(payload);
+            }}
+            onCancel={() => setScanning(false)}
+            permissionDenied={permissions !== null && permissions.camera === 'denied'}
+          />
+        ) : (
+          <ActionButton
+            label="Scan the checkout code"
+            onPress={() => setScanning(true)}
+            testID="open-scanner"
+            accessibilityLabel="open-scanner"
+            variant="secondary"
+            disabled={permissions !== null && permissions.camera === 'denied'}
+          />
+        )}
+        <Text style={styles.notice}>
+          The camera is the primary way to select a transaction. Entering the code by hand is a fallback for a denied
+          camera or an automated driver.
+        </Text>
         <TextInput
           testID="qr-payload-input"
           accessibilityLabel="qr-payload-input"

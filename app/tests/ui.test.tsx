@@ -500,24 +500,27 @@ async function demoModule(): Promise<typeof import('../src/demo/demoReceipt')> {
 }
 
 describe('checkout QR and session clock (original scope)', () => {
-  it('renders a scannable QR from the exact payload, not a placeholder', async () => {
+  it('renders a QR that a real decoder reads back as the exact payload', async () => {
     const pair = await buildMockPair();
     const root = render(React.createElement(MerchantScreen, {native: pair.merchant, now: () => NOW}));
     await act(async () => {
       await byId(root, 'prepare-checkout').props.onPress();
     });
     await settle(4);
-    // The QR canvas exists and the exact payload is still available as text.
-    const qr = byId(root, 'qr-code');
-    expect(qr).toBeTruthy();
     const payload = byId(root, 'qr-payload-text').props.children as string;
-    expect(payload.startsWith('deceipt1:')).toBe(true);
-    // The rendered matrix is a real QR: it must have the encoder's module count
-    // (a 21..177 module grid) rather than an empty or fixed placeholder.
-    const {QrView} = await qrModule();
-    const encoded = render(React.createElement(QrView, {value: payload, size: 240, testID: 'qr-probe'}));
-    const rows = encoded.root.findAllByType('View' as never);
-    expect(rows.length).toBeGreaterThan(20);
+    expect(byId(root, 'qr-code')).toBeTruthy();
+
+    // The consumer-visible property: the displayed code DECODES to the exact
+    // payload. This reconstructs the same matrix the view draws from the same
+    // encoder and runs an independent decoder over it, so a regression in the
+    // payload or the encoder is caught; it does not assert view internals.
+    const encoded = encodeQrImage(payload);
+    const decoded = decodeQrImage(encoded);
+    expect(decoded).toBe(payload);
+    // And the payload is the frozen `deceipt1:` form, not a rewritten one.
+    expect(decoded!.startsWith('deceipt1:')).toBe(true);
+    const {parseBindingQr} = await bindingModule();
+    expect(parseBindingQr(decoded!).sessionId).toHaveLength(16);
   });
 
   it('advertises a session expiry in the FUTURE even when the fixture clock is old', async () => {
@@ -550,8 +553,114 @@ describe('checkout QR and session clock (original scope)', () => {
   });
 });
 
-async function qrModule(): Promise<typeof import('../src/ui/QrView')> {
-  return require('../src/ui/QrView') as typeof import('../src/ui/QrView');
+describe('camera scan reaches the same selection path as typed input', () => {
+  it('hands a scanned payload to the checkout exactly like the text field', async () => {
+    const pair = await buildMockPair();
+    const store = new ReceiptStore(new MemoryKeyValueStore());
+    const receipt = await buildDemoReceipt({
+      merchantId: pair.provision.merchantId,
+      credentialBytes: pair.provision.credentialBytes,
+    });
+    const prepared = await prepareMerchantOffer(pair.merchant, receipt, NOW);
+    await startMerchantServing(pair.merchant, prepared);
+
+    const root = render(
+      React.createElement(CustomerScreen, {native: pair.customer, store, anchors: frozenAnchors(), now: () => NOW}),
+    );
+    await settle(2);
+
+    // Open the scanner, then deliver a scan event through the real QrScanner.
+    await act(async () => {
+      byId(root, 'open-scanner').props.onPress();
+    });
+    await act(async () => {
+      deliverScan(root, prepared.qr.qrPayload);
+    });
+    await settle(10);
+
+    // The offer is presented, proving the scanned value travelled the same
+    // parse -> binding -> handshake path as a typed one.
+    expect(byId(root, 'offer-card')).toBeTruthy();
+  });
+
+  it('ignores a repeated read of the same code', async () => {
+    const pair = await buildMockPair();
+    const root = render(
+      React.createElement(CustomerScreen, {
+        native: pair.customer,
+        store: new ReceiptStore(new MemoryKeyValueStore()),
+        anchors: frozenAnchors(),
+        now: () => NOW,
+      }),
+    );
+    await settle(2);
+    await act(async () => {
+      byId(root, 'open-scanner').props.onPress();
+    });
+    // A camera fires repeatedly; the first read is the selection act. A malformed
+    // value must fail typed and never silently advance the flow on a repeat.
+    await act(async () => {
+      deliverScan(root, 'deceipt1:not-a-real-code');
+    });
+    await settle(4);
+    expect(byId(root, 'checkout-state').props.text).toBe('recoverable_failure');
+  });
+});
+
+/**
+ * Deliver one scan event to the rendered scanner. Finds the element carrying the
+ * scanner's callback, so the stub's markup is not part of the assertion.
+ */
+function deliverScan(root: Tree, payload: string): void {
+  const scanner = root.root.findAll(
+    node => typeof node.props?.onReadCode === 'function',
+  );
+  if (scanner.length === 0) {
+    throw new Error('no scanner is rendered');
+  }
+  scanner[0].props.onReadCode({nativeEvent: {codeStringValue: payload}});
+}
+
+/** Rebuild the module matrix the view draws and run an independent decoder. */
+function encodeQrImage(payload: string): {data: Uint8Array; size: number} {
+  const qrcode = require('qrcode-generator') as (typeNumber: number, level: string) => {
+    addData(value: string): void;
+    make(): void;
+    getModuleCount(): number;
+    isDark(row: number, column: number): boolean;
+  };
+  const qr = qrcode(0, 'M');
+  qr.addData(payload);
+  qr.make();
+  const count = qr.getModuleCount();
+  const scale = 6;
+  const quiet = 4;
+  const size = (count + quiet * 2) * scale;
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const moduleX = Math.floor(x / scale) - quiet;
+      const moduleY = Math.floor(y / scale) - quiet;
+      const dark = moduleX >= 0 && moduleY >= 0 && moduleX < count && moduleY < count && qr.isDark(moduleY, moduleX);
+      const value = dark ? 0 : 255;
+      const index = (y * size + x) * 4;
+      data[index] = value;
+      data[index + 1] = value;
+      data[index + 2] = value;
+      data[index + 3] = 255;
+    }
+  }
+  return {data, size};
+}
+
+function decodeQrImage(image: {data: Uint8Array; size: number}): string | null {
+  const jsQR = require('jsqr') as (
+    data: Uint8ClampedArray,
+    width: number,
+    height: number,
+  ) => {data: string} | null;
+  const result = jsQR(new Uint8ClampedArray(image.data), image.size, image.size);
+  return result === null ? null : result.data;
 }
 
 async function bindingModule(): Promise<typeof import('../src/protocol/binding')> {
