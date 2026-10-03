@@ -47,9 +47,22 @@ object Credential {
     )
 
     fun parseFields(credentialBytes: ByteArray): Fields {
-        if (credentialBytes.size > Bounds.MAX_CREDENTIAL_BYTES) throw ProtocolError("CREDENTIAL_MALFORMED")
-        val sign1 = Cose.parse(credentialBytes, Bounds.MAX_CREDENTIAL_BYTES)
-        Cose.validateProtected(sign1, Cose.CONTENT_TYPE_CREDENTIAL)
+        if (credentialBytes.size > Bounds.MAX_CREDENTIAL_BYTES) throw ProtocolError("CREDENTIAL_MALFORMED", "oversize")
+        // A credential is a COSE_Sign1 too; every structural defect is
+        // CREDENTIAL_MALFORMED in the credential namespace (trust.md 4 step 2).
+        val sign1 = try {
+            Cose.parse(credentialBytes, Bounds.MAX_CREDENTIAL_BYTES)
+        } catch (e: ProtocolError) {
+            throw ProtocolError("CREDENTIAL_MALFORMED", e.detail ?: e.errorName)
+        }
+        if (Cose.contentType(sign1) != Cose.CONTENT_TYPE_CREDENTIAL) {
+            throw ProtocolError("CREDENTIAL_MALFORMED", "wrong content type")
+        }
+        try {
+            Cose.validateProtected(sign1, Cose.CONTENT_TYPE_CREDENTIAL)
+        } catch (e: ProtocolError) {
+            throw ProtocolError("CREDENTIAL_MALFORMED", e.detail ?: e.errorName)
+        }
         val payload = CborCodec.decode(sign1.payload) as? Cbor.Map ?: throw ProtocolError("CREDENTIAL_MALFORMED")
         val m = payload.entries
         for (k in m.keys) if (k !in 1L..11L) throw ProtocolError("CREDENTIAL_MALFORMED", "unknown field $k")
@@ -88,7 +101,7 @@ object Credential {
         val f = try {
             parseFields(credentialBytes)
         } catch (e: ProtocolError) {
-            return Verification("unknown_issuer", false, false, null, null, null, null, null, null, null, null, null, e.errorName)
+            return Verification("none", false, false, null, null, null, null, null, null, null, null, null, e.errorName)
         }
         val anchor = anchors.firstOrNull { Bytes.constantTimeEquals(it.anchorId, f.issuerId) }
         val skew = Bounds.CLOCK_SKEW_MAX_S.toLong()
@@ -110,7 +123,9 @@ object Credential {
         val sign1 = Cose.parse(credentialBytes, Bounds.MAX_CREDENTIAL_BYTES)
         val sigOk = Ed25519.verify(anchor.publicKey, Cose.sigStructure(sign1.protectedBytes, sign1.payload), sign1.signature)
         if (!sigOk) {
-            return Verification("authenticated", false, temporallyAcceptable, f.merchantId, f.deviceKeyId, f.devicePublicKey,
+            // A structural/authenticity failure yields NO trust at all:
+            // "authenticated" is reserved for a verified issuer signature.
+            return Verification("none", false, temporallyAcceptable, f.merchantId, f.deviceKeyId, f.devicePublicKey,
                 f.issuerId, f.capabilities, f.merchantReference, f.displayName, f.validFrom, f.validUntil, "CREDENTIAL_SIGNATURE_INVALID")
         }
         if (nowUnix < f.validFrom - skew) {

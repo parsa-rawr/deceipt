@@ -31,9 +31,17 @@ sealed class Cbor {
 
     data class Arr(val items: List<Cbor>) : Cbor()
 
-    data class Map(val entries: Map<Long, Cbor>) : Cbor()
+    data class Map(val entries: kotlin.collections.Map<Long, Cbor>) : Cbor()
 
     data class Bool(val value: Boolean) : Cbor()
+
+    /**
+     * A `null` (CBOR `0xf6`) placeholder. The profile forbids null everywhere, so
+     * [CborCodec.encode] refuses to emit it; it exists only so a container parser
+     * can distinguish "payload is null" and report the container-level error
+     * (`RECEIPT_CONTAINER_MALFORMED`) rather than a codec error.
+     */
+    object Null : Cbor()
 
     companion object {
         fun of(v: Long): Cbor = if (v >= 0) UInt(v) else NInt(v)
@@ -111,6 +119,7 @@ object CborCodec {
                 }
             }
             is Cbor.Bool -> out.write(if (v.value) 0xf5 else 0xf4)
+            is Cbor.Null -> throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "null is forbidden by the profile")
         }
     }
 
@@ -143,13 +152,25 @@ object CborCodec {
 
     /** Decode exactly one item; trailing bytes are `CBOR_MALFORMED`. */
     fun decode(b: ByteArray): Cbor {
-        val r = Reader(b)
+        val r = Reader(b, lenient = false)
         val v = r.readValue(0)
         if (r.pos != b.size) throw ProtocolError("CBOR_MALFORMED", "trailing bytes after top-level item")
         return v
     }
 
-    private class Reader(private val b: ByteArray) {
+    /**
+     * Decode for a container header. Identical to [decode] except that a nested
+     * `null` (0xf6) is accepted as [Cbor.Null]; every other forbidden type still
+     * fails. This lets a container parser report the container-level error.
+     */
+    fun decodeLenient(b: ByteArray): Cbor {
+        val r = Reader(b, lenient = true)
+        val v = r.readValue(0)
+        if (r.pos != b.size) throw ProtocolError("CBOR_MALFORMED", "trailing bytes after top-level item")
+        return v
+    }
+
+    private class Reader(private val b: ByteArray, private val lenient: Boolean) {
         var pos = 0
         private var items = 0
 
@@ -169,7 +190,13 @@ object CborCodec {
                     Cbor.NInt(-(arg + 1))
                 }
                 MT_BSTR -> Cbor.BStr(takeBounded(arg))
-                MT_TSTR -> Cbor.TStr(decodeUtf8(takeBounded(arg)))
+                MT_TSTR -> {
+                    // The declared text length is checked against the cap BEFORE any
+                    // read, so an oversized declaration is CBOR_SIZE_EXCEEDED even if
+                    // the input is truncated (matches the frozen vector set).
+                    if (arg > Bounds.CBOR_MAX_TEXT_BYTES) throw ProtocolError("CBOR_SIZE_EXCEEDED", "text length")
+                    Cbor.TStr(decodeUtf8(takeBounded(arg)))
+                }
                 MT_ARR -> {
                     if (arg > Bounds.CBOR_MAX_ARRAY) throw ProtocolError("CBOR_SIZE_EXCEEDED", "array length")
                     val n = arg.toInt()
@@ -186,6 +213,8 @@ object CborCodec {
                         val k = readValue(depth + 1)
                         val key = (k as? Cbor.UInt)?.value
                             ?: throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "map key must be a non-negative integer")
+                        // v1 admits integer map keys 0..255 only (receipt-v1.md 1).
+                        if (key > 255L) throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "map key above 255")
                         if (out.containsKey(key)) throw ProtocolError("CBOR_DUPLICATE_KEY")
                         if (key <= prev) throw ProtocolError("CBOR_NONCANONICAL", "map keys not ascending")
                         prev = key
@@ -200,7 +229,8 @@ object CborCodec {
         private fun readSimple(addl: Int): Cbor = when (addl) {
             20 -> Cbor.Bool(false)
             21 -> Cbor.Bool(true)
-            22, 23 -> throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "null/undefined forbidden")
+            22 -> if (lenient) Cbor.Null else throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "null forbidden")
+            23 -> throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "undefined forbidden")
             24, 25, 26, 27 -> throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "floats/simple values forbidden")
             31 -> throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "indefinite length forbidden")
             else -> throw ProtocolError("CBOR_UNSUPPORTED_TYPE", "simple value $addl forbidden")

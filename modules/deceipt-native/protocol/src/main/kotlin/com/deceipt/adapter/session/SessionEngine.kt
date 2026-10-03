@@ -15,6 +15,7 @@ import com.deceipt.adapter.protocol.Handshake
 import com.deceipt.adapter.protocol.Lpdu
 import com.deceipt.adapter.protocol.Messages
 import com.deceipt.adapter.protocol.ProtocolError
+import com.deceipt.adapter.protocol.Receipt
 import java.security.SecureRandom
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -661,7 +662,8 @@ class Session(
 
     private fun sendControl(pdu: ByteArray, command: Boolean) {
         if (closed.get()) return
-        val maxFrag = minOf(transport.frameSizeCeiling(), Bounds.MAX_LPDU_FRAG_BYTES)
+        val maxFrag = minOf(transport.controlFragmentCeiling(), Bounds.MAX_LPDU_FRAG_BYTES)
+            .coerceAtLeast(Bounds.LPDU_HEADER_BYTES + 1)
         val seq = if (command) commandMsgSeq++ else eventMsgSeq++
         for (f in Lpdu.fragment(pdu, seq, maxFrag)) {
             if (command) transport.sendCommand(f) else transport.sendEvent(f)

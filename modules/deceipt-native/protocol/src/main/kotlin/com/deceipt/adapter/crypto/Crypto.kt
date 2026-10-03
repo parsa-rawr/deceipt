@@ -6,17 +6,8 @@ import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import java.math.BigInteger
-import java.security.AlgorithmParameters
-import java.security.KeyFactory
-import java.security.KeyPairGenerator
 import java.security.SecureRandom
-import java.security.spec.ECGenParameterSpec
-import java.security.spec.ECParameterSpec
-import java.security.spec.ECPoint
-import java.security.spec.ECPrivateKeySpec
-import java.security.spec.ECPublicKeySpec
 import javax.crypto.Cipher
-import javax.crypto.KeyAgreement
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -81,11 +72,8 @@ object P256 {
     private val B = BigInteger("5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b", 16)
     private val N = BigInteger("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551", 16)
 
-    private val params: ECParameterSpec by lazy {
-        val ap = AlgorithmParameters.getInstance("EC")
-        ap.init(ECGenParameterSpec("secp256r1"))
-        ap.getParameterSpec(ECParameterSpec::class.java)
-    }
+    /** The named curve, from BouncyCastle (the same provider used for Ed25519). */
+    private val domain = org.bouncycastle.crypto.ec.CustomNamedCurves.getByName("secp256r1")
 
     /** True iff `pub` is a valid uncompressed P-256 point. */
     fun isValidPoint(pub: ByteArray): Boolean {
@@ -99,10 +87,9 @@ object P256 {
         return lhs == rhs
     }
 
-    /** Decode an uncompressed point, throwing the frozen error when invalid. */
-    fun decodePoint(pub: ByteArray): ECPoint {
+    /** Validate an uncompressed point, throwing the frozen error when invalid. */
+    fun decodePoint(pub: ByteArray) {
         if (!isValidPoint(pub)) throw ProtocolError("HANDSHAKE_ECDH_INVALID_POINT")
-        return ECPoint(BigInteger(1, pub.copyOfRange(1, 33)), BigInteger(1, pub.copyOfRange(33, 65)))
     }
 
     /** Decode a 32-byte big-endian scalar (1..n-1), throwing on out-of-range. */
@@ -113,61 +100,34 @@ object P256 {
         return v
     }
 
-    /** Raw 32-byte big-endian scalar for a fresh P-256 key pair. */
+    /** A fresh uniform scalar in [1, n-1]. */
     fun generateScalar(random: SecureRandom = SecureRandom()): ByteArray {
-        val kpg = KeyPairGenerator.getInstance("EC")
-        kpg.initialize(ECGenParameterSpec("secp256r1"), random)
-        val priv = kpg.generateKeyPair().private as java.security.interfaces.ECPrivateKey
-        return toFixed(priv.s, SCALAR_BYTES)
+        while (true) {
+            val candidate = ByteArray(SCALAR_BYTES).also { random.nextBytes(it) }
+            val v = BigInteger(1, candidate)
+            if (v.signum() > 0 && v < N) return candidate
+        }
     }
 
-    /** The uncompressed public point for a raw scalar. */
+    /** The uncompressed public point for a raw scalar (`s * G`). */
     fun publicKeyFromScalar(scalar: ByteArray): ByteArray {
-        val s = decodeScalar(scalar)
-        val kf = KeyFactory.getInstance("EC")
-        val privSpec = ECPrivateKeySpec(s, params)
-        val pub = derivePublic(s)
-        val pubKey = kf.generatePublic(ECPublicKeySpec(pub, params))
-        return encodePoint(pubKey.w as ECPoint)
+        val d = decodeScalar(scalar)
+        val p = domain.g.multiply(d).normalize()
+        return Bytes.concat(
+            byteArrayOf(0x04),
+            toFixed(p.affineXCoord.toBigInteger(), COORD_BYTES),
+            toFixed(p.affineYCoord.toBigInteger(), COORD_BYTES),
+        )
     }
 
     /** ECDH: 32-byte X coordinate of `scalar * peerPoint`. */
     fun sharedSecret(scalar: ByteArray, peerPoint: ByteArray): ByteArray {
-        val s = decodeScalar(scalar)
-        val point = decodePoint(peerPoint)
-        val kf = KeyFactory.getInstance("EC")
-        val priv = kf.generatePrivate(ECPrivateKeySpec(s, params))
-        val pub = kf.generatePublic(ECPublicKeySpec(point, params))
-        val ka = KeyAgreement.getInstance("ECDH")
-        ka.init(priv)
-        ka.doPhase(pub, true)
-        val secret = ka.generateSecret()
-        // ECDH returns the raw X coordinate for P-256; normalise to 32 bytes.
-        return toFixed(BigInteger(1, secret), COORD_BYTES)
+        val d = decodeScalar(scalar)
+        decodePoint(peerPoint)
+        val q = domain.curve.decodePoint(peerPoint).normalize()
+        val shared = q.multiply(d).normalize()
+        return toFixed(shared.affineXCoord.toBigInteger(), COORD_BYTES)
     }
-
-    /** Scalar-multiply the generator: s * G. */
-    private fun derivePublic(s: BigInteger): ECPoint {
-        val kpg = KeyPairGenerator.getInstance("EC")
-        kpg.initialize(ECGenParameterSpec("secp256r1"))
-        // Deterministic path: use the curve generator directly.
-        val g = params.generator
-        return scalarMultiply(g, s)
-    }
-
-    private fun scalarMultiply(point: ECPoint, k: BigInteger): ECPoint {
-        var result: ECPoint? = null
-        var addend = point
-        val n = k
-        for (i in 0 until n.bitLength()) {
-            if (n.testBit(i)) result = if (result == null) addend else result.add(addend)
-            addend = addend.add(addend)
-        }
-        return result ?: throw ProtocolError("HANDSHAKE_ECDH_INVALID_POINT", "zero point")
-    }
-
-    fun encodePoint(p: ECPoint): ByteArray =
-        Bytes.concat(byteArrayOf(0x04), toFixed(p.affineX, COORD_BYTES), toFixed(p.affineY, COORD_BYTES))
 
     private fun toFixed(v: BigInteger, len: Int): ByteArray {
         val raw = v.toByteArray()

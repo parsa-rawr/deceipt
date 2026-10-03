@@ -1,30 +1,56 @@
-// Deceipt protocol core — a PURE JVM (Kotlin) library (A5 scope).
+// Deceipt protocol core (A5 scope).
 //
 // Holds the frozen protocol: deterministic CBOR, COSE_Sign1, Ed25519, P-256,
 // HKDF/AES-GCM, the handshake transcript, framing/LPdu and the session state
-// machine. It has NO Android or React Native dependency, so the radio-independent
-// vector tests run on the plain JVM path with nothing to download or emulate.
+// machine. It has NO React Native dependency, so its unit tests (`testDebugUnitTest`)
+// run on the plain JVM path with nothing to download or emulate.
+//
+// It is an Android library rather than a `kotlin("jvm")` module so it compiles
+// with the same toolchain as `:deceipt-native` and does not pull a second Kotlin
+// compiler artifact.
 
-apply plugin: "org.jetbrains.kotlin.jvm"
+apply plugin: "com.android.library"
+apply plugin: "org.jetbrains.kotlin.android"
 
-kotlin {
-    jvmToolchain(17)
-}
+android {
+    namespace "com.deceipt.adapter.protocolcore"
+    compileSdk rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
 
-sourceSets {
-    main {
-        kotlin.srcDirs = ["src/main/kotlin"]
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
     }
-    test {
-        kotlin.srcDirs = ["src/test/kotlin"]
-        // The frozen vector fixtures are read straight from protocol/vectors so
-        // the tests can never drift from the published revision (no copies).
-        resources.srcDirs = ["../../../protocol/vectors"]
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    sourceSets {
+        main.java.srcDirs = ["src/main/kotlin"]
+        test.java.srcDirs = ["src/test/kotlin"]
+        // The frozen vector fixtures are read straight from protocol/vectors, so the
+        // tests can never drift from the published revision (no duplicated copies).
+        test.resources.srcDirs = ["../../../protocol/vectors"]
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = false
+            returnDefaultValues = false
+        }
     }
 }
 
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
+    // Ed25519 with identical behaviour from API 24 upward. java.security Ed25519
+    // only exists from API 33 and is not reliably present there.
     implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
 
     testImplementation("junit:junit:4.13.2")

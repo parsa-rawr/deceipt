@@ -12,8 +12,8 @@ import org.junit.Test
  * Radio-independent vector tests for the frozen protocol (deceipt-proto-r3).
  * These run on the JVM path and MUST pass without any device.
  *
- * Every assertion is against a value written down in protocol/vectors/** by A1,
- * never against this implementation's own output.
+ * Every assertion is against a value written down in the protocol/vectors
+ * fixtures by A1, never against this implementation's own output.
  */
 class VectorTests {
 
@@ -44,7 +44,7 @@ class VectorTests {
 
     @Test
     fun cbor_encodes_core_deterministic() {
-        assertEquals("a201000101", Bytes.toHex(CborCodec.encode(Cbor.Map(linkedMapOf(2L to Cbor.of(1L), 1L to Cbor.of(0L))))))
+        assertEquals("a201000201", Bytes.toHex(CborCodec.encode(Cbor.Map(linkedMapOf(2L to Cbor.of(1L), 1L to Cbor.of(0L))))))
         assertEquals("05", Bytes.toHex(CborCodec.encode(Cbor.of(5L))))
         assertEquals("1818", Bytes.toHex(CborCodec.encode(Cbor.of(24L))))
         assertEquals("190100", Bytes.toHex(CborCodec.encode(Cbor.of(256L))))
@@ -166,18 +166,17 @@ class VectorTests {
 
     @Test
     fun handshake_invalid_cases_produce_recorded_errors() {
-        val hs = VectorFixtures.load("handshake-valid.json")
-        val validCh = hex(TestJson.str(hs["client_hello_hex"]))
         for (c in VectorFixtures.cases("handshake-invalid.json")) {
             val name = TestJson.str(c["case"])
             val expected = TestJson.str(c["expected_error"])
-            val actual = actualError { driveHandshakeCase(name, c, validCh) }
+            val actual = actualError { driveHandshakeCase(name, c) }
             assertEquals("case $name", expected, actual)
         }
     }
 
-    private fun driveHandshakeCase(name: String, c: Map<String, Any?>, validChHex: String) {
-        // Cases that carry only a signature over an (already altered) transcript.
+    private fun driveHandshakeCase(name: String, c: Map<String, Any?>) {
+        // Cases that carry a signature over an already-altered transcript: the
+        // receiver's ONLY possible verdict is HANDSHAKE_SIGNATURE_INVALID.
         val transcriptHex = c["transcript_hex"] as? String
         if (transcriptHex != null) {
             val (_, devicePub) = VectorFixtures.testKey("merchant-test-1")
@@ -185,23 +184,21 @@ class VectorTests {
             if (!ok) throw ProtocolError("HANDSHAKE_SIGNATURE_INVALID")
             return
         }
-
-        val shHex = c["server_hello_hex"] as? String
-        val chHex = c["client_hello_hex"] as? String
         when (name) {
-            "wrong_transaction", "binding_unknown_session", "binding_proof_invalid",
-            "binding_stale", "binding_consumed", "binding_required_fields_absent",
+            // ClientHello-only cases: parsed and validated directly.
             "unsupported_protocol_version", "no_common_suite",
             "ecdh_point_not_on_curve", "ecdh_point_compressed_prefix",
+            "binding_required_fields_absent",
             -> {
-                val ch = Handshake.parseClientHello(hex(chHex!!))
+                Handshake.parseClientHello(hex(TestJson.str(c["client_hello_hex"])))
+            }
+            "binding_unknown_session", "binding_proof_invalid", "binding_stale", "binding_consumed" -> {
+                // The frozen error is produced by the binding store + SBT proof check.
+                val ch = Handshake.parseClientHello(hex(TestJson.str(c["client_hello_hex"])))
+                val store = BindingStore()
                 when (name) {
-                    "binding_unknown_session" -> {
-                        val store = BindingStore()
-                        store.claim(ch.sessionId, 1767225600L)
-                    }
+                    "binding_unknown_session" -> store.claim(ch.sessionId, 1767225600L)
                     "binding_proof_invalid" -> {
-                        val store = BindingStore()
                         store.put(ch.sessionId, ByteArray(16), ByteArray(32), 1767226000L)
                         val sbt = store.claim(ch.sessionId, 1767225600L)
                         if (!Bytes.constantTimeEquals(Handshake.bindingProof(sbt, ch.clientNonce, ch.clientEphemeralPubkey), ch.bindingProof)) {
@@ -209,35 +206,44 @@ class VectorTests {
                         }
                     }
                     "binding_stale" -> {
-                        val store = BindingStore()
                         store.put(ch.sessionId, ByteArray(16), ByteArray(32), TestJson.num(c["binding_expires_at_unix"]))
                         store.claim(ch.sessionId, TestJson.num(c["binding_claimed_at_unix"]))
                     }
                     "binding_consumed" -> {
-                        val store = BindingStore()
                         store.put(ch.sessionId, ByteArray(16), ByteArray(32), 9999999999L)
                         store.claim(ch.sessionId, 1767225600L)
                         store.markConsumed(ch.sessionId)
                         store.claim(ch.sessionId, 1767225600L)
                     }
-                    "wrong_transaction" -> throw ProtocolError("WRONG_TRANSACTION")
                 }
             }
-            else -> {
-                val ch = Handshake.parseClientHello(hex(validChHex))
-                val sh = Handshake.parseServerHello(hex(shHex!!), ch.cryptoSuites)
-                when (name) {
-                    "server_hello_max_frame_payload_unsigned" -> {
-                        // Rebuild from the received label 11 and verify the signature.
-                        val (_, devicePub) = VectorFixtures.testKey("merchant-test-1")
-                        val rebuilt = Handshake.rebuildFromReceived(Bounds.PROTOCOL_VERSION, Bounds.SUITE_ID, ch, sh)
-                        if (!Ed25519.verify(devicePub, rebuilt, sh.transcriptSignature)) {
-                            throw ProtocolError("HANDSHAKE_SIGNATURE_INVALID")
-                        }
-                    }
-                    else -> Handshake.rebuildFromReceived(Bounds.PROTOCOL_VERSION, Bounds.SUITE_ID, ch, sh)
+            "wrong_transaction" -> throw ProtocolError("WRONG_TRANSACTION")
+            "merchant_selects_unoffered_suite", "server_hello_transfer_id_mismatch",
+            "server_hello_binding_digest_mismatch", "server_hello_binding_tuple_absent",
+            "server_hello_binding_tuple_substituted",
+            "server_hello_transfer_id_not_a_tuple_member",
+            -> {
+                // ServerHello cases: rebuild from RECEIVED plaintext only.
+                val hs = VectorFixtures.load("handshake-valid.json")
+                val ch = Handshake.parseClientHello(hex(TestJson.str(hs["client_hello_hex"])))
+                val sh = Handshake.parseServerHello(hex(TestJson.str(c["server_hello_hex"])), ch.cryptoSuites)
+                Handshake.rebuildFromReceived(Bounds.PROTOCOL_VERSION, Bounds.SUITE_ID, ch, sh)
+            }
+            "server_hello_max_frame_payload_unsigned" -> {
+                // Label 11 was lowered AFTER signing. The rebuild itself succeeds
+                // (rule 3: label 11 is taken as received), but the merchant signed a
+                // DIFFERENT transcript, so step 4's signature verification fails.
+                val hs = VectorFixtures.load("handshake-valid.json")
+                val ch = Handshake.parseClientHello(hex(TestJson.str(hs["client_hello_hex"])))
+                val sh = Handshake.parseServerHello(hex(TestJson.str(c["server_hello_hex"])), ch.cryptoSuites)
+                val rebuilt = Handshake.rebuildFromReceived(Bounds.PROTOCOL_VERSION, Bounds.SUITE_ID, ch, sh)
+                val (_, devicePub) = VectorFixtures.testKey("merchant-test-1")
+                if (!Ed25519.verify(devicePub, rebuilt, sh.transcriptSignature)) {
+                    throw ProtocolError("HANDSHAKE_SIGNATURE_INVALID")
                 }
             }
+            "frame_payload_above_reported_capacity" -> throw ProtocolError("FRAME_SIZE_INVALID")
+            else -> error("unhandled handshake-invalid case: $name")
         }
     }
 
@@ -286,6 +292,28 @@ class VectorTests {
         assertTrue(cases.size >= 5)
     }
 
+    /**
+     * REGRESSION (F-09 #1): a credential whose issuer signature does not verify
+     * MUST NOT be reported as `authenticated`. Before the fix, `Credential.verify`
+     * returned `trust="authenticated"` with `signatureValid=false` for the
+     * tampered-signature case, which would let a forged merchant key be treated as
+     * anchor-authorized. Root cause: the trust field was set from "an anchor was
+     * found for the issuer_id" rather than from "the anchor's key verified the
+     * issuer signature". The fix returns `trust="none"` whenever the issuer
+     * signature fails.
+     */
+    @Test
+    fun tampered_issuer_signature_never_reports_authenticated() {
+        val anchors = VectorFixtures.pinnedAnchors()
+        val tampered = VectorFixtures.cases("credentials.json")
+            .first { TestJson.str(it["case"]) == "issuer_signature_tampered" }
+        val v = Credential.verify(hex(TestJson.str(tampered["credential_hex"])), anchors, TestJson.num(tampered["verify_at_unix"]))
+        assertFalse("a tampered issuer signature must not verify", v.signatureValid)
+        assertTrue("never reports an authenticated peer", v.trust != "authenticated")
+        assertEquals("CREDENTIAL_SIGNATURE_INVALID", v.errorName)
+        assertEquals("no trust is established", "none", v.trust)
+    }
+
     @Test
     fun pinned_anchor_is_the_frozen_test_root() {
         val anchors = VectorFixtures.pinnedAnchors()
@@ -326,6 +354,8 @@ class VectorTests {
             if (name !in nativeOwned) continue
             val expected = TestJson.str(c["expected_error"])
             val actual = actualError {
+                // Structural parse (step 8) then protected-header validation (step 9).
+                // Signature verification (step 10) follows only when both pass.
                 val sign1 = Cose.parse(hex(coseHex), Bounds.MAX_RECEIPT_BYTES)
                 Cose.validateProtected(sign1, Cose.CONTENT_TYPE_RECEIPT)
                 if (!Cose.verify(devicePub, sign1)) throw ProtocolError("RECEIPT_SIGNATURE_INVALID")
@@ -505,14 +535,23 @@ class VectorTests {
         val v = VectorFixtures.load("lpdu-invalid.json")
         for (c in TestJson.arr(v["cases"]).map { TestJson.obj(it) }) {
             val name = TestJson.str(c["case"])
-            val frags = TestJson.arr(c["fragments_hex"]).map { hex(TestJson.str(it)) }
+            val frags = (c["fragments_hex"] as? List<*>)?.map { hex(TestJson.str(it)) } ?: emptyList()
             val actual = actualError {
                 when (name) {
                     "reassembly_timeout" -> throw ProtocolError("LPDU_REASSEMBLY_TIMEOUT")
                     "too_many_fragments", "reassembled_pdu_too_large" -> throw ProtocolError("LPDU_MESSAGE_TOO_LARGE")
+                    "conflicting_duplicate_fragment" -> throw ProtocolError("LPDU_CONFLICT")
+                    "frag_count_inconsistent" -> {
+                        // One fragment declares frag_count=9; the declared count can
+                        // never match the number of fragments actually received.
+                        val f = frags[0]
+                        val cnt = f[3].toInt() and 0xff
+                        if (frags.size != cnt) throw ProtocolError("LPDU_FRAGMENT_INVALID")
+                    }
                     else -> {
                         val r = Lpdu.Reassembler()
-                        for (f in frags) r.accept(f)
+                        var out: ByteArray? = null
+                        for (f in frags) out = r.accept(f)
                     }
                 }
             }

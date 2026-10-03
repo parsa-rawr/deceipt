@@ -25,6 +25,9 @@ interface SessionTransport {
     /** Frame-size ceiling derived from the negotiated ATT MTU (never a fixed MTU). */
     fun frameSizeCeiling(): Int = Bounds.MAX_FRAME_PAYLOAD
 
+    /** LPdu fragment payload ceiling for control messages (ATT payload budget). */
+    fun controlFragmentCeiling(): Int = Bounds.MAX_LPDU_FRAG_BYTES
+
     /** Stop advertising / scanning and tear the link down. */
     fun close()
 }

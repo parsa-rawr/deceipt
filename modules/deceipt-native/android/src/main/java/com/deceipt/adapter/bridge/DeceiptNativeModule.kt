@@ -17,6 +17,7 @@ import com.deceipt.adapter.protocol.Messages
 import com.deceipt.adapter.protocol.ProtocolError
 import com.deceipt.adapter.protocol.Qr
 import com.deceipt.adapter.protocol.ReceiptVerify
+import com.deceipt.adapter.session.Events
 import com.deceipt.adapter.session.Session
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -200,7 +201,7 @@ class DeceiptNativeModule(
             val requested = (0 until kinds.size()).mapNotNull { kinds.getString(it) }
             val includeCamera = requested.contains("camera")
             if (requested.contains("bluetooth")) {
-                val role = if (manager.getMerchantKeyOrNull() != null) BlePermissions.Role.MERCHANT else BlePermissions.Role.CUSTOMER
+                val role = if (manager.merchantKeyOrNull() != null) BlePermissions.Role.MERCHANT else BlePermissions.Role.CUSTOMER
                 val needed = BlePermissions.requestablePermissions(role, includeCamera)
                 currentActivity?.requestPermissions(needed.toTypedArray(), REQ_BLE)
             } else if (includeCamera) {
@@ -327,7 +328,7 @@ class DeceiptNativeModule(
             } }
             val now = nowUnix?.toLong() ?: (System.currentTimeMillis() / 1000L)
             val v = Credential.verify(credential, anchorList, now)
-            com.deceipt.adapter.session.Events.credentialMap(v)
+            Events.credentialMap(v)
         }
     }
 
@@ -364,7 +365,12 @@ class DeceiptNativeModule(
             val sessionId = Bytes.fromHex(sessionIdHex)
             manager.sessionHistory.remember(sessionId)
             val handle = manager.handle()
-            val session = newSession(handle, Session.Role.MERCHANT)
+            val ble = MerchantBleSession(reactContext.applicationContext, ::emit)
+            val session = Session(
+                handle, Session.Role.MERCHANT, ble, ::emit,
+                random = java.security.SecureRandom(),
+            )
+            ble.attach(session)
             session.setMerchantCredential(manager.merchantCredential ?: throw ProtocolError("CREDENTIAL_MALFORMED", "merchant not provisioned"))
             session.startMerchant(
                 manager.bindingStore,
@@ -376,6 +382,8 @@ class DeceiptNativeModule(
                 if (request.hasKey("frameSize")) request.getDouble("frameSize").toInt() else null,
                 manager.signer() ?: throw ProtocolError("CAPABILITY_UNAVAILABLE", "no merchant key"),
             )
+            // Bring up the GATT server + advertiser now that the session is armed.
+            ble.open()
             manager.put(session)
             session.snapshot()
         }
@@ -393,12 +401,12 @@ class DeceiptNativeModule(
 
     @ReactMethod
     fun startScan(promise: Promise) {
-        onWorker(promise) { emit(com.deceipt.adapter.session.Events.scanStarted()); null }
+        onWorker(promise) { emit(Events.scanStarted()); null }
     }
 
     @ReactMethod
     fun stopScan(promise: Promise) {
-        onWorker(promise) { emit(com.deceipt.adapter.session.Events.scanStopped("user_cancelled")); null }
+        onWorker(promise) { emit(Events.scanStopped("user_cancelled")); null }
     }
 
     @ReactMethod
@@ -416,8 +424,23 @@ class DeceiptNativeModule(
 
             val anchors = parseAnchors(request.getArray("anchors"))
             val handle = manager.handle()
-            val session = newSession(handle, Session.Role.CUSTOMER, anchors)
+            val ble = CustomerBleSession(reactContext.applicationContext, ::emit)
+            val session = Session(
+                handle, Session.Role.CUSTOMER, ble, ::emit,
+                random = java.security.SecureRandom(), anchors = anchors,
+            )
+            ble.attach(session)
+            // The QR names the session; the first candidate advertising the service
+            // is the connect target. 2+ candidates fail closed inside the transport.
+            ble.awaitFirstCandidate { peripheralId ->
+                try {
+                    ble.connectSelected(peripheralId)
+                } catch (e: ProtocolError) {
+                    emit(Events.error(handle, e.toBridge("connect")))
+                }
+            }
             val clientMax = if (request.hasKey("clientMaxFramePayload")) request.getDouble("clientMaxFramePayload").toInt() else null
+            ble.startScan()
             session.startCustomer(
                 Bytes.toHex(qr.sessionId), qr.sessionBindingToken, Bytes.toHex(qr.offerHash), clientMax, manager.bindingStore,
             )
@@ -534,12 +557,6 @@ class DeceiptNativeModule(
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
-
-    private fun newSession(handle: String, role: Session.Role, anchors: List<Credential.Anchor> = emptyList()) =
-        Session(
-            handle, role, NoopTransport(), ::emit,
-            random = java.security.SecureRandom(), anchors = anchors,
-        )
 
     private fun require(handle: String): Session =
         manager.get(handle) ?: throw ProtocolError("SESSION_TORN_DOWN", "unknown session handle")

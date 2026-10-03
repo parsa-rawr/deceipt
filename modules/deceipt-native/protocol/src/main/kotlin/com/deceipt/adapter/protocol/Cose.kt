@@ -53,9 +53,25 @@ object Cose {
      */
     fun parse(bytes: ByteArray, maxBytes: Int): Sign1 {
         if (bytes.size > maxBytes) throw ProtocolError("RECEIPT_SIZE_EXCEEDED")
-        val top = CborCodec.decode(bytes)
+        // Lenient only for the null check: a detached payload (CBOR null) must report
+        // the CONTAINER error, not the codec error. The container is parsed inside
+        // the receipt namespace, so any CBOR defect here is a container defect
+        // (except size, which has its own frozen name). receipt-v1.md 2.
+        val top = try {
+            CborCodec.decodeLenient(bytes)
+        } catch (e: ProtocolError) {
+            throw ProtocolError(
+                if (e.errorName == "CBOR_SIZE_EXCEEDED") "RECEIPT_SIZE_EXCEEDED" else "RECEIPT_CONTAINER_MALFORMED",
+                e.detail ?: e.errorName,
+            )
+        }
         val arr = top as? Cbor.Arr ?: throw ProtocolError("RECEIPT_CONTAINER_MALFORMED", "not a 4-element array")
         if (arr.items.size != 4) throw ProtocolError("RECEIPT_CONTAINER_MALFORMED", "expected 4 elements")
+        // A detached payload is checked BEFORE the canonicality re-encode, because
+        // the null sentinel cannot itself be re-encoded (receipt-v1.md 2).
+        if (arr.items[2] is Cbor.Null) {
+            throw ProtocolError("RECEIPT_CONTAINER_MALFORMED", "detached payload is not allowed")
+        }
         // Canonicality: the received bytes must be reproduced exactly.
         if (!CborCodec.encode(top).contentEquals(bytes)) throw ProtocolError("RECEIPT_NONCANONICAL")
 

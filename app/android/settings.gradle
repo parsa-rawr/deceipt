@@ -3,4 +3,14 @@ plugins { id("com.facebook.react.settings") }
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
 rootProject.name = 'com.deceipt.poc'
 include ':app'
+include ':deceipt-native'
 includeBuild('../node_modules/@react-native/gradle-plugin')
+
+// The Deceipt native adapter (A5 Android / A4 iOS). Hand-written, registered by
+// its own ReactPackage; it is not a node_modules autolink target.
+project(':deceipt-native').projectDir = new File(rootProject.projectDir, '../../modules/deceipt-native/android')
+
+// The frozen protocol core: a pure-JVM library with no Android/RN dependency, so
+// the radio-independent vector tests run on the plain JVM path.
+include ':deceipt-protocol'
+project(':deceipt-protocol').projectDir = new File(rootProject.projectDir, '../../modules/deceipt-native/protocol')
