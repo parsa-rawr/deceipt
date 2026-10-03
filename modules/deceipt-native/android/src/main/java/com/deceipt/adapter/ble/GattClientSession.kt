@@ -326,6 +326,12 @@ class GattClientSession(
         val event = eventCharacteristic ?: return false
         val data = dataCharacteristic ?: return false
         if (notificationsEnabled.get()) return true
+        val eventCccd = event.getDescriptor(GattUuids.CCCD)
+        val dataCccd = data.getDescriptor(GattUuids.CCCD)
+        if (eventCccd == null || dataCccd == null) {
+            fail("TRANSPORT_LINK_LOST", "peer characteristic has no CCCD descriptor")
+            return false
+        }
         return try {
             pendingDescriptors.set(2)
             if (!g.setCharacteristicNotification(event, true) || !g.setCharacteristicNotification(data, true)) {
@@ -333,8 +339,8 @@ class GattClientSession(
                 fail("TRANSPORT_LINK_LOST", "setCharacteristicNotification rejected")
                 return false
             }
-            writeCccd(g, event, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
-            writeCccd(g, data, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+            writeCccd(g, eventCccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
+            writeCccd(g, dataCccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
             true
         } catch (se: SecurityException) {
             pendingDescriptors.set(0)
@@ -549,6 +555,9 @@ class GattClientSession(
 
     private fun onLinkEstablished(mtu: Int) {
         if (closed.get()) return
+        // Idempotent: a peer-initiated MTU change after the link is up must not
+        // re-run notification enabling or re-emit the connected event.
+        if (linkUp.get()) return
         if (!BleDiagnostics.isUsable(mtu)) {
             fail("TRANSPORT_MTU_TOO_SMALL", "att_mtu=$mtu yields frame_size=${BleDiagnostics.frameSizeCeiling(mtu)}")
             teardownLink(BleReasons.LINK_LOST)
@@ -567,6 +576,8 @@ class GattClientSession(
 
     private fun handleDescriptorWrite(status: Int) {
         if (closed.get()) return
+        // Ignore a CCCD write we did not request (never infer subscriptions).
+        if (pendingDescriptors.get() <= 0) return
         if (status != BluetoothGatt.GATT_SUCCESS) {
             fail("TRANSPORT_WRITE_FAILED", "CCCD write status=$status")
             return
@@ -690,8 +701,7 @@ class GattClientSession(
         }
     }
 
-    private fun writeCccd(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
-        val descriptor = characteristic.getDescriptor(GattUuids.CCCD) ?: return
+    private fun writeCccd(g: BluetoothGatt, descriptor: BluetoothGattDescriptor, value: ByteArray) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             g.writeDescriptor(descriptor, value)
         } else {
