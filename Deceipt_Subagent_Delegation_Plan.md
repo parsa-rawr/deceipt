@@ -16,7 +16,9 @@
 | There is **no `AGENTS.md`**, no repo instructions, no `package.json`, no app scaffold | root listing; no config files matched |
 | Both files are mode `0600` and untracked → a single-disk failure destroys the spec | `ls -la` |
 
-**Canonical remote (user-directed, 2026-10-03):** `https://github.com/parsa-rawr/deceipt.git` — verified **empty**, **public**, default branch unnamed, created 2026-10-03T19:12:38Z. Local root stays `/Users/mateo/CODE/Deceipt`; A0 pushes `main` there.
+**Canonical remote (user-directed, 2026-10-03):** `https://github.com/parsa-rawr/deceipt.git` — verified **empty**, **public**, default branch unnamed, created 2026-10-03T19:12:38Z. Local root stays `/Users/mateo/CODE/Deceipt`.
+
+**Working branch (user-directed, 2026-10-03):** `mateo/main` is the working main branch — all commits and pushes target it. It was created from `origin/main` at `c37b03a`. `main` is retained as history and is not force-pushed. GitHub's *default branch* setting still reads `main`: the authenticated identity (`mateocabanal`) has push access to this repo but not administration, so `gh repo edit --default-branch` returns 404. The owner must flip the default in repository settings if the UI/PR base matters; it does not affect the work.
 
 **Public-repo consequence (now load-bearing):** the spec, the vectors, and everything else are world-readable. `.gitignore` MUST exclude `*.pem`, `*.key`, `*.p12`, `*.jks`, `*.keystore`, `*.mobileprovision`, `*.cer`, `*.pfx`, `keys/`, `secrets/`, `.env*`, keychain stores, and any generated merchant key store. Test-only deterministic keys in `protocol/vectors/` are permitted only when each file states in-header that the material is test-only and must never be reused. No real merchant key, session key, or production trust-root material may ever be committed. A6 gates this (see §4 gate 9).
 
