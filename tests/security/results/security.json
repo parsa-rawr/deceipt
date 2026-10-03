@@ -1,0 +1,186 @@
+{
+ "passed": 30,
+ "failed": 0,
+ "checks": [
+  {
+   "id": "K1",
+   "target": "iOS merchant key uses Keychain ThisDeviceOnly accessibility",
+   "status": "PASS",
+   "detail": "DeceiptKeyStore.swift"
+  },
+  {
+   "id": "K2",
+   "target": "iOS key material stored only in the Keychain, not UserDefaults/files",
+   "status": "PASS",
+   "detail": "DeceiptKeyStore.swift"
+  },
+  {
+   "id": "K3",
+   "target": "Android fallback wraps the seed with an AES key held in AndroidKeyStore",
+   "status": "PASS",
+   "detail": "modules/deceipt-native/android/src/main/java/com/deceipt/adapter/crypto/MerchantKeyStore.kt"
+  },
+  {
+   "id": "K4",
+   "target": "Android wrapped-key file is written non-world-readable in private app storage",
+   "status": "PASS",
+   "detail": "MerchantKeyStore.kt"
+  },
+  {
+   "id": "K5",
+   "target": "Android direct Ed25519 is PROBED at runtime, never assumed",
+   "status": "PASS",
+   "detail": "MerchantKeyStore.kt"
+  },
+  {
+   "id": "K6",
+   "target": "Android seed buffers are zeroized after use",
+   "status": "PASS",
+   "detail": "MerchantKeyStore.kt"
+  },
+  {
+   "id": "K7",
+   "target": "no seed/session-key field crosses the JS bridge (contract, mock, iOS backend; comments excluded)",
+   "status": "PASS",
+   "detail": "0 leaks"
+  },
+  {
+   "id": "L1",
+   "target": "no NSLog/console.log/Log./println in native or shared code (ordinary logs)",
+   "status": "PASS",
+   "detail": "0 sinks"
+  },
+  {
+   "id": "L2",
+   "target": "no log/print statement referencing seed/key material",
+   "status": "PASS",
+   "detail": "0 hits"
+  },
+  {
+   "id": "X1",
+   "target": "Android app disables adb/cloud backup (allowBackup=false)",
+   "status": "PASS",
+   "detail": "app AndroidManifest.xml"
+  },
+  {
+   "id": "X2",
+   "target": "iOS Keychain items are excluded from backups (ThisDeviceOnly)",
+   "status": "PASS",
+   "detail": "DeceiptKeyStore.swift"
+  },
+  {
+   "id": "P1",
+   "target": "CBOR hard caps present (depth 12, items 8192, text 4096, bytes 65536)",
+   "status": "PASS",
+   "detail": "{\"max_depth\": 12, \"max_items\": 8192, \"max_array\": 1024, \"max_map\": 256, \"max_text_bytes\": 4096, \"max_bytes\": 65536, \"max_map_key\": 255}"
+  },
+  {
+   "id": "P2",
+   "target": "receipt byte cap 65536 and per-collection caps defined",
+   "status": "PASS",
+   "detail": ""
+  },
+  {
+   "id": "P3",
+   "target": "nested-array depth bomb is rejected (CBOR_DEPTH_EXCEEDED)",
+   "status": "PASS",
+   "detail": "CBOR_DEPTH_EXCEEDED"
+  },
+  {
+   "id": "P4",
+   "target": "transfer/control caps defined (ciphertext 65552, frames 32768, pdu 2048, window 64)",
+   "status": "PASS",
+   "detail": ""
+  },
+  {
+   "id": "H1",
+   "target": ".gitignore excludes key/credential/env material",
+   "status": "PASS",
+   "detail": "all present"
+  },
+  {
+   "id": "H2",
+   "target": "no tracked private-key/keystore files except the verified debug-keystore throwaway",
+   "status": "PASS",
+   "detail": "no violations"
+  },
+  {
+   "id": "H2b",
+   "target": "allow-listed debug keystore app/android/app/debug.keystore structurally verified (single androiddebugkey)",
+   "status": "PASS",
+   "detail": "entries=1 androiddebugkey=True"
+  },
+  {
+   "id": "H3",
+   "target": "frozen test vectors are intentionally tracked (docs/decisions.md D-003)",
+   "status": "PASS",
+   "detail": "protocol/vectors/** tracked"
+  },
+  {
+   "id": "H4",
+   "target": "no secrets directory or .env file is tracked (excluding intentional test vectors)",
+   "status": "PASS",
+   "detail": "none"
+  },
+  {
+   "id": "H5",
+   "target": "only the labelled test root private key exists, and it is not in the app",
+   "status": "PASS",
+   "detail": "root-poc-1 private absent from app"
+  },
+  {
+   "id": "H6",
+   "target": "repository declares PoC / test-only status in-band",
+   "status": "PASS",
+   "detail": ""
+  },
+  {
+   "id": "V0",
+   "target": "control: the unmutated valid receipt IS TRUSTED",
+   "status": "PASS",
+   "detail": "TRUSTED"
+  },
+  {
+   "id": "V1",
+   "target": "400 random single-bit mutations of the valid receipt: none TRUSTED",
+   "status": "PASS",
+   "detail": "0 trusted of 400"
+  },
+  {
+   "id": "V2",
+   "target": "200 random byte-flip mutations of the valid receipt: none TRUSTED",
+   "status": "PASS",
+   "detail": "0 trusted of 200"
+  },
+  {
+   "id": "V3",
+   "target": "wrong session credential never TRUSTED",
+   "status": "PASS",
+   "detail": "REJECTED/RECEIPT_CREDENTIAL_MISMATCH"
+  },
+  {
+   "id": "V4",
+   "target": "validly signed rogue receipt (unknown issuer) never TRUSTED",
+   "status": "PASS",
+   "detail": "UNVERIFIED_UNKNOWN_ISSUER"
+  },
+  {
+   "id": "V5",
+   "target": "mutating any committed offer member yields WRONG_TRANSACTION",
+   "status": "PASS",
+   "detail": "7 members"
+  },
+  {
+   "id": "V6",
+   "target": "control still trusted before downgrade",
+   "status": "PASS",
+   "detail": ""
+  },
+  {
+   "id": "V7",
+   "target": "oversized container rejected before parse (RECEIPT_SIZE_EXCEEDED)",
+   "status": "PASS",
+   "detail": "RECEIPT_SIZE_EXCEEDED"
+  }
+ ]
+}

@@ -1,0 +1,105 @@
+{
+  "_comment": "A6 cross-platform interoperability matrix. Completion gate 3 is BLOCKED by the user-confirmed device availability (no Android device and no usable Android emulator; BLE peripheral/advertising is not emulable; only one iPhone, unavailable to the toolchain). Radio-independent rows are separated from radio-dependent rows and must never be presented as physical-device coverage.",
+  "generated": "2026-10-03",
+  "protocol_revision": "deceipt-proto-r4",
+  "aggregate_sha256": "3d4b812adc2b8eb71a2f62d444d45f981632d08c832d4d6b2519ece2f7b971c0",
+  "radio_independent": [
+    {
+      "id": "I1",
+      "row": "Shared TS app merchant <-> customer through MOCK adapters (no radio)",
+      "command": "cd app && npx jest",
+      "observed": "npx tsc --noEmit exit 0; 8 suites / 205 tests, all pass (F-08 closed)",
+      "status": "PASS",
+      "evidence": "app/tests/checkout.e2e.test.ts, protocol.session.test.ts, protocol.handshake.test.ts, protocol.receipt.test.ts, protocol.encoding.test.ts"
+    },
+    {
+      "id": "I2",
+      "row": "A6 independent Python conformance vs frozen vectors",
+      "command": "python3 tests/conformance/run_conformance.py",
+      "observed": "53 PASS / 1 FAIL (the 1 FAIL is the debug.keystore hygiene item H2); 45/45 receipt, 9/9 credential, 22/22 encoding, 18/18 decidable handshake, 8/8 AEAD vectors",
+      "status": "PASS",
+      "evidence": "tests/conformance/results/conformance.json"
+    },
+    {
+      "id": "I3",
+      "row": "A4 iOS (Swift) radio-independent vector tests",
+      "command": "cd modules/deceipt-native/ios && swift test",
+      "observed": "Executed 46 tests, with 0 failures (ProtocolVectorTests, CryptoVectorTests, CborTests, EngineLoopbackTests)",
+      "status": "PASS",
+      "evidence": "modules/deceipt-native/ios/Tests/*"
+    },
+    {
+      "id": "I4",
+      "row": "A5 Android (Kotlin/JVM) radio-independent vector tests",
+      "command": "cd app/android && ./gradlew :deceipt-protocol:testDebugUnitTest",
+      "observed": "BUILD SUCCESSFUL, 25 tests, 0 failures (was 4 then 7 failures; F-09 closed)",
+      "status": "PASS",
+      "evidence": "tests/interop/matrix.json; Gradle output 2026-10-03"
+    },
+    {
+      "id": "I5",
+      "row": "Cross-language byte agreement (Swift vs Python vs frozen vectors)",
+      "command": "tests/conformance/run_conformance.py + swift test both reproduce transcript/AEAD/signature bytes from protocol/vectors/**",
+      "observed": "Both independently reproduce the frozen transcript (372 B), HKDF schedule, AEAD envelopes and Ed25519 signatures",
+      "status": "PASS",
+      "evidence": "conformance C1/C3/C4/C5 vs iOS ProtocolVectorTests"
+    }
+  ],
+  "radio_dependent": [
+    {
+      "id": "I6",
+      "row": "iOS merchant -> Android customer on PHYSICAL phones (gate 3)",
+      "status": "BLOCKED",
+      "reason": "No Android device and no usable Android emulator. Android emulators cannot act as a BLE peripheral/advertiser, so the merchant role cannot be emulated.",
+      "evidence": "User-confirmed device constraint; delegation plan section 4 gate 3."
+    },
+    {
+      "id": "I7",
+      "row": "Android merchant -> iOS customer on PHYSICAL phones (gate 3)",
+      "status": "BLOCKED",
+      "reason": "Same as I6 (no Android device/emulator).",
+      "evidence": "User-confirmed device constraint."
+    },
+    {
+      "id": "I8",
+      "row": "iOS -> iOS on two physical phones",
+      "status": "UNVERIFIED",
+      "reason": "Only one iPhone exists and it is currently unavailable to the toolchain; the user directed the iOS simulator be used, and a simulator cannot do BLE peripheral/advertising.",
+      "evidence": "User-confirmed device constraint."
+    },
+    {
+      "id": "I9",
+      "row": "Android -> Android on two physical phones",
+      "status": "BLOCKED",
+      "reason": "No Android devices.",
+      "evidence": "User-confirmed device constraint."
+    },
+    {
+      "id": "I10",
+      "row": "On-device D8 bounded retry, D2 advertisement capture, E1/E8/E9/E10 lifecycle",
+      "status": "UNVERIFIED",
+      "reason": "Requires a radio and a physical pair; cannot be decided by a byte string.",
+      "evidence": "conformance.md section F policy_only_cases; self-test.json#policy_only_cases"
+    }
+  ],
+  "build_matrix": {
+    "ios_swift_package": {
+      "toolchain": "Apple Swift 6.4 (arm64-apple-macosx27.0.0)",
+      "status": "PASS (vector tests run)",
+      "note": "radio-independent only; CoreBluetooth/Keychain stay in the Xcode app target"
+    },
+    "android_jvm": {
+      "toolchain": "JDK 17 (Zulu 17.0.9), Gradle 9.4.1, AGP via RN 0.87.1",
+      "status": "PASS (radio-independent vector tests: :deceipt-protocol 25/25)",
+      "note": "BLE/Keystore/RN bridge live in :deceipt-native (radio-dependent, unexercised)"
+    },
+    "shared_ts": {
+      "toolchain": "Node 24.19.0, Jest 29",
+      "status": "PASS"
+    },
+    "independent_runner": {
+      "toolchain": "Python 3.12.1 + cryptography 42.0.8",
+      "status": "PASS"
+    }
+  }
+}
