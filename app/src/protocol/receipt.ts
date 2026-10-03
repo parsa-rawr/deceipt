@@ -523,16 +523,42 @@ export function checkText(value: string, maxBytes: number, label: string): void 
       throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} contains a bidi control character`);
     }
   }
-  // `String.prototype.normalize` is not guaranteed on Hermes either. When the
-  // engine cannot normalize, the check is SKIPPED rather than failing every
-  // receipt: rejecting a well-formed receipt would be a false negative, and the
-  // remaining text rules (length, controls, bidi, UTF-8 validity) still hold.
-  if (typeof value.normalize === 'function') {
-    const normalized = value.normalize('NFC');
-    if (normalized !== value) {
-      throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} is not NFC-normalized`);
+  // NFC is a REQUIRED rule (receipt-v1.md §1, §8) — two visually identical
+  // strings must not have two byte representations — so it is never skipped:
+  //
+  //  * ASCII (U+0000..U+007F) has no canonical decompositions or compositions,
+  //    so NFC is the identity on it. That is a Unicode theorem, not a shortcut:
+  //    a pure-ASCII string is NFC without consulting the engine. This covers
+  //    every string in the frozen vectors and the demo.
+  //  * non-ASCII needs real normalization data. If the engine has
+  //    `String.prototype.normalize` (every build with Intl) the check is exact.
+  //    If it does not, the string is REJECTED rather than accepted unvalidated,
+  //    because accepting it would silently weaken a required security check
+  //    (bidi/lookalike defense). A runtime that cannot validate NFC therefore
+  //    fails closed and says so.
+  if (isAscii(value)) {
+    return;
+  }
+  if (typeof value.normalize !== 'function') {
+    throw new ProtocolError(
+      'RECEIPT_TEXT_INVALID',
+      `${label} contains non-ASCII text and this runtime cannot validate NFC normalization`,
+    );
+  }
+  const normalized = value.normalize('NFC');
+  if (normalized !== value) {
+    throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} is not NFC-normalized`);
+  }
+}
+
+/** True when every code unit is in U+0000..U+007F (where NFC is the identity). */
+export function isAscii(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    if (value.charCodeAt(index) > 0x7f) {
+      return false;
     }
   }
+  return true;
 }
 
 function utf8ByteLength(value: string): number {

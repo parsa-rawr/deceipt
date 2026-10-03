@@ -97,27 +97,22 @@ export function utf8EncodeLocal(text: string): Uint8Array {
  * detected by the round-trip check and rejected.
  */
 export function utf8Decode(bytes: Uint8Array): string {
-  const viaLocal = utf8DecodeLocal(bytes);
   if (typeof TextDecoder === 'function') {
     try {
-      const decoder = new TextDecoder('utf-8', {fatal: true});
-      const decoded = decoder.decode(bytes);
-      // Trust the platform only when it agrees with the strict decoder.
-      if (decoded === viaLocal) {
-        return decoded;
-      }
-      throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
-    } catch (error) {
-      if (error instanceof ProtocolError) {
-        throw error;
-      }
-      // A decoder that threw is also authoritative about invalidity, but our
-      // local decoder already validated the bytes, so reaching here means the
-      // platform disagrees with a strict reading: prefer the strict one.
-      return viaLocal;
+      // `fatal: true` makes a conforming platform decoder reject invalid input
+      // rather than substituting U+FFFD, so a success IS authoritative and the
+      // local decoder is not run at all (no double decode on the hot path).
+      return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+    } catch {
+      // Either the bytes are invalid, or this platform decoder is not strict;
+      // the local decoder decides, and it only ever throws on real invalidity.
+      utf8DecodeLocal(bytes);
+      // The bytes are valid, so the platform decoder was the problem. Decode
+      // locally rather than trusting a non-strict implementation.
+      return utf8DecodeLocal(bytes);
     }
   }
-  return viaLocal;
+  return utf8DecodeLocal(bytes);
 }
 
 /**

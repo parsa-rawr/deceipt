@@ -489,3 +489,57 @@ function indexOfBytes(haystack: Uint8Array, needle: Uint8Array): number {
   }
   return -1;
 }
+
+describe('NFC validation is strict, never silently skipped', () => {
+  it('accepts pure ASCII without consulting the engine (NFC is the identity on it)', () => {
+    const {checkText} = receiptModule();
+    const descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
+    // Simulate a build where the engine cannot normalize at all.
+    Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true});
+    try {
+      expect(() => checkText('Maple & Vine Cafe', 128, 'display_name')).not.toThrow();
+      expect(() => checkText('Latte, 16oz', 512, 'description')).not.toThrow();
+      expect(() => checkText('merchant.poc.test-alpha', 128, 'merchant_reference')).not.toThrow();
+    } finally {
+      restore(String.prototype, 'normalize', descriptor);
+    }
+  });
+
+  it('rejects non-ASCII when the engine cannot normalize, rather than accepting it unvalidated', () => {
+    const {checkText} = receiptModule();
+    const descriptor = Object.getOwnPropertyDescriptor(String.prototype, 'normalize');
+    Object.defineProperty(String.prototype, 'normalize', {value: undefined, configurable: true});
+    try {
+      expect(() => checkText('Café', 128, 'display_name')).toThrow(ProtocolError);
+      expect(() => checkText('Café', 128, 'display_name')).toThrowError(/cannot validate NFC/);
+    } finally {
+      restore(String.prototype, 'normalize', descriptor);
+    }
+  });
+
+  it('is exact for non-ASCII when the engine can normalize', () => {
+    const {checkText} = receiptModule();
+    // NFC form passes; the decomposed form is rejected.
+    expect(() => checkText('\u00e9', 128, 'display_name')).not.toThrow();
+    expect(() => checkText('e\u0301', 128, 'display_name')).toThrow(ProtocolError);
+    expect(() => checkText('e\u0301', 128, 'display_name')).toThrowError(/not NFC-normalized/);
+  });
+
+  it('still enforces the length, control and bidi rules alongside NFC', () => {
+    const {checkText} = receiptModule();
+    expect(() => checkText('a'.repeat(129), 128, 'display_name')).toThrow(ProtocolError);
+    expect(() => checkText('line\nbreak', 128, 'display_name')).toThrow(ProtocolError);
+    expect(() => checkText('bidi\u202Eoverride', 128, 'display_name')).toThrow(ProtocolError);
+    expect(() => checkText('nul\u0000byte', 128, 'display_name')).toThrow(ProtocolError);
+  });
+
+  it('accepts the frozen receipt text on a normalized engine and rejects it without one only when non-ASCII', () => {
+    const {checkText, parseReceiptPayload} = receiptModule();
+    const vector = loadReceiptValid();
+    const parsed = parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+    // The frozen merchant text is ASCII, so it validates under the strict rule
+    // whether or not the engine can normalize.
+    expect(parsed.receipt.merchant.displayName).toBe('Maple & Vine Cafe');
+    expect(() => checkText(parsed.receipt.merchant.displayName, 128, 'display_name')).not.toThrow();
+  });
+});
