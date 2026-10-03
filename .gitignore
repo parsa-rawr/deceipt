@@ -1,7 +1,18 @@
+# Deceipt .gitignore — THIS REPOSITORY IS PUBLIC (github.com/parsa-rawr/deceipt).
+# Real key material, session secrets, and production trust-root material MUST NEVER be committed.
+# See docs/security/repo-hygiene.md.
+
 # ---- Node / RN ----
 node_modules/
 npm-debug.log
 yarn-error.log
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 .metro-health-check*
 .metro-cache/
 *.tsbuildinfo
@@ -9,14 +20,16 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
-# ---- Build outputs ----
+# ---- Build artifacts / derived output ----
 build/
 dist/
 out/
+coverage/
 *.app
 *.ipa
 *.apk
 *.aab
+*.jsbundle
 app/android/app/build/
 app/android/build/
 app/android/.gradle/
@@ -27,19 +40,18 @@ app/ios/Pods/
 app/ios/*.xcworkspace/xcuserdata/
 app/ios/*.xcodeproj/xcuserdata/
 app/ios/.xcode.env.local
+app/ios/DerivedData/
+vendor/bundle/
+vendor/gems/
+.gradle/
 Dangerfile
 
-# ---- CocoaPods / Gradle caches ----
-vendor/bundle/
-.gradle/
-gradle.properties.bak
-
-# ---- Env / secrets ----
+# ---- Env ----
 .env
 .env.*
 !.env.example
 
-# ---- Key material (NEVER commit merchant/session secrets) ----
+# ---- Key material (NEVER commit; public repo) ----
 *.pem
 *.key
 *.p8
@@ -47,18 +59,21 @@ gradle.properties.bak
 *.pfx
 *.jks
 *.keystore
+*.keychain
 *.mobileprovision
 *.provisionprofile
 *.der
 *.cer
 *.crt
-!**/test-vectors/**
-!**/fixtures/**
-!protocol/vectors/**
-# anchored: only repo-root keys/ and secrets/ are local secret stores.
-# protocol/vectors/keys/ holds TEST-ONLY deterministic material and must be committed.
+*.csr
+merchant-keys/
+session-keys/
+trust-root/
+/deceipt-keys/
+# LOCAL-ONLY secret stores at repo root (anchored; do not match protocol/vectors/keys)
 /keys/
 /secrets/
+
 # ---- OS / editor ----
 .DS_Store
 Thumbs.db

@@ -31,3 +31,20 @@ Repo exists; scaffold builds an empty app. Contract freeze happens in Wave 1.
 - iOS/Android BLE peripheral support floor: A4/A5 hardware spikes (open item 10).
 - Contract freeze: A1 passes A–D + A6 early review (open items 1–6, 11–13).
 - A2 binding mechanism must be published before A1 freezes the wire contract (open item 7).
+
+## Build evidence (observed, 2026-10-03)
+Scaffold command (run verbatim):
+```
+npx @react-native-community/cli@20.2.0 init DeceiptApp --directory app --version 0.87.1 \
+  --title Deceipt --package-name com.deceipt.poc --pm npm --install-pods true --skip-git-init true
+```
+Result: completed; template copied, deps installed, Ruby gems + CocoaPods installed.
+
+| Check | Command | Observed |
+|---|---|---|
+| TypeScript | `cd app && npx tsc --noEmit` | exit 0, no output |
+| Jest | `cd app && npx jest --ci` | 1 suite / 1 test passed |
+| iOS simulator build | `cd app && xcodebuild -workspace ios/DeceiptApp.xcworkspace -scheme DeceiptApp -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/deceipt-dd build` | **BUILD SUCCEEDED**, exit 0; product `/tmp/deceipt-dd/Build/Products/Debug-iphonesimulator/DeceiptApp.app` |
+| Android debug build | `cd app/android && ./gradlew :app:assembleDebug --no-daemon` | see Android blocker below |
+
+**Android blocker (explicit):** `$ANDROID_HOME=/Users/mateo/Library/Android/sdk` does not exist; the only Android tooling present is Homebrew `android-platform-tools` 37.0.1 (`adb`). No `platforms/`, `build-tools/`, or emulator. The Android build could not be completed for this reason, not for a code defect. Fix: install the Android SDK (cmdline-tools + platform + build-tools matching RN 0.87's `compileSdk`), then re-run the command above. A5 owns the Android API floor decision from its hardware spike.

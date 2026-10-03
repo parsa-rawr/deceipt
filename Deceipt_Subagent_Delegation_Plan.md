@@ -16,6 +16,10 @@
 | There is **no `AGENTS.md`**, no repo instructions, no `package.json`, no app scaffold | root listing; no config files matched |
 | Both files are mode `0600` and untracked → a single-disk failure destroys the spec | `ls -la` |
 
+**Canonical remote (user-directed, 2026-10-03):** `https://github.com/parsa-rawr/deceipt.git` — verified **empty**, **public**, default branch unnamed, created 2026-10-03T19:12:38Z. Local root stays `/Users/mateo/CODE/Deceipt`; A0 pushes `main` there.
+
+**Public-repo consequence (now load-bearing):** the spec, the vectors, and everything else are world-readable. `.gitignore` MUST exclude `*.pem`, `*.key`, `*.p12`, `*.jks`, `*.keystore`, `*.mobileprovision`, `*.cer`, `*.pfx`, `keys/`, `secrets/`, `.env*`, keychain stores, and any generated merchant key store. Test-only deterministic keys in `protocol/vectors/` are permitted only when each file states in-header that the material is test-only and must never be reused. No real merchant key, session key, or production trust-root material may ever be committed. A6 gates this (see §4 gate 9).
+
 **A0's first actions, before any dispatch:** `git init` at the project root, commit `DESIGN.md` + `deceipt-crypto-ble.mmd` as the baseline, and only then create the per-agent worktrees. Rev 1 assumed these existed; they do not.
 
 ### What the spec actually fixes vs. leaves open
