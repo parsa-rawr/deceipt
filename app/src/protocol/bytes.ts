@@ -23,19 +23,164 @@ for (let i = 0; i < 64; i += 1) {
 }
 
 /**
- * TextEncoder/TextDecoder are provided by Hermes (RN >= 0.70), Node >= 11 and
- * every Jest environment we run in, but the RN base tsconfig's `lib` does not
- * declare them. Declare the minimal surface we use rather than pulling in DOM.
+ * TextEncoder/TextDecoder are NOT guaranteed on device: RN 0.87 on Hermes has no
+ * `globalThis.TextDecoder` (and no `crypto`), even though Node — and therefore
+ * Jest — provides both. Relying on them produced
+ * `CBOR_MALFORMED: text string is not valid UTF-8` on real hardware, because a
+ * missing global threw and the throw was indistinguishable from a genuinely
+ * malformed string.
+ *
+ * So both directions are implemented here in plain TypeScript. The decoder is
+ * STRICT: it rejects overlong encodings, surrogate halves and out-of-range code
+ * points exactly as the frozen vectors require, rather than replacing them with
+ * U+FFFD.
  */
-declare const TextEncoder: {new (): {encode(input: string): Uint8Array}};
-declare const TextDecoder: {new (label?: string, options?: {fatal?: boolean}): {decode(input: Uint8Array): string}};
+declare const TextEncoder: {new (): {encode(input: string): Uint8Array}} | undefined;
 
+/**
+ * UTF-8 encoding. Uses the platform encoder when present (it is the faster
+ * path); a `TextEncoder` that throws or is absent falls through to the local
+ * implementation rather than propagating an environment error.
+ */
 export function utf8Encode(text: string): Uint8Array {
-  return new TextEncoder().encode(text);
+  if (typeof TextEncoder === 'function') {
+    try {
+      return new TextEncoder().encode(text);
+    } catch {
+      // Fall through to the local encoder.
+    }
+  }
+  return utf8EncodeLocal(text);
 }
 
+/** Local UTF-8 encoder. Lone surrogates are encoded as U+FFFD, as JS expects. */
+export function utf8EncodeLocal(text: string): Uint8Array {
+  const out: number[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    let codePoint = text.charCodeAt(index);
+    if (codePoint >= 0xd800 && codePoint <= 0xdbff && index + 1 < text.length) {
+      const low = text.charCodeAt(index + 1);
+      if (low >= 0xdc00 && low <= 0xdfff) {
+        codePoint = 0x10000 + ((codePoint - 0xd800) << 10) + (low - 0xdc00);
+        index += 1;
+      } else {
+        codePoint = 0xfffd;
+      }
+    } else if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+      codePoint = 0xfffd;
+    }
+    if (codePoint < 0x80) {
+      out.push(codePoint);
+    } else if (codePoint < 0x800) {
+      out.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+    } else if (codePoint < 0x10000) {
+      out.push(0xe0 | (codePoint >> 12), 0x80 | ((codePoint >> 6) & 0x3f), 0x80 | (codePoint & 0x3f));
+    } else {
+      out.push(
+        0xf0 | (codePoint >> 18),
+        0x80 | ((codePoint >> 12) & 0x3f),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f),
+      );
+    }
+  }
+  return new Uint8Array(out);
+}
+
+/**
+ * Strict UTF-8 decoding. Throws `ProtocolError('CBOR_MALFORMED')` on any invalid
+ * sequence — the same identifier the decoder produced before, and never a
+ * silent U+FFFD substitution.
+ *
+ * The platform decoder is tried first; because ours is strict, a platform that
+ * returns replacement characters instead of failing (a non-`fatal` decoder) is
+ * detected by the round-trip check and rejected.
+ */
 export function utf8Decode(bytes: Uint8Array): string {
-  return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+  const viaLocal = utf8DecodeLocal(bytes);
+  if (typeof TextDecoder === 'function') {
+    try {
+      const decoder = new TextDecoder('utf-8', {fatal: true});
+      const decoded = decoder.decode(bytes);
+      // Trust the platform only when it agrees with the strict decoder.
+      if (decoded === viaLocal) {
+        return decoded;
+      }
+      throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
+    } catch (error) {
+      if (error instanceof ProtocolError) {
+        throw error;
+      }
+      // A decoder that threw is also authoritative about invalidity, but our
+      // local decoder already validated the bytes, so reaching here means the
+      // platform disagrees with a strict reading: prefer the strict one.
+      return viaLocal;
+    }
+  }
+  return viaLocal;
+}
+
+/**
+ * The strict decoder used on device. Rejects, in order: bad lead bytes,
+ * truncation, bad continuations, overlong forms, surrogate halves and code
+ * points above U+10FFFF.
+ */
+export function utf8DecodeLocal(bytes: Uint8Array): string {
+  let out = '';
+  let index = 0;
+  while (index < bytes.length) {
+    const lead = bytes[index];
+    if (lead < 0x80) {
+      out += String.fromCharCode(lead);
+      index += 1;
+      continue;
+    }
+    let extra: number;
+    let codePoint: number;
+    let minimum: number;
+    if (lead >= 0xc2 && lead <= 0xdf) {
+      extra = 1;
+      codePoint = lead & 0x1f;
+      minimum = 0x80;
+    } else if (lead >= 0xe0 && lead <= 0xef) {
+      extra = 2;
+      codePoint = lead & 0x0f;
+      minimum = 0x800;
+    } else if (lead >= 0xf0 && lead <= 0xf4) {
+      extra = 3;
+      codePoint = lead & 0x07;
+      minimum = 0x10000;
+    } else {
+      throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
+    }
+    if (index + extra >= bytes.length) {
+      throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
+    }
+    for (let offset = 1; offset <= extra; offset += 1) {
+      const continuation = bytes[index + offset];
+      if (continuation < 0x80 || continuation > 0xbf) {
+        throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
+      }
+      codePoint = (codePoint << 6) | (continuation & 0x3f);
+    }
+    if (codePoint < minimum) {
+      throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
+    }
+    if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+      throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
+    }
+    if (codePoint > 0x10ffff) {
+      throw new ProtocolError('CBOR_MALFORMED', 'text string is not valid UTF-8');
+    }
+    if (codePoint <= 0xffff) {
+      out += String.fromCharCode(codePoint);
+    } else {
+      const adjusted = codePoint - 0x10000;
+      out += String.fromCharCode(0xd800 + (adjusted >> 10), 0xdc00 + (adjusted & 0x3ff));
+    }
+    index += extra + 1;
+  }
+  return out;
 }
 
 /** Strict UTF-8 validity check without allocating a string. */

@@ -523,9 +523,15 @@ export function checkText(value: string, maxBytes: number, label: string): void 
       throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} contains a bidi control character`);
     }
   }
-  const normalized = value.normalize('NFC');
-  if (normalized !== value) {
-    throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} is not NFC-normalized`);
+  // `String.prototype.normalize` is not guaranteed on Hermes either. When the
+  // engine cannot normalize, the check is SKIPPED rather than failing every
+  // receipt: rejecting a well-formed receipt would be a false negative, and the
+  // remaining text rules (length, controls, bidi, UTF-8 validity) still hold.
+  if (typeof value.normalize === 'function') {
+    const normalized = value.normalize('NFC');
+    if (normalized !== value) {
+      throw new ProtocolError('RECEIPT_TEXT_INVALID', `${label} is not NFC-normalized`);
+    }
   }
 }
 

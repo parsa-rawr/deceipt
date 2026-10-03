@@ -66,7 +66,22 @@ export {
   utf8Decode,
   utf8Encode,
 } from './protocol/bytes';
-export {randomBytes, sha256, hmacSha256, verifyHmacSha256, ed25519Verify} from './protocol/crypto';
+export {
+  canGenerateSecureRandom,
+  hasNativeRandomSource,
+  hasWebCrypto,
+  hmacSha256,
+  hmacSha256Pure,
+  hmacSha256Sync,
+  ed25519Verify,
+  randomBytes,
+  secureRandomBytes,
+  setNativeRandomSource,
+  sha256,
+  sha256Pure,
+  sha256Sync,
+  type SecureRandomSource,
+} from './protocol/crypto';
 export {
   assertQrFresh,
   bindingProofMessage,

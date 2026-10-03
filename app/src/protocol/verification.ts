@@ -117,6 +117,13 @@ export interface VerificationContext {
     devicePublicKey: Uint8Array,
     coseSign1Bytes: Uint8Array,
   ) => Promise<{signatureValid: boolean; deviceKeyIdHex?: string}>;
+  /**
+   * Credential Ed25519 verification against a pinned anchor. Injectable for the
+   * same reason as `signatureVerifier`: on device ALL Ed25519 is native custody,
+   * and a runtime without WebCrypto (Hermes) has no other way to check the
+   * credential's signature at all.
+   */
+  credentialVerifier?: (publicKey: Uint8Array, message: Uint8Array, signature: Uint8Array) => Promise<boolean>;
 }
 
 const UNVERIFIED_SUB_STATES: VerificationSubStates = {
@@ -213,7 +220,12 @@ export async function verifyReceipt(context: VerificationContext): Promise<Verif
   // Steps 3 + 11: verify the credential and its authorization of this key.
   let credential: CredentialCheck;
   try {
-    credential = await verifyCredential(embeddedCredential, context.anchors, context.nowUnix);
+    credential = await verifyCredential(
+      embeddedCredential,
+      context.anchors,
+      context.nowUnix,
+      context.credentialVerifier ?? ed25519Verify,
+    );
   } catch {
     return rejection(new ProtocolError('CREDENTIAL_MALFORMED', 'credential could not be verified'), subStates, bytes, {receipt});
   }

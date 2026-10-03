@@ -9,7 +9,17 @@
  */
 
 import {ed25519Verify, hmacSha256, hmacSha256Pure, hmacSha256Sync, sha256, sha256Pure, sha256Sync} from '../src/protocol/crypto';
-import {concatBytes, hexDecode, hexEncode, utf8Encode} from '../src/protocol/bytes';
+import {
+  concatBytes,
+  hexDecode,
+  hexEncode,
+  utf8Decode,
+  utf8DecodeLocal,
+  utf8Encode,
+  utf8EncodeLocal,
+} from '../src/protocol/bytes';
+import {CborMap, decodeCbor} from '../src/protocol/cbor';
+import {ProtocolError} from '../src/protocol/errors';
 import {computeBindingTupleDigest, computeOfferHash, bindingProofMessage} from '../src/protocol/binding';
 import {buildTranscript, transcriptHash} from '../src/protocol/handshake';
 import {prepareMerchantOffer} from '../src/checkout/merchantFlow';
@@ -342,4 +352,140 @@ function sources(): typeof import('../src/protocol/crypto') {
 
 function randomBytesSync(count: number): Uint8Array {
   return sources().randomBytes(count);
+}
+
+describe('UTF-8 decoding works without the platform TextDecoder (device gap)', () => {
+  it('decodes valid UTF-8 identically to the platform decoder', () => {
+    const {utf8DecodeLocal, utf8EncodeLocal} = textSides();
+    for (const sample of [
+      'Latte, 16oz',
+      'Maple & Vine Cafe',
+      'Café — ünïcödé',
+      '日本語のテキスト',
+      'emoji: 🧾 🔐',
+      'combining: e\u0301',
+    ]) {
+      const encoded = utf8EncodeLocal(sample);
+      expect(utf8DecodeLocal(encoded)).toBe(sample);
+    }
+  });
+
+  it('rejects every invalid sequence class the frozen vectors use', () => {
+    const {utf8DecodeLocal} = textSides();
+    const invalid: Array<[string, number[]]> = [
+      ['lone continuation', [0x80]],
+      ['truncated 2-byte', [0xc3]],
+      ['truncated 3-byte', [0xe2, 0x82]],
+      ['bad continuation', [0xe2, 0x28, 0xa1]],
+      ['overlong 2-byte', [0xc0, 0xaf]],
+      ['overlong 3-byte', [0xe0, 0x80, 0xaf]],
+      ['surrogate half (CESU-8)', [0xed, 0xa0, 0x80]],
+      ['above U+10FFFF', [0xf5, 0x80, 0x80, 0x80]],
+      ['0xff lead', [0xff]],
+      ['0xfe lead', [0xfe]],
+    ];
+    for (const [label, bytes] of invalid) {
+      expect(() => utf8DecodeLocal(new Uint8Array(bytes))).toThrowError(/not valid UTF-8/);
+      expect(() => utf8Decode(new Uint8Array(bytes))).toThrow(ProtocolError);
+      expect(label.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('agrees with the platform decoder on the frozen receipt text', () => {
+    const vector = loadReceiptValid();
+    const payload = hexDecode(vector.receipt_body_hex);
+    // The container is binary, so decoding it as text MUST fail; the text lives
+    // only inside the parsed strings, which the receipt parser validates through
+    // this same decoder.
+    expect(() => utf8Decode(payload)).toThrow(ProtocolError);
+    const decoded = decodeCbor(payload).value;
+    expect(decoded).toBeInstanceOf(CborMap);
+    const merchant = (decoded as CborMap).get(6);
+    expect(merchant).toBeInstanceOf(CborMap);
+    // Label 2 is the display name; its bytes must decode to the frozen value.
+    const displayName = (merchant as CborMap).get(2);
+    expect(displayName).toBe('Maple & Vine Cafe');
+    expect(utf8DecodeLocal(utf8EncodeLocal(String(displayName)))).toBe(displayName);
+  });
+
+  it('falls back to the strict local decoder when TextDecoder is absent', () => {
+    const {utf8Decode} = textSides();
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'TextDecoder');
+    // Simulate Hermes: the global simply does not exist.
+    Object.defineProperty(globalThis, 'TextDecoder', {value: undefined, configurable: true});
+    try {
+      expect(utf8Decode(new Uint8Array([0x4c, 0x61, 0x74, 0x74, 0x65]))).toBe('Latte');
+      expect(utf8Decode(new Uint8Array([0xc3, 0xa9]))).toBe('é');
+      expect(() => utf8Decode(new Uint8Array([0xe2, 0x28, 0xa1]))).toThrow(ProtocolError);
+    } finally {
+      if (descriptor === undefined) {
+        delete (globalThis as {TextDecoder?: unknown}).TextDecoder;
+      } else {
+        Object.defineProperty(globalThis, 'TextDecoder', descriptor);
+      }
+    }
+  });
+
+  it('parses the frozen receipt with neither crypto nor TextDecoder present', () => {
+    const {parseReceiptPayload} = receiptModule();
+    const cryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    const decoderDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'TextDecoder');
+    Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
+    Object.defineProperty(globalThis, 'TextDecoder', {value: undefined, configurable: true});
+    try {
+      const vector = loadReceiptValid();
+      const parsed = parseReceiptPayload(hexDecode(vector.receipt_body_hex));
+      expect(parsed.receipt.merchant.displayName).toBe('Maple & Vine Cafe');
+      expect(parsed.receipt.totals.totalMinor).toBe(970);
+    } finally {
+      restore(globalThis, 'crypto', cryptoDescriptor);
+      restore(globalThis, 'TextDecoder', decoderDescriptor);
+    }
+  });
+
+  it('still rejects a genuinely malformed text string (never special-cased)', () => {
+    const {parseReceiptPayload} = receiptModule();
+    // The frozen invalid fixture for a bad UTF-8 string must still be rejected.
+    const vector = loadReceiptValid();
+    const payload = new Uint8Array(hexDecode(vector.receipt_body_hex));
+    // Locate the display name and corrupt its first byte's continuation.
+    const needle = utf8EncodeLocal('Maple & Vine Cafe');
+    const at = indexOfBytes(payload, needle);
+    expect(at).toBeGreaterThan(0);
+    payload[at + 1] = 0xff;
+    expect(() => parseReceiptPayload(payload)).toThrowError(/not valid UTF-8|CBOR_MALFORMED/);
+  });
+});
+
+/** The text helpers under test, loaded once. */
+const textSides = () => ({
+  utf8Decode,
+  utf8EncodeLocal,
+  utf8DecodeLocal,
+  decodeCbor,
+  CborMap,
+});
+
+function receiptModule(): typeof import('../src/protocol/receipt') {
+  return require('../src/protocol/receipt') as typeof import('../src/protocol/receipt');
+}
+
+function restore(target: object, key: string, descriptor: PropertyDescriptor | undefined): void {
+  if (descriptor === undefined) {
+    delete (target as Record<string, unknown>)[key];
+    return;
+  }
+  Object.defineProperty(target, key, descriptor);
+}
+
+function indexOfBytes(haystack: Uint8Array, needle: Uint8Array): number {
+  outer: for (let start = 0; start + needle.length <= haystack.length; start += 1) {
+    for (let offset = 0; offset < needle.length; offset += 1) {
+      if (haystack[start + offset] !== needle[offset]) {
+        continue outer;
+      }
+    }
+    return start;
+  }
+  return -1;
 }

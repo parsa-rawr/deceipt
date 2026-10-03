@@ -139,6 +139,13 @@ export interface MockNativeOptions {
   provision?: MockMerchantProvision;
   now?: () => number;
   capabilities?: Partial<CapabilityReport>;
+  /**
+   * Ed25519 signing, standing in for the platform's native implementation.
+   * On a real device this is Keychain/CryptoKit or Keystore; JS never signs with
+   * a merchant key. Injecting it lets tests model a runtime with no WebCrypto,
+   * which is exactly what Hermes is.
+   */
+  sign?: (seed: Uint8Array, message: Uint8Array) => Promise<Uint8Array>;
 }
 
 interface MerchantSession {
@@ -189,6 +196,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
   private flushScheduled = false;
   private readonly now: () => number;
   private readonly capabilityOverrides: Partial<CapabilityReport>;
+  private readonly signer: (seed: Uint8Array, message: Uint8Array) => Promise<Uint8Array>;
   private merchantKey: MerchantKeyIdentity | null = null;
   private provision: MockMerchantProvision | undefined;
   private permission: PermissionReport = {bluetooth: 'granted', camera: 'granted', bluetoothState: 'on'};
@@ -208,6 +216,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
   constructor(options: MockNativeOptions = {}) {
     this.now = options.now ?? (() => Math.floor(Date.now() / 1000));
     this.capabilityOverrides = options.capabilities ?? {};
+    this.signer = options.sign ?? ed25519SignWithTestSeed;
     if (options.provision !== undefined) {
       this.setProvision(options.provision);
     }
@@ -316,10 +325,10 @@ export class InMemoryDeceiptNative implements DeceiptNative {
   }
 
   async merchantKeyGenerate(): Promise<MerchantKeyIdentity> {
-    const seed = randomBytes(32);
+    const seed = nextMockRandom(32);
     const publicKey = await ed25519PublicKeyFromTestSeed(seed);
     const identity: MerchantKeyIdentity = {
-      deviceKeyIdHex: hexEncode(randomBytes(16)),
+      deviceKeyIdHex: hexEncode(nextMockRandom(16)),
       devicePublicKeyB64: base64Encode(publicKey),
       storage: 'in_memory_ephemeral',
       createdAtMs: Date.now(),
@@ -348,7 +357,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
       [COSE_LABEL_KID, this.provision.deviceKeyId],
     ]);
     const protectedBytes = encodeCbor(protectedMap);
-    const signature = await ed25519SignWithTestSeed(this.provision.deviceSeed, sigStructure(protectedBytes, payload));
+    const signature = await this.signer(this.provision.deviceSeed, sigStructure(protectedBytes, payload));
     const container = encodeCbor([protectedBytes, CborMap.of([]), payload, signature]);
     return {
       coseSign1B64: base64Encode(container),
@@ -407,8 +416,8 @@ export class InMemoryDeceiptNative implements DeceiptNative {
 
   async mintBindingQr(request: MintBindingQrRequest): Promise<MintBindingQrResponse> {
     const sessionId = hexDecode(request.sessionIdHex);
-    const sbt = randomBytes(16);
-    const bindingRef = `binding-${hexEncode(randomBytes(8))}`;
+    const sbt = nextMockRandom(16);
+    const bindingRef = `binding-${hexEncode(nextMockRandom(8))}`;
     const payload: BindingQrPayload = {
       qrFormatVersion: 1,
       sessionId,
@@ -535,7 +544,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
     if (this.peer === null || this.peer.merchant === null) {
       throw this.bridge(new ProtocolError('BINDING_UNKNOWN_SESSION', 'no merchant is listening'));
     }
-    const handle = `customer-${hexEncode(randomBytes(8))}`;
+    const handle = `customer-${hexEncode(nextMockRandom(8))}`;
     let sessionId: Uint8Array | null = null;
     let sbt: Uint8Array | null = null;
     let qrOfferHash: Uint8Array | null = null;
@@ -554,7 +563,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
       sbt,
       qrOfferHash,
       expiresAtUnix,
-      clientNonce: randomBytes(32),
+      clientNonce: nextMockRandom(32),
       clientEphemeralPubkey: validLookingPoint(),
       clientMaxFramePayload: request.clientMaxFramePayload ?? maxFramePayloadForMtu(185),
       frameSize: request.clientMaxFramePayload ?? maxFramePayloadForMtu(185),
@@ -579,13 +588,13 @@ export class InMemoryDeceiptNative implements DeceiptNative {
     this.emit({type: 'handshake_started', sessionHandle: handle, role: 'customer'});
     const proof =
       sbt === null
-        ? randomBytes(32)
+        ? nextMockRandom(32)
         : await hmacSha256(sbt, bindingProofMessage(session.clientNonce, session.clientEphemeralPubkey));
     const hello: ClientHello = {
       type: 1,
       protocolVersion: PROTOCOL_VERSION,
       cryptosuites: [SUITE_ID],
-      sessionId: sessionId ?? randomBytes(16),
+      sessionId: sessionId ?? nextMockRandom(16),
       clientNonce: session.clientNonce,
       clientEphemeralPubkey: session.clientEphemeralPubkey,
       bindingProof: proof,
@@ -816,7 +825,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
     session.claimCount += 1;
     this.lpdu = null;
 
-    const serverNonce = randomBytes(32);
+    const serverNonce = nextMockRandom(32);
     const serverEphemeralPubkey = validLookingPoint();
     const tuple = encodeCbor([1, session.sessionId, session.transferId, session.receiptId, session.offerHash]);
     const digest = await computeBindingTupleDigest(tuple);
@@ -838,7 +847,7 @@ export class InMemoryDeceiptNative implements DeceiptNative {
       this.fail(new ProtocolError('INTERNAL_ERROR', 'no offer identity was derived'));
       return;
     }
-    const signature = await ed25519SignWithTestSeed(this.provision.deviceSeed, transcript);
+    const signature = await this.signer(this.provision.deviceSeed, transcript);
     const serverHello: ServerHello = {
       type: MESSAGE_TYPES.SERVER_HELLO,
       protocolVersion: PROTOCOL_VERSION,
@@ -1114,8 +1123,13 @@ export function linkMockPeers(
 }
 
 /** Build a syntactically P-256-shaped uncompressed point for mock handshakes. */
+/**
+ * A syntactically P-256-shaped uncompressed point for mock handshakes. Uses the
+ * mock's own byte stream, not the shared CSPRNG: this models the *native*
+ * endpoint, which has a real generator and does not depend on the JS runtime.
+ */
 function validLookingPoint(): Uint8Array {
-  const point = randomBytes(65);
+  const point = nextMockRandom(65);
   point[0] = 0x04;
   return point;
 }
