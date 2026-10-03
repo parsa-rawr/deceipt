@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "_generated": "generated; do not edit by hand",
- "revision": "deceipt-proto-r2",
+ "revision": "deceipt-proto-r3",
  "frame_format": "transfer_id(16) || sequence_number(u32 BE) || payload_bytes",
  "transfer_id_hex": "ffeeddccbbaa99887766554433221100",
  "frame_size": 162,
@@ -28,12 +28,14 @@
  ],
  "final_frame_payload_bytes": 4,
  "final_frame_rule": "the final frame payload is ciphertext_length - frame_size*(frame_count-1), which is 1..frame_size and MAY be below the 16-byte minimum that applies to the negotiated frame_size; it is NOT a FRAME_SIZE_INVALID condition",
- "ack_example": {
+ "ack_message": {
   "1": 3,
   "2": "ffeeddccbbaa99887766554433221100",
   "3": 0
  },
- "ack_example_plaintext_hex": "a301030250ffeeddccbbaa998877665544332211000300",
+ "ack_message_cbor_hex": "a301030250ffeeddccbbaa998877665544332211000300",
+ "ack_note": "ACK is an AEAD control message (wire.md section 2 marks 0x03 Encrypted=yes). The bytes below are the complete wire envelope; a PLAINTEXT ACK is MESSAGE_WRONG_STATE (fatal).",
+ "ack_envelope_hex": "010000000000000000489408395765eee3959656bfd8a24f53fcf8bb4277546f44ac3a32fa3222ca5872b0cf2d37cc2a",
  "reassembly_rule": "concatenate frames 0..frame_count-1 payloads == ciphertext",
  "flow_control": {
   "highest_contiguous_sequence": true,

@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "_generated": "generated; do not edit by hand",
- "revision": "deceipt-proto-r2",
+ "revision": "deceipt-proto-r3",
  "purpose": "R1-02: a well-formed peer whose issuer is not a pinned anchor reaches SessionUnverifiedPeer. The transcript signature verifies against the credential's self-asserted device key (internal consistency only, NOT identity). Transfer is allowed; every receipt from it is UNVERIFIED_UNKNOWN_ISSUER and can never become TRUSTED.",
  "session_type": "SessionUnverifiedPeer",
  "client_hello_hex": "a801010201038101045000112233445566778899aabbccddeeff055820c0ffee000000000000000000000000000000000000000000000000000000000206584104a95a8ee31a6cbf66d5ff24bd47805ef85551251c8546b76c491fea64b079780e8991889866e66a41ea0fd5a968909cdf784a6225695b182970ff4b0684bcff6907582067b0d01e040ff6cca76741e9482a433793881b86e9138aa1a8bb4707c0cb885c0818a2",

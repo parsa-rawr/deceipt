@@ -30,9 +30,19 @@ frag-count = uint .ge 1 .le 512
 ; DATA frames (DATA characteristic)
 ; ---------------------------------------------------------------------------
 
-data-frame = transfer-id ‖ u32 .be sequence-number ‖ payload
+data-frame = transfer-id ‖ u32 .be sequence-number ‖ frame-payload
 sequence-number = uint
-payload = bytes .size (16..512)
+; A DataFrame's payload length depends on its POSITION in the transfer:
+;   * every non-final frame carries exactly frame_size bytes (negotiated 16..512);
+;   * the FINAL frame carries ciphertext_length - frame_size*(frame_count-1) bytes,
+;     which is 1..frame_size and MAY be below 16.
+; The frozen framing-valid.json transfer ends on a 4-byte final frame, which is valid.
+; Only a non-final frame shorter than 16 bytes, or any frame longer than frame_size,
+; is FRAME_SIZE_INVALID. CDDL cannot see position, so the type below is the union and
+; the rule above is normative.
+frame-payload = frame-payload-nonfinal / frame-payload-final
+frame-payload-nonfinal = bytes .size (16..512)
+frame-payload-final    = bytes .size (1..512)
 
 transfer-id  = bstr .size 16
 session-id   = bstr .size 16

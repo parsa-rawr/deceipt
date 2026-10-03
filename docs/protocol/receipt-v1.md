@@ -1,6 +1,6 @@
 # DeceiptReceiptV1 — Pass A (receipt schema)
 
-**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A3 (validation/serialization), A4/A5 (sign/verify over exact bytes), A6 (conformance)
 **Machine-readable companion:** `protocol/schema/receipt-v1.fields.json` · **CDDL:** `protocol/schema/receipt-v1.cddl` · **Bounds:** `protocol/schema/bounds-v1.json`
 **Vectors:** `protocol/vectors/receipt-valid.json`, `receipt-invalid.json`, `arithmetic-valid.json`

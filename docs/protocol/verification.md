@@ -1,6 +1,6 @@
 # Verification order, outcomes, and typed errors
 
-**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A3 (state machine, persistence, UI), A4/A5 (native result events), A6 (adversarial checks)
 **Machine-readable:** `protocol/vectors/errors.json` · **Vectors:** all files under `protocol/vectors/`
 

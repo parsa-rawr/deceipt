@@ -333,7 +333,7 @@ def main():
     eq("payload hash", hashlib.sha256(ct).hexdigest(), fv["payload_hash_hex"])
     eq("frame payload sizes", [len(f) - 20 for f in frames],
        [fv["frame_size"]] * (fv["frame_count"] - 1) + [len(ct) - fv["frame_size"] * (fv["frame_count"] - 1)])
-    eq("ack plaintext", fv["ack_example_plaintext_hex"],
+    eq("ack message cbor", fv["ack_message_cbor_hex"],
        enc({1: 3, 2: bytes.fromhex(fv["transfer_id_hex"]), 3: 0}).hex())
 
     # ---- 7. lpdu ----

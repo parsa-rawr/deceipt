@@ -1,6 +1,6 @@
 # Conformance checklist
 
-**Revision:** `deceipt-proto-r2` · **Owner of execution:** A6 (independent) · **Owners of the code:** A3, A4, A5
+**Revision:** `deceipt-proto-r3` · **Owner of execution:** A6 (independent) · **Owners of the code:** A3, A4, A5
 
 A3/A4/A5 are accepted only if every applicable row passes against this revision. A6 derives expectations **only** from `protocol/vectors/**`, never from the implementation under test.
 
@@ -116,11 +116,19 @@ Every `docs/security/early-contract-review.md` finding is closed in r2 except RX
 | D9 | `REVISION.json` pins `protocol/flows/**` and every recorded hash matches on-disk | `protocol/REVISION.json` | no missing/mismatched rows |
 | D10 | No pinned artifact declares a revision other than the frozen one | `verify_vectors.py` revision-alignment guard | no stale `deceipt-proto-rN` string in `docs/protocol/*.md`; A2-owned `protocol/flows/**` metadata aligned (see residual note) |
 
-### Residual metadata note (r2)
+## H. A6 r2 re-review closure (r3)
 
-`protocol/flows/**` is inside the r2 hash scope (RX-02). A2 owns those files. At this
-writing A2 is aligning their internal `"revision"` / `$comment` strings from r1 to r2
-(metadata only — no binding byte changes). `protocol/vectors/tools/verify_vectors.py`
+| Finding | Resolution | Where to verify |
+|---|---|---|
+| RX-03 (major) | `protocol/schema/wire-v1.cddl` now encodes the final-frame rule: `frame-payload-nonfinal = bytes .size (16..512)`, `frame-payload-final = bytes .size (1..512)`, with the normative note that the final frame is `ciphertext_length − frame_size·(frame_count−1)` and is `FRAME_SIZE_INVALID` only if a **non-final** frame is <16 bytes or any frame exceeds `frame_size` | row D6; verifier asserts the CDDL contains the final-frame type |
+| R2-03 (minor) | `SERVER_HELLO` field table's duplicated label 4 removed; labels are `[1..11]`, unique and ascending | verifier asserts every message's labels are unique and ascending |
+| R7-02 (minor) | `wire.md` §7 ACK row now shows the **AEAD envelope** (`framing-valid.json#ack_envelope_hex`, 50 B, `k_c2m_ctrl`, counter 0) and states a plaintext ACK is `MESSAGE_WRONG_STATE` | verifier decrypts the frozen ACK envelope and compares to the ACK CBOR |
+
+### Residual metadata note (r3)
+
+`protocol/flows/**` is inside the r2 hash scope (RX-02). A2 owns those files. A2's pinned `protocol/flows/**` files reference the A1 revision they were reconciled
+against; after the r3 bump those strings name r2 while the frozen revision is r3 (metadata
+only — no binding byte changed). A2 has been asked to make the reference revision-agnostic. `protocol/vectors/tools/verify_vectors.py`
 prints a **WARN** line for any A2-owned pinned file still declaring r1, and **FAILS** on
 any A1-owned doc doing so. If any A2 warning is still present when the r2 aggregate is
 quoted, the pinned value is the one in `protocol/REVISION.json`; the warning names the

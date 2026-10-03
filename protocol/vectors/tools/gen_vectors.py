@@ -36,7 +36,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 # 0. Constants — single source of truth for every number in the spec
 # ==========================================================================
 
-REVISION_LABEL = "deceipt-proto-r2"
+REVISION_LABEL = "deceipt-proto-r3"
 
 PROTOCOL_VERSION = 1
 SUITE_ID = 1
@@ -2404,8 +2404,13 @@ def main() -> None:
                             "frame_size*(frame_count-1), which is 1..frame_size and MAY be "
                             "below the 16-byte minimum that applies to the negotiated "
                             "frame_size; it is NOT a FRAME_SIZE_INVALID condition",
-        "ack_example": {"1": MSG_ACK, "2": TRANSFER_ID.hex(), "3": 0},
-        "ack_example_plaintext_hex": cbor_encode({1: MSG_ACK, 2: TRANSFER_ID, 3: 0}).hex(),
+        "ack_message": {"1": MSG_ACK, "2": TRANSFER_ID.hex(), "3": 0},
+        "ack_message_cbor_hex": cbor_encode({1: MSG_ACK, 2: TRANSFER_ID, 3: 0}).hex(),
+        "ack_note": "ACK is an AEAD control message (wire.md section 2 marks 0x03 "
+                    "Encrypted=yes). The bytes below are the complete wire envelope; a "
+                    "PLAINTEXT ACK is MESSAGE_WRONG_STATE (fatal).",
+        "ack_envelope_hex": control_envelope_aead(sched["k_c2m_ctrl"], 0, ctx, DIR_C2M,
+                                                  {1: MSG_ACK, 2: TRANSFER_ID, 3: 0}).hex(),
         "reassembly_rule": "concatenate frames 0..frame_count-1 payloads == ciphertext",
         "flow_control": {"highest_contiguous_sequence": True,
                          "ack_every_frames": ACK_EVERY_FRAMES, "window_frames": WINDOW_FRAMES,
@@ -2944,9 +2949,7 @@ def wire_messages_schema() -> Dict[str, Any]:
                          "rebuild the signed transcript"},
                         {"label": 11, "name": "max_frame_payload", "type": "uint",
                          "required": True, "rule": "16..512; MUST equal the value signed in "
-                         "the transcript; it MAY be below CLIENT_HELLO label 8"},
-                        {"label": 4, "name": "transfer_id", "type": "bstr16",
-                         "required": True, "note": "MUST equal binding_tuple[2]"}],
+                         "the transcript; it MAY be below CLIENT_HELLO label 8"}],
              "transcript_reconstruction": "rebuild with CLIENT_HELLO{2,3,5,6} + "
                                           "SERVER_HELLO{2,3,4,5,6,9,10,11}; see "
                                           "docs/protocol/handshake.md \u00a73.2"},

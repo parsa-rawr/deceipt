@@ -1,5 +1,5 @@
 {
- "revision": "deceipt-proto-r2",
+ "revision": "deceipt-proto-r3",
  "schema": "deceipt.receipt-v1",
  "top_level": "map",
  "encoding": "deterministic CBOR (RFC 8949 4.2.1); integer keys 0..255; no floats; no tags; no indefinite lengths",

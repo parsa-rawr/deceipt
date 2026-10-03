@@ -1,6 +1,6 @@
 # Wire identifiers and control messages — Pass D
 
-**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (GATT, advertising, framing), A3 (message models), A6 (interop)
 **Machine-readable:** `protocol/schema/wire-v1.messages.json` · **CDDL:** `protocol/schema/wire-v1.cddl` · **Vectors:** `protocol/vectors/handshake-valid.json`, `aead-valid.json`, `lpdu-valid.json`, `framing-valid.json`
 
@@ -144,7 +144,7 @@ All values from `handshake-valid.json` / `aead-valid.json` / `framing-valid.json
 | `RECEIPT_OFFER` AEAD envelope | 181 B: `01 0000000000000000` ‖ 172-byte GCM ciphertext (`010000000000000000 10f4d62494cb0cc5…fa5d15`) |
 | `TRANSFER_BEGIN` AEAD envelope | 90 B: `01 0000000000000001` ‖ … (`0118eda47f49904311…aaa52eeade`) |
 | `ACCEPT` AEAD envelope (B→A) | 50 B: `01 0000000000000000` ‖ … (`4f9409395765eee3…01de8e43cb`) |
-| `ACK` plaintext | CBOR `{1:3, 2:transfer_id, 3:0}` = `a3 01 03 02 50 <transfer_id> 03 00` |
+| `ACK` (AEAD, B→A) | 50 B: `01 0000000000000000` ‖ GCM(`a3 01 03 02 50 <transfer_id> 03 00`) under `k_c2m_ctrl`, AAD `session_context ‖ 0x02 ‖ 0x00` — the complete envelope is `framing-valid.json#ack_envelope_hex`. A **plaintext** ACK is `MESSAGE_WRONG_STATE` (fatal). |
 | Frames | 6 × (`transfer_id ‖ u32_be(i) ‖ ciphertext[i*162:(i+1)*162]`) |
 
 `RECEIPT_OFFER` plaintext CBOR (156 B) begins `ac 01 12 02 50 <transfer_id> 03 50 <receipt_id> 04 77 "merchant.poc.test-alpha" 05 19 03ca 06 63 "CAD" 07 1a 6955b8c4 08 01 09 19 032e 0a 50 <merchant_id> 0b 58 20 <credential_hash> 0c 50 <session_id>`; `19 03ca` = **970 minor**, i.e. the offer commits to exactly the receipt that follows (CAD 9.70).
