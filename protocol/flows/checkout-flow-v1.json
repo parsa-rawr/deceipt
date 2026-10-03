@@ -1,0 +1,190 @@
+{
+  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. PROPOSAL for A1/A0 adoption. Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
+  "schema": "deceipt.checkout-flow/v1",
+  "status": "proposal",
+  "owner": "A2",
+  "consumes": ["DESIGN.md#2.5", "DESIGN.md#7.2", "DESIGN.md#7.3", "DESIGN.md#8", "DESIGN.md#9", "DESIGN.md#11", "DESIGN.md#13"],
+
+  "invariants": {
+    "no_rssi": {
+      "statement": "RSSI, tx_power, distance, and any radio-derived proximity MUST NOT be an input to eligibility, selection, ordering, connection target, or trust.",
+      "forbidden_fields_in_selection": ["rssi", "RSSI", "txPower", "tx_power", "distance", "proximity", "signalStrength"],
+      "picker_sort_key": "peripheral_id",
+      "picker_sort_direction": "ascending",
+      "diagnostics_only": true
+    },
+    "ambiguity_rule": {
+      "source": "DESIGN.md#7.3",
+      "zero_candidates": "continue_scanning",
+      "one_eligible": "may_auto_connect",
+      "two_or_more_eligible": "explicit_disambiguation_required",
+      "fails_closed": true
+    },
+    "session_binding_distinct_from_key_trust": true,
+    "decryption_implies_trust": false
+  },
+
+  "primary_flow": "P1_qr_bootstrap_ble_delivery",
+  "fallback_flow": "P0_manual_disambiguation_picker",
+
+  "qr": {
+    "prefix": "deceipt1:",
+    "encoding": "base64url_nopad",
+    "format_version": 1,
+    "cbor": {
+      "type": "map",
+      "definite_length": true,
+      "integer_keys_ascending": true,
+      "fields": {
+        "1": {"name": "qr_format_version", "type": "uint", "value": 1},
+        "2": {"name": "session_id", "type": "bstr", "length": 16},
+        "3": {"name": "session_binding_token", "type": "bstr", "length": 16, "secret": true, "never_logged": true},
+        "4": {"name": "offer_hash", "type": "bstr", "length": 32},
+        "5": {"name": "expires_at_unix", "type": "uint64"}
+      }
+    },
+    "must_not_contain": ["merchant_name", "amount", "receipt_id", "line_items", "customer_data", "merchant_credential", "receipt_payload"]
+  },
+
+  "binding_bytes": {
+    "offer_hash": {
+      "alg": "SHA-256",
+      "prefix_ascii": "deceipt-offer-hash-v1",
+      "separator_hex": "00",
+      "message": "prefix || 00 || cbor([session_id, transfer_id, receipt_id, merchant_id, total_amount_minor, currency, issued_at_unix])",
+      "length": 32,
+      "a1_may_replace_with": "SHA-256 over canonical ReceiptOffer bytes",
+      "requirements": ["32 bytes", "derived from offer content", "present in QR before BLE session exists"]
+    },
+    "binding_tuple": {
+      "cbor": "array(5)",
+      "length_bytes": 87,
+      "elements": [
+        {"index": 0, "name": "binding_format_version", "type": "uint", "value": 1},
+        {"index": 1, "name": "session_id", "type": "bstr", "length": 16},
+        {"index": 2, "name": "transfer_id", "type": "bstr", "length": 16},
+        {"index": 3, "name": "receipt_id", "type": "bstr", "length": 16},
+        {"index": 4, "name": "offer_hash", "type": "bstr", "length": 32}
+      ],
+      "encoding": "RFC8949 deterministic: definite lengths, minimal integer encodings",
+      "wire_prefix_hex": "8501"
+    },
+    "binding_tuple_digest": {
+      "alg": "SHA-256",
+      "prefix_ascii": "deceipt-binding-tuple-v1",
+      "separator_hex": "00",
+      "message": "prefix || 00 || binding_tuple",
+      "length": 32,
+      "a1_requirement": "MUST be a required, length-framed field of the canonical handshake transcript signed by the merchant ServerHello signature"
+    },
+    "binding_proof": {
+      "alg": "HMAC-SHA-256",
+      "key": "session_binding_token",
+      "prefix_ascii": "deceipt-binding-proof-v1",
+      "separator_hex": "00",
+      "message": "prefix || 00 || client_nonce(32) || client_ephemeral_pubkey(65)",
+      "message_length_bytes": 122,
+      "output_length": 32,
+      "carried_in": "ClientHello.binding_proof",
+      "compare": "constant_time"
+    }
+  },
+
+  "client_hello_additions": [
+    {"name": "session_id", "type": "bstr", "length": 16},
+    {"name": "client_nonce", "type": "bstr", "length": 32},
+    {"name": "client_ephemeral_pubkey", "type": "bstr", "length": 65, "curve": "P-256", "form": "uncompressed 0x04||X||Y"},
+    {"name": "binding_proof", "type": "bstr", "length": 32}
+  ],
+
+  "merchant_binding_check": [
+    {"step": 1, "action": "resolve session_id to live, unconsumed, unexpired session", "fail": "BINDING_UNKNOWN_SESSION"},
+    {"step": 2, "action": "constant_time_compare(HMAC-SHA-256(SBT, proof_message), binding_proof)", "fail": "BINDING_PROOF_INVALID"},
+    {"step": 3, "action": "mark session claimed by (client_nonce, client_ephemeral_pubkey)"}
+  ],
+
+  "expiration": {
+    "qr_validity": {"owner": "merchant", "value_field": "expires_at_unix", "effect": "client refuses to start session from expired QR", "error": "BINDING_STALE"},
+    "session_lifetime_seconds_proposed": 120,
+    "consumption": {"trigger": "first accepted ClientHello with valid binding_proof", "second_attempt_error": "BINDING_CONSUMED", "purpose": "anti-replay for the binding"}
+  },
+
+  "states": ["ready", "selecting", "connecting", "transferring", "verifying", "saved", "recoverable_failure"],
+
+  "transitions": [
+    {"from": "ready", "to": "selecting", "trigger": "user scans QR or opens picker"},
+    {"from": "selecting", "to": "ready", "trigger": "0 eligible candidates", "behavior": "keep scanning"},
+    {"from": "selecting", "to": "connecting", "guard": "exactly one candidate selected by explicit user act; 2+ eligible with no selection is unreachable"},
+    {"from": "connecting", "to": "recoverable_failure", "trigger": "connect failure/timeout"},
+    {"from": "connecting", "to": "transferring", "guard": "binding check passed AND merchant credential + transcript signature verified (DESIGN.md#9 steps 3-4)"},
+    {"from": "transferring", "to": "recoverable_failure", "trigger": "cancel | disconnect | bluetooth_off"},
+    {"from": "transferring", "to": "verifying", "guard": "full AEAD payload authenticated/decrypted (DESIGN.md#9 step 7)"},
+    {"from": "verifying", "to": "saved", "guard": "ALL of DESIGN.md#9 steps 10-15 pass"},
+    {"from": "verifying", "to": "recoverable_failure", "trigger": "any DESIGN.md#9 verification failure"}
+  ],
+
+  "selection_invariants": {
+    "selected_writers": ["onQRScanned", "onCandidateTapped"],
+    "eligibility_predicate_excludes": ["rssi", "txPower", "distance"],
+    "connection_target": "selected_only",
+    "auto_connect_requires": "exactly_one_eligible_candidate",
+    "recovery_may_auto_target_different_peer": false
+  },
+
+  "errors": [
+    {"code": "BINDING_UNKNOWN_SESSION", "meaning": "session_id does not resolve to a live session", "owner": "A1"},
+    {"code": "BINDING_PROOF_INVALID", "meaning": "binding_proof HMAC mismatch", "owner": "A1"},
+    {"code": "BINDING_STALE", "meaning": "QR or session expired before use", "owner": "A1"},
+    {"code": "BINDING_CONSUMED", "meaning": "binding already used once", "owner": "A1"},
+    {"code": "WRONG_TRANSACTION", "meaning": "offer does not match the selected/QR-bound transaction", "owner": "A1"},
+    {"code": "USER_CANCELLED", "meaning": "user cancelled", "owner": "A3"},
+    {"code": "BLUETOOTH_OFF", "meaning": "Bluetooth disabled", "owner": "A3"},
+    {"code": "PERMISSION_DENIED", "meaning": "Bluetooth or camera permission denied", "owner": "A3"},
+    {"code": "NO_ELIGIBLE_TERMINAL", "meaning": "no candidate advertising the Deceipt service UUID", "owner": "A3"}
+  ],
+
+  "user_visible_failures": {
+    "wrong_terminal": {"state": "recoverable_failure", "message": "This isn't the transaction you selected.", "recovery": "rescan_or_reopen_picker"},
+    "expired_transaction": {"state": "recoverable_failure", "message": "This checkout code has expired. Ask the merchant to show a new one.", "recovery": "rescan_fresh_qr"},
+    "denied_bluetooth_permission": {"state": "pre_selecting", "message": "Deceipt needs Bluetooth to receive your receipt.", "recovery": "settings_deeplink_then_retry"},
+    "denied_camera_permission": {"state": "pre_selecting", "message": "Scanning needs camera access.", "recovery": "grant_or_use_picker"},
+    "cancellation": {"state": "recoverable_failure", "message": "Cancelled.", "recovery": "rescan_or_retry"},
+    "bluetooth_disabled": {"state": "recoverable_failure", "message": "Bluetooth is off.", "recovery": "enable_then_retry"},
+    "no_eligible_terminal": {"state": "selecting", "message": "No Deceipt terminal found nearby.", "recovery": "keep_scanning"},
+    "multiple_unselected": {"state": "selecting", "message": "Select a terminal to receive from.", "recovery": "explicit_tap",
+      "copy_must_state": "selection is manual and never by signal strength"}
+  },
+
+  "customer_display": {
+    "show": ["merchant_name_with_verification_outcome", "total_currency_amount_minor", "receipt_timestamp", "verification_status_plain_language", "recovery_affordances"],
+    "never_show": ["key_ids", "signature_bytes", "nonces", "transcript_hashes", "session_ids", "session_binding_token", "transport_success_as_trust"],
+    "verification_outcomes": ["trusted", "unknown_key", "rejected"]
+  },
+
+  "friction_budget": {
+    "claim": "protocol-required_observed_step_count_only",
+    "zero_taps_claimed": false,
+    "note": "OS permission prompts and real-device timing unknown until A4/A5 device testing",
+    "P1_phases": [
+      {"n": 1, "phase": "grant_permissions", "automatic": false},
+      {"n": 2, "phase": "scan_qr", "automatic": false},
+      {"n": 3, "phase": "connect_handshake_binding", "automatic": true},
+      {"n": 4, "phase": "review_offer_accept", "automatic": false},
+      {"n": 5, "phase": "save_and_verify", "automatic": true}
+    ],
+    "P1_internal_protocol_actions_between_scan_and_accept": 7,
+    "P0_extra_user_act_vs_P1": ["tap_one_candidate"],
+    "failure_path_extra_explicit_acts": 1
+  },
+
+  "a1_dependencies": [
+    "include binding_tuple_digest as required transcript field signed by ServerHello signature",
+    "include session_id, client_nonce, client_ephemeral_pubkey, binding_proof in ClientHello schema",
+    "define ReceiptOffer to carry session_id, transfer_id, receipt_id, merchant_id, total_amount_minor, currency, issued_at_unix, offer_hash",
+    "assign wire identifiers for session_id/transfer_id/receipt_id (fixed 16-byte)",
+    "provide typed errors including BINDING_* and WRONG_TRANSACTION",
+    "publish transcript test vectors containing the binding digest"
+  ],
+
+  "vectors_file": "protocol/flows/vectors/binding-v1.json"
+}

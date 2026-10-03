@@ -1,0 +1,115 @@
+{
+  "$comment": "Deceipt PoC binding test vectors v1. Owner A2. TEST-ONLY deterministic secrets (session_binding_token, nonces) so A1/A4/A5/A6 can reproduce expected values. Production sessions MUST use fresh CSPRNG randomness. All values below were computed by the reference algorithm in docs/flows/transaction-binding-and-checkout-v1.md sections 3.3-3.7.",
+  "schema": "deceipt.binding-vectors/v1",
+  "owner": "A2",
+  "status": "proposal",
+  "derivation_reference": "docs/flows/transaction-binding-and-checkout-v1.md",
+  "domain_separators": {
+    "binding_tuple": {
+      "ascii": "deceipt-binding-tuple-v1",
+      "hex_utf8": "646563656970742d62696e64696e672d7475706c652d7631"
+    },
+    "offer_hash": {
+      "ascii": "deceipt-offer-hash-v1",
+      "hex_utf8": "646563656970742d6f666665722d686173682d7631"
+    },
+    "binding_proof": {
+      "ascii": "deceipt-binding-proof-v1",
+      "hex_utf8": "646563656970742d62696e64696e672d70726f6f662d7631"
+    }
+  },
+  "algorithms": {
+    "identifier": "16 random bytes",
+    "offer_hash": "SHA-256",
+    "binding_tuple": "CBOR array(5) definite-length minimal-int",
+    "binding_tuple_digest": "SHA-256",
+    "binding_proof": "HMAC-SHA-256",
+    "client_ephemeral_pubkey": "P-256 uncompressed 0x04||X||Y (65 bytes)"
+  },
+  "vectors": {
+    "V1_happy_path": {
+      "description": "Canonical vector: all inputs fixed, expected outputs derived.",
+      "inputs": {
+        "session_binding_token_hex": "000102030405060708090a0b0c0d0e0f",
+        "client_nonce_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "client_ephemeral_pubkey_hex": "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bc",
+        "session_id_hex": "00112233445566778899aabbccddeeff",
+        "transfer_id_hex": "ffeeddccbbaa99887766554433221100",
+        "receipt_id_hex": "0123456789abcdef0123456789abcdef",
+        "merchant_id": "merchant.poc.test-alpha",
+        "total_amount_minor": 525,
+        "currency": "CAD",
+        "issued_at_unix": 1767225600
+      },
+      "expected": {
+        "offer_hash_hex": "b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
+        "binding_tuple_hex": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
+        "binding_tuple_length_bytes": 87,
+        "binding_tuple_digest_hex": "11f63f30af68580b95ffa4b456dd0f89ced8204ba144e105812b61d2fe2259be",
+        "proof_message_length_bytes": 122,
+        "binding_proof_hex": "06ceaa6595ade4ec34e74f44a7b8a85e82f69a71959a125118b23bc7de337547"
+      },
+      "expect": "accept"
+    },
+    "V2_same_inputs_wrong_sbt": {
+      "description": "Identical to V1 except session_binding_token. offer_hash/tuple/digest are IDENTICAL (they do not depend on SBT); binding_proof DIFFERS. Merchant must reject: proves SBT possession is required.",
+      "inputs": {
+        "session_binding_token_hex": "0104070a0d101316191c1f2225282b2e",
+        "client_nonce_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "client_ephemeral_pubkey_hex": "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bc",
+        "session_id_hex": "00112233445566778899aabbccddeeff",
+        "transfer_id_hex": "ffeeddccbbaa99887766554433221100",
+        "receipt_id_hex": "0123456789abcdef0123456789abcdef",
+        "merchant_id": "merchant.poc.test-alpha",
+        "total_amount_minor": 525,
+        "currency": "CAD",
+        "issued_at_unix": 1767225600
+      },
+      "expected": {
+        "offer_hash_hex": "b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
+        "binding_tuple_hex": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
+        "binding_tuple_length_bytes": 87,
+        "binding_tuple_digest_hex": "11f63f30af68580b95ffa4b456dd0f89ced8204ba144e105812b61d2fe2259be",
+        "proof_message_length_bytes": 122,
+        "binding_proof_hex": "f249919ec38c298b4468ff9844088ac8de4201f0770da86221391ffb44efd269"
+      },
+      "expect": "reject_binding_proof_invalid"
+    },
+    "V3_different_transaction": {
+      "description": "Different merchant/amount/currency/time and different ids; client ephemeral last byte flipped. Everything differs: transaction binding and proof both change.",
+      "inputs": {
+        "session_binding_token_hex": "000102030405060708090a0b0c0d0e0f",
+        "client_nonce_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+        "client_ephemeral_pubkey_hex": "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bd",
+        "session_id_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "transfer_id_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "receipt_id_hex": "cccccccccccccccccccccccccccccccc",
+        "merchant_id": "merchant.poc.test-beta",
+        "total_amount_minor": 1234,
+        "currency": "USD",
+        "issued_at_unix": 1767225900
+      },
+      "expected": {
+        "offer_hash_hex": "043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac",
+        "binding_tuple_hex": "850150aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa50bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb50cccccccccccccccccccccccccccccccc5820043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac",
+        "binding_tuple_length_bytes": 87,
+        "binding_tuple_digest_hex": "e7b28cffce49a18686d8cf97a18566416724ea1d8ca78c2c788660ffdad1d14f",
+        "proof_message_length_bytes": 122,
+        "binding_proof_hex": "7d9963dd37bb66f13928be5d293bd288ecbc25149c4485f876696243ff2776a4"
+      },
+      "expect": "accept_with_distinct_values"
+    }
+  },
+  "expected_relationships": {
+    "V1_vs_V2_offer_hash_equal": true,
+    "V1_vs_V2_binding_tuple_equal": true,
+    "V1_vs_V2_binding_proof_differ": true,
+    "V1_vs_V3_offer_hash_differ": true
+  },
+  "qr_vector": {
+    "description": "QR payload for V1 (session_id=V1.sid, SBT=V1.sbt, offer_hash=V1.offer_hash, expires_at=1767225720).",
+    "payload": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFggs208Y6uWMYnhM1pKbPwAeJZyxiQzdIo3D34GFIx3Q6oFGmlVuXg",
+    "payload_length_chars": 116,
+    "raw_cbor_hex": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f045820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa051a6955b978"
+  }
+}
