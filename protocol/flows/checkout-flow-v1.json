@@ -1,5 +1,5 @@
 {
-  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. Binding bytes ADOPTED by A1 (deceipt-proto-r1, confirmed unchanged in r2; docs/protocol/handshake.md section 10). Selection model: QR-MANDATORY for v1 (resolves A6 RX-04). Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
+  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. Binding bytes ADOPTED by A1 (deceipt-proto-r2; docs/protocol/handshake.md section 10; binding bytes identical across r1/r2). Selection model: QR-MANDATORY for v1 (resolves A6 RX-04). Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
   "schema": "deceipt.checkout-flow/v1",
   "status": "binding_bytes_adopted_in_deceipt-proto-r2__selection_qr_mandatory",
   "owner": "A2",
@@ -35,7 +35,7 @@
     "resolves": "A6 RX-04",
     "auto_connect": false,
     "selection_act": "user scans the QR at the terminal; the QR's session_id names exactly one session",
-    "qr_less_path": "removed; not realisable in deceipt-proto-r1 because CLIENT_HELLO requires session_id (label 4) + binding_proof (label 7); absence is fatal BINDING_REQUIRED and no binding-less variant exists",
+    "qr_less_path": "removed; not realisable in deceipt-proto-r2 because CLIENT_HELLO requires session_id (label 4) + binding_proof (label 7); absence is fatal BINDING_REQUIRED and no binding-less variant exists",
     "justification": "RSSI-free disambiguation requires possession of the binding material (SBT), which only the QR delivers; a binding-less connect path would require an explicit A1 wire revision"
   },
   "primary_flow": "P1_qr_bootstrap_ble_delivery",
