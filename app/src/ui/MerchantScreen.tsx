@@ -31,6 +31,7 @@ import {
 import {buildDemoReceipt} from '../demo/demoReceipt';
 import {ensureDemoMerchant, isMerchantReady, missingMerchantParts} from '../demo/merchantProvision';
 import {Card, Field, ActionButton, StatusPill, colors, formatMoney, styles} from './primitives';
+import {QrView} from './QrView';
 
 export interface MerchantScreenProps {
   native: DeceiptNative;
@@ -38,7 +39,7 @@ export interface MerchantScreenProps {
   now: () => number;
 }
 
-type MerchantPhase = 'idle' | 'preparing' | 'advertising' | 'transferring' | 'complete' | 'failed';
+type MerchantPhase = 'idle' | 'preparing' | 'ready' | 'advertising' | 'transferring' | 'complete' | 'failed';
 
 export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.Element {
   const [phase, setPhase] = useState<MerchantPhase>('idle');
@@ -160,9 +161,17 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
         merchantId: hexToBytes(merchantIdHex),
         credentialBytes: base64ToBytes(credentialB64),
       });
-      const next = await prepareMerchantOffer(native, receipt, now(), setPrepareStep);
+      // SESSION clock is real time, always: the QR's expiry must be in the
+      // future relative to the device. The `now` prop is the fixture clock for
+      // verification tests and would put the expiry in the past here.
+      const sessionNowUnix = Math.floor(Date.now() / 1000);
+      const next = await prepareMerchantOffer(native, receipt, sessionNowUnix, setPrepareStep);
       setPrepared(next);
       setPrepareStep({step: 'done', elapsedMs: 0});
+      // Preparation SUCCEEDED: the checkout code exists and the next act is the
+      // operator's ("Start advertising"). Staying on "preparing" here made a
+      // finished step look like a hang.
+      setPhase('ready');
       append(`prepared binding for ${next.receiptIdHex.slice(0, 8)}…`);
     } catch (error) {
       setFailure({name: errorName(error), message: describe(error)});
@@ -260,7 +269,9 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
                 ? colors.trusted
                 : phase === 'idle'
                   ? colors.neutral
-                  : colors.accent
+                  : phase === 'ready'
+                    ? colors.trusted
+                    : colors.accent
           }
           testID="merchant-phase"
         />
@@ -285,15 +296,15 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
             Read this out or copy it into the customer phone. It carries the session id, the binding token and the offer
             hash — never the receipt, the amount or the merchant name.
           </Text>
-          <Text style={styles.notice}>
-            Shown as text, not as a QR image: rendering one would need a new native dependency, and the customer screen
-            takes the code by paste. Say the word if you want the image instead.
-          </Text>
-          <View style={styles.qr}>
-            <Text selectable testID="qr-payload-text" style={styles.qrText}>
-              {prepared.qr.qrPayload}
-            </Text>
+          <View style={styles.qr} testID="qr-canvas">
+            <QrView value={prepared.qr.qrPayload} size={240} testID="qr-code" accessibilityLabel="checkout-qr-code" />
           </View>
+          <Text style={styles.label}>
+            Scan this with the customer phone, or read the text below if a camera is not available.
+          </Text>
+          <Text selectable testID="qr-payload-text" style={styles.qrText}>
+            {prepared.qr.qrPayload}
+          </Text>
           <Field label="receipt total" value={formatMoney(prepared.receipt.totals.totalMinor, prepared.receipt.currency)} />
           <Field label="expires" value={String(prepared.qr.expiresAtUnix)} />
         </Card>

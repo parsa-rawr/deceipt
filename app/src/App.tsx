@@ -34,8 +34,13 @@ import {ActionButton, Card, colors, styles} from './ui/primitives';
 
 type Mode = 'menu' | 'merchant' | 'customer';
 
-/** The demo's fixed verification instant, matching the frozen credential window. */
-const DEMO_NOW_UNIX = 1767225540;
+/**
+ * The app clock. Production uses the real wall clock: the frozen credential
+ * window runs 2025-12-02..2027-01-01, so a real device is inside it, while a
+ * PINNED instant would put the checkout expiry in the past and fail every
+ * session against a live merchant. Tests inject `now` instead.
+ */
+const wallClock = (): number => Math.floor(Date.now() / 1000);
 
 export interface AppProps {
   /** Overrides for tests and for a host that injects a prepared adapter. */
@@ -82,7 +87,7 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
     return undefined;
   }, [binding]);
   const resolvedStore = useMemo(() => store ?? new ReceiptStore(new MemoryKeyValueStore()), [store]);
-  const clock = useMemo(() => now ?? (() => DEMO_NOW_UNIX), [now]);
+  const clock = useMemo(() => now ?? wallClock, [now]);
 
   return (
     <View style={styles.screen} testID="app-root">
@@ -203,5 +208,4 @@ function describeAdapter(adapter: DeceiptNative): string {
     : 'Native adapter (Bluetooth available)';
 }
 
-export const APP_DEMO_NOW_UNIX = DEMO_NOW_UNIX;
 export {colors};

@@ -557,12 +557,12 @@ export function checkText(value: string, maxBytes: number, label: string): void 
   //    so NFC is the identity on it. That is a Unicode theorem, not a shortcut:
   //    a pure-ASCII string is NFC without consulting any engine. This covers
   //    every string in the frozen vectors and the demo.
-  //  * non-ASCII goes through `normalization.ts`, which uses the platform
-  //    normalizer when present and the `unorm` fallback otherwise, so valid
-  //    non-ASCII text works on Hermes too (see that module for the measured
-  //    limitation of the fallback's older Unicode tables).
-  //  * only when NEITHER engine exists is the string rejected — fail closed,
-  //    never accepted unvalidated.
+  //  * non-ASCII goes through `normalization.ts`: the engine's own
+  //    `String.prototype.normalize` when present, otherwise the OS normalizer
+  //    behind the bridge (`normalizeNfc`). No third-party or approximate engine
+  //    ships — see that module for why `unorm` was rejected.
+  //  * only when NEITHER exists is the string rejected — fail closed, never
+  //    accepted unvalidated.
   if (isAscii(value)) {
     return;
   }
@@ -606,18 +606,18 @@ function utf8ByteLength(value: string): number {
 // Validation (receipt-v1.md §3–§8)
 // ---------------------------------------------------------------------------
 
+/**
+ * A parsed and fully validated receipt. The public parse boundary does not
+ * resolve until every NFC check is decided, so this type deliberately has NO
+ * "possibly unconfirmed text" handle: a caller cannot be handed a validated
+ * receipt that still needs a check.
+ */
 export interface DecodedReceipt {
   receipt: Receipt;
   /** The exact payload bytes the caller supplied (never re-encoded). */
   payloadBytes: Uint8Array;
   /** Fields that were present but not understood; critical ones already threw. */
   ignoredNonCriticalExtensionKeys: string[];
-  /**
-   * Non-ASCII values whose NFC form this engine cannot decide synchronously.
-   * Empty on any build with `String.prototype.normalize`. `verifyReceipt`
-   * confirms every entry through the platform normalizer before accepting.
-   */
-  deferredNfcChecks: DeferredNfcCheck[];
 }
 
 function requireMap(value: CborValue | undefined, label: string, allowed: number[]): CborMap {
@@ -1329,7 +1329,11 @@ function validateKindSemantics(receipt: Receipt): void {
  * Depth, item count and length caps are enforced by the CBOR decoder *before*
  * any allocation.
  */
-/** Synchronous parse. INTERNAL: always use `parseReceiptPayloadAsync`. */
+/**
+ * Synchronous parse. INTERNAL, and the only place `pendingNfc` exists: the
+ * public boundary confirms those values before it returns, so a validated
+ * `DecodedReceipt` carries no "possibly unconfirmed text" handle.
+ */
 function parseReceiptPayloadSync(payloadBytes: Uint8Array): {decoded: DecodedReceipt; pending: DeferredNfcCheck[]} {
   if (payloadBytes.length > RECEIPT_LIMITS.maxReceiptBytes) {
     throw new ProtocolError('RECEIPT_SIZE_EXCEEDED', `payload is ${payloadBytes.length} bytes, above ${RECEIPT_LIMITS.maxReceiptBytes}`);
@@ -1344,7 +1348,7 @@ function parseReceiptPayloadSync(payloadBytes: Uint8Array): {decoded: DecodedRec
     }
     const {receipt, ignoredNonCriticalExtensionKeys} = parseReceiptMap(decoded.value);
     return {
-      decoded: {receipt, payloadBytes, ignoredNonCriticalExtensionKeys, deferredNfcChecks: []},
+      decoded: {receipt, payloadBytes, ignoredNonCriticalExtensionKeys},
       pending: collector === outer ? [] : collector.checks,
     };
   } finally {

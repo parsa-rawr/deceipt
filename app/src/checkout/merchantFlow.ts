@@ -119,6 +119,17 @@ export interface PreparedMerchantOffer {
 export async function prepareMerchantOffer(
   native: DeceiptNative,
   receipt: Receipt,
+  /**
+   * The clock for the SESSION BINDING (the QR's `expires_at_unix`, and the
+   * `SessionHello`/receipt validity checks). This MUST be real time: a pinned
+   * instant would put the checkout expiry in the past and fail every session.
+   *
+   * It is deliberately NOT used for `receipt.issuedAt`. A receipt timestamp is
+   * part of the signed document and may legitimately be a fixed fixture value —
+   * `receipt-v1.md` requires it to lie inside the credential's validity window,
+   * not to equal `now`. Passing a frozen instant here is what produced a checkout
+   * whose expiry read 2025-12-31 on a device whose clock read 2026-10-03.
+   */
   nowUnix: number,
   onProgress?: (progress: MerchantPrepareProgress) => void,
 ): Promise<PreparedMerchantOffer> {

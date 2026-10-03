@@ -498,3 +498,62 @@ async function prepareModule(): Promise<typeof import('../src/checkout/merchantF
 async function demoModule(): Promise<typeof import('../src/demo/demoReceipt')> {
   return require('../src/demo/demoReceipt') as typeof import('../src/demo/demoReceipt');
 }
+
+describe('checkout QR and session clock (original scope)', () => {
+  it('renders a scannable QR from the exact payload, not a placeholder', async () => {
+    const pair = await buildMockPair();
+    const root = render(React.createElement(MerchantScreen, {native: pair.merchant, now: () => NOW}));
+    await act(async () => {
+      await byId(root, 'prepare-checkout').props.onPress();
+    });
+    await settle(4);
+    // The QR canvas exists and the exact payload is still available as text.
+    const qr = byId(root, 'qr-code');
+    expect(qr).toBeTruthy();
+    const payload = byId(root, 'qr-payload-text').props.children as string;
+    expect(payload.startsWith('deceipt1:')).toBe(true);
+    // The rendered matrix is a real QR: it must have the encoder's module count
+    // (a 21..177 module grid) rather than an empty or fixed placeholder.
+    const {QrView} = await qrModule();
+    const encoded = render(React.createElement(QrView, {value: payload, size: 240, testID: 'qr-probe'}));
+    const rows = encoded.root.findAllByType('View' as never);
+    expect(rows.length).toBeGreaterThan(20);
+  });
+
+  it('advertises a session expiry in the FUTURE even when the fixture clock is old', async () => {
+    const pair = await buildMockPair();
+    const root = render(React.createElement(MerchantScreen, {native: pair.merchant, now: () => NOW}));
+    await act(async () => {
+      await byId(root, 'prepare-checkout').props.onPress();
+    });
+    await settle(4);
+    // The screen's `now` prop is the frozen fixture instant; the QR expiry must
+    // nevertheless be relative to the real clock, or a live session expires
+    // instantly.
+    const realNow = Math.floor(Date.now() / 1000);
+    const payload = byId(root, 'qr-payload-text').props.children as string;
+    const {parseBindingQr} = await bindingModule();
+    const parsed = parseBindingQr(payload);
+    expect(parsed.expiresAtUnix).toBeGreaterThan(realNow);
+    expect(parsed.expiresAtUnix).toBeLessThanOrEqual(realNow + 600);
+  });
+
+  it('leaves the phase as ready, not preparing, once preparation succeeds', async () => {
+    const pair = await buildMockPair();
+    const root = render(React.createElement(MerchantScreen, {native: pair.merchant, now: () => NOW}));
+    await act(async () => {
+      await byId(root, 'prepare-checkout').props.onPress();
+    });
+    await settle(4);
+    // The device symptom: step done, phase still "preparing", code rendered.
+    expect(byId(root, 'merchant-phase').props.text).toBe('ready');
+  });
+});
+
+async function qrModule(): Promise<typeof import('../src/ui/QrView')> {
+  return require('../src/ui/QrView') as typeof import('../src/ui/QrView');
+}
+
+async function bindingModule(): Promise<typeof import('../src/protocol/binding')> {
+  return require('../src/protocol/binding') as typeof import('../src/protocol/binding');
+}

@@ -77,6 +77,16 @@ const DEMO_TIP_MINOR = 100;
  * rule, then the totals are recomputed from what was stated, so the receipt
  * this returns always satisfies the arithmetic validation it will face.
  */
+/**
+ * The demo receipt.
+ *
+ * `issuedAt` defaults to the frozen demo instant because the frozen credential
+ * window (2025-12-02..2027-01-01) contains it and the value is part of the signed
+ * document. It is NOT the session clock: the QR's `expires_at_unix` and the
+ * handshake's freshness checks use real time, which the merchant screen passes
+ * separately. Conflating the two made a live checkout advertise an expiry in the
+ * past.
+ */
 export async function buildDemoReceipt(inputs: DemoReceiptInputs): Promise<Receipt> {
   if (inputs.merchantId.length !== 16) {
     throw new Error('the demo receipt needs the credential\'s 16-byte merchant_id');
