@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "_generated": "generated; do not edit by hand",
- "revision": "deceipt-proto-r1",
+ "revision": "deceipt-proto-r2",
  "frame_format": "transfer_id(16) || sequence_number(u32 BE) || payload_bytes",
  "transfer_id_hex": "ffeeddccbbaa99887766554433221100",
  "frame_size": 162,
@@ -18,6 +18,16 @@
   "ffeeddccbbaa99887766554433221100000000048bbcc737bae9d998c986128cf8b65cb7a7fbbfc3f1ff77c83c58b681cb9ae88ce6179eb4df9bf2471e5d6f0f891e9633b17417a9eb7b01a7c4a47bed24162e3af0b8cc64c4f453fe49833c960b6f94232909070fc02dbe81c91740b971e60ec1a6de1f33b15307392d6eece710a1fba7102315bd4b68120a9262c990b8fad8f5f52e11b7d6acb6d01433ea65b96cd820a1fac92ff47dba123c06d21366b7224fa785",
   "ffeeddccbbaa99887766554433221100000000054bb3aac5"
  ],
+ "frame_payload_sizes": [
+  162,
+  162,
+  162,
+  162,
+  162,
+  4
+ ],
+ "final_frame_payload_bytes": 4,
+ "final_frame_rule": "the final frame payload is ciphertext_length - frame_size*(frame_count-1), which is 1..frame_size and MAY be below the 16-byte minimum that applies to the negotiated frame_size; it is NOT a FRAME_SIZE_INVALID condition",
  "ack_example": {
   "1": 3,
   "2": "ffeeddccbbaa99887766554433221100",

@@ -1,6 +1,6 @@
 # Merchant trust bootstrap — Pass B
 
-**Revision:** `deceipt-proto-r1` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (credential verification), A3 (trust-policy outcomes, UI), A6 (adversarial review)
 **Machine-readable:** `protocol/schema/credential-v1.fields.json` · **CDDL:** `protocol/schema/credential-v1.cddl` · **Vectors:** `protocol/vectors/credentials.json`, `receipt-invalid.json`
 
@@ -75,8 +75,15 @@ Pinned anchor set (`protocol/vectors/fixtures/trust-anchors-v1.json`, test-only)
 |---|---|
 | `anchor_id` | `0decea00000000000000000000000001` |
 | Algorithm | EdDSA (Ed25519) |
-| Public key | `61d36a1033982810583469d18733d5810bcc8f06db10d11d391e3945d51c58ed` |
+| Public key | `bd65615aed2e3adf4f91e8fccfd7b54d44e532456399115b33456d72668a87cb` |
 | Label | "Deceipt PoC Test Root 1" |
+| Source of truth | `protocol/vectors/fixtures/trust-anchors-v1.json` (never copy this value from prose) |
+
+> Do not confuse the anchor with the merchant **device** key. `61d36a10…58ed` is
+> `merchant-test-1`'s device signing key (a leaf), not the root. Pinning a device key as the
+> root would make any self-signed rogue credential "authenticated". A receiver MUST read the
+> anchor from `trust-anchors-v1.json` (or its build-time embedding of it), never from this
+> table.
 
 **Deliberate PoC test-merchant bootstrap.** So both phones and the test harness agree on the exact bytes:
 
@@ -116,7 +123,22 @@ verify_credential(credential_bytes, anchor_set, now):
  11. -> (None, trust = "authenticated")
 ```
 
-`CLOCK_SKEW_MAX_S = 300` applies to the validity window only. Step 7 is the trust split: an unknown issuer is **not** a malformed credential, so the session may continue for diagnostic display, but the key is never authorized and any receipt from it can never be `TRUSTED`.
+`CLOCK_SKEW_MAX_S = 300` applies to the validity window only. Step 7 is the trust split, and it produces **two distinct authenticated-peer session types** (`handshake.md` §9):
+
+* issuer in the anchor set → `SessionAuthenticated` (identity established);
+* issuer absent → `SessionUnverifiedPeer`. The receiver can still verify the transcript
+  signature, but only against the credential's **self-asserted** device key: that proves the
+  peer holds the key it claims, *not* who the merchant is. `SessionUnverifiedPeer` may proceed
+  to transfer so the user can see the receipt, but **every** receipt from it is
+  `UNVERIFIED_UNKNOWN_ISSUER` and can never become `TRUSTED`. It is deliberately **not**
+  collapsed into `SessionKeysOnly` (which carries no peer authentication at all and cannot
+  transfer).
+
+The transition is fixed: `ServerHello` received → `SessionKeysOnly`; credential verified to
+an anchor **and** transcript signature verified → `SessionAuthenticated`; credential
+well-formed, issuer unknown, **and** transcript signature verified against the credential's
+self-asserted device key → `SessionUnverifiedPeer`. Anything else fails closed to
+`SessionKeysOnly` and disconnects.
 
 ## 5. Unknown merchant keys: display vs reject (explicit policy)
 

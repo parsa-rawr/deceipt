@@ -1,6 +1,6 @@
 # Handshake — Pass C (byte-for-byte)
 
-**Revision:** `deceipt-proto-r1` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (native handshake, framing), A3 (session types, state machine), A6 (crypto review)
 **Vectors:** `protocol/vectors/handshake-valid.json`, `handshake-invalid.json`, `aead-valid.json`, `aead-invalid.json`, `binding-crosscheck.json`
 
@@ -60,6 +60,8 @@ B -> A  RECEIPT_ACK    (AEAD)
 | 284 | `binding_len` | 1 | `0..128` |
 | 285 | `binding_tuple` | var | the exact A2 `binding_tuple` bytes (`binding_len` bytes) |
 
+Labels 0 and 20 are the domain label and `binding_len` framing; the table above is the byte truth, and `handshake-valid.json#transcript_layout` is generated from the same list. (r1 recorded the label as 19 bytes; r2 corrects it to **20**.)
+
 ```text
 transcript      = label ‖ u16(protocol_version) ‖ u16(suite_id)
                 ‖ client_nonce ‖ client_eph_pub
@@ -70,9 +72,35 @@ transcript_hash = SHA-256(transcript)                                  # 32 byte
 signature       = Ed25519_sign(merchant_device_private_key, transcript)  # 64 bytes
 ```
 
-`max_frame_payload` and `binding_tuple` are *in* the transcript precisely so neither can be renegotiated after the merchant signs: changing either breaks `signature` (vectors `max_frame_payload_substituted`, `binding_tuple_digest_substituted`).
+`max_frame_payload` and `binding_tuple` are *in* the transcript precisely so neither can be renegotiated after the merchant signs: changing either breaks `signature` (vectors `max_frame_payload_substituted`, `binding_tuple_digest_substituted`, `server_hello_max_frame_payload_unsigned`). Because the receiver rebuilds the transcript from `SERVER_HELLO`, the fields it uses are the received ones, never a client-side assumption.
 
-### 3.1 Vector values (must reproduce)
+### 3.1 Reconstructing the transcript from received bytes (R4-01)
+
+The receiver MUST be able to rebuild the exact signed transcript using **only received plaintext**. The mapping is fixed:
+
+| Transcript field | Source |
+|---|---|
+| `label`, `protocol_version`, `suite_id` | constants + `SERVER_HELLO` labels 2/3 |
+| `client_nonce` | `CLIENT_HELLO` label 5 |
+| `client_ephemeral_pubkey` | `CLIENT_HELLO` label 6 |
+| `server_nonce` | `SERVER_HELLO` label 5 |
+| `server_ephemeral_pubkey` | `SERVER_HELLO` label 6 |
+| `transfer_id`, `session_id` | `binding_tuple` = `SERVER_HELLO` label 10 (`[1]=session_id`, `[2]=transfer_id`) |
+| `binding_tuple_digest` | `SERVER_HELLO` label 9 (also recomputed from label 10 and compared) |
+| `max_frame_payload` | `SERVER_HELLO` label 11 |
+| `binding_len`, `binding_tuple` | `SERVER_HELLO` label 10 (length-prefixed by `binding_len`) |
+
+Rules:
+
+1. `SERVER_HELLO` label 10 (`binding_tuple`) is **authoritative** over label 9. The receiver recomputes `SHA-256("deceipt-binding-tuple-v1" ‖ 0x00 ‖ label10)` and requires it to equal label 9, else `HANDSHAKE_TRANSCRIPT_MISMATCH`.
+2. `SERVER_HELLO` label 4 (`transfer_id`) MUST equal `binding_tuple[2]`, else `TRANSFER_ID_MISMATCH`.
+3. `SERVER_HELLO` label 11 (`max_frame_payload`) MAY be **lower than** `CLIENT_HELLO` label 8 — the merchant's value is the signed one, and the client takes it from label 11, never from its own memory of what it sent.
+4. `binding_tuple[1]` (`session_id`) MUST equal `CLIENT_HELLO` label 4, else `BINDING_UNKNOWN_SESSION`.
+5. `SERVER_HELLO` label 10 is required; absence is `BINDING_REQUIRED`.
+
+A vector for the full rebuild lives in `self-test.json` (the generator asserts `rebuild(...) == transcript`), and `handshake-invalid.json` carries `server_hello_binding_tuple_absent`, `server_hello_binding_tuple_substituted`, `server_hello_max_frame_payload_unsigned`, `server_hello_transfer_id_not_a_tuple_member`.
+
+### 3.2 Vector values (must reproduce)
 
 Fixture `protocol/vectors/handshake-valid.json`:
 
@@ -101,7 +129,7 @@ Both hello messages are CBOR maps with integer labels, in the plaintext envelope
 | 5 | `client_nonce` | bstr(32) | ✔ | fresh CSPRNG per attempt |
 | 6 | `client_ephemeral_pubkey` | bstr(65) | ✔ | uncompressed P-256; must decode, else `HANDSHAKE_ECDH_INVALID_POINT` |
 | 7 | `binding_proof` | bstr(32) | ✔ | A2 §3.7; else `BINDING_PROOF_INVALID` |
-| 8 | `max_frame_payload` | uint | ✔ | `16..512`; else `FRAME_SIZE_INVALID` |
+| 8 | `max_frame_payload` | uint | ✔ | `16..512`; the client's advertised ceiling, else `FRAME_SIZE_INVALID` |
 
 `a8 01 01 02 01 03 81 01 04 50 … 05 58 20 … 06 58 41 … 07 58 20 … 08 18 a2`
 → full bytes in `handshake-valid.json#client_hello_hex` (167 bytes; 168 with the plaintext envelope tag).
@@ -113,12 +141,14 @@ Both hello messages are CBOR maps with integer labels, in the plaintext envelope
 | 1 | `type` | uint | ✔ | `17` |
 | 2 | `protocol_version` | uint | ✔ | `1` |
 | 3 | `suite_id` | uint | ✔ | MUST be a suite the client offered, else `HANDSHAKE_SUITE_MISMATCH` |
-| 4 | `transfer_id` | bstr(16) | ✔ | MUST equal the binding tuple's `transfer_id`, else `TRANSFER_ID_MISMATCH` |
+| 4 | `transfer_id` | bstr(16) | ✔ | MUST equal `binding_tuple[2]`, else `TRANSFER_ID_MISMATCH` |
 | 5 | `server_nonce` | bstr(32) | ✔ | fresh CSPRNG |
 | 6 | `server_ephemeral_pubkey` | bstr(65) | ✔ | uncompressed P-256 |
 | 7 | `merchant_credential` | bstr | ✔ | exact credential bytes, ≤ 1024 |
 | 8 | `transcript_signature` | bstr(64) | ✔ | Ed25519 over §3 |
-| 9 | `binding_tuple_digest` | bstr(32) | ✔ | receiver MUST recompute and compare, else `HANDSHAKE_TRANSCRIPT_MISMATCH` |
+| 9 | `binding_tuple_digest` | bstr(32) | ✔ | `SHA-256("deceipt-binding-tuple-v1" ‖ 0x00 ‖ label10)`; receiver recomputes and compares, else `HANDSHAKE_TRANSCRIPT_MISMATCH` |
+| 10 | `binding_tuple` | bstr | ✔ | the exact A2 binding tuple (87 B in v1); **authoritative** source of the transcript's `session_id`/`transfer_id`/digest; absence is `BINDING_REQUIRED` |
+| 11 | `max_frame_payload` | uint | ✔ | `16..512`; the merchant's signed frame size, used to rebuild the transcript; MAY be below `CLIENT_HELLO` label 8 |
 
 ### 4.3 `ACCEPT` (type `0x02`, B→A, AEAD)
 
@@ -141,7 +171,15 @@ Both hello messages are CBOR maps with integer labels, in the plaintext envelope
 | 11 | `credential_hash` | bstr(32) | ✔ | `SHA-256(credential bytes)` |
 | 12 | `session_id` | bstr(16) | ✔ | |
 
-All `RECEIPT_OFFER` fields are **untrusted display data until the receipt verifies** (`DESIGN.md` §8.3). Labels 3,4,5,6,7,10 are exactly the A2 `offer_hash` members; the receiver MUST recompute the offer hash from them and compare to the QR value and to the receipt (Pass D / A2 §3.5).
+All `RECEIPT_OFFER` fields are **untrusted display data until the receipt verifies** (`DESIGN.md` §8.3). The receiver MUST recompute `offer_hash` and compare it to the QR value and to the receipt's binding tuple:
+
+```text
+offer_hash = SHA-256("deceipt-offer-hash-v1" ‖ 0x00 ‖ CBOR([
+    session_id, transfer_id, receipt_id, merchant_reference,
+    total_amount_minor, currency, issued_at_unix ]))          # array element order, NOT label order
+```
+
+In `RECEIPT_OFFER` label terms that is exactly `[12, 2, 3, 4, 5, 6, 7]` (session_id, transfer_id, receipt_id, merchant_reference, total, currency, issued_at) — the **array order** is normative; the label numbers are only where the values are carried. Any mismatch is `WRONG_TRANSACTION` (`framing.md` §7).
 
 ## 5. Key schedule (finalized §6.4)
 
@@ -197,6 +235,8 @@ The 4 leading zero bytes are reserved and MUST be zero. Each direction has its o
 | Usage | Key | AAD |
 |---|---|---|
 | Receipt payload seal/open | `k_m2c_payload` | `session_context ‖ 0x01` |
+
+**`k_m2c_payload` is one-shot.** Exactly one AEAD seal occurs per session and its counter is fixed at **0**; there is exactly one payload per session (`RECEIPT_OFFER` → one `TRANSFER_BEGIN` → frames → `TRANSFER_COMPLETE`). A second payload seal under the same key is a protocol violation, so GCM nonce reuse is impossible by construction rather than by luck. (The AAD carries no counter because the counter is a constant; the control keys, which do repeat, carry their counter explicitly in the envelope and in the AAD direction byte.)
 | Control envelope, B→A | `k_c2m_ctrl` | `session_context ‖ 0x02 ‖ 0x00` |
 | Control envelope, A→B | `k_m2c_ctrl` | `session_context ‖ 0x02 ‖ 0x01` |
 
@@ -225,7 +265,8 @@ Receiver rule on the counter: `counter < expected` ⇒ `AEAD_REPLAY_DETECTED`; `
 | Plaintext/control CBOR message | 2048 bytes | `MESSAGE_TOO_LARGE` |
 | Control fragments per message | 512 | `LPDU_MESSAGE_TOO_LARGE` |
 | ATT payload (any characteristic) | 512 bytes | `TRANSPORT_MTU_TOO_SMALL` if the negotiated payload cannot carry the minimum frame |
-| DataFrame payload | 16..512 bytes | `FRAME_SIZE_INVALID` |
+| Negotiated `frame_size` | 16..512 bytes | `FRAME_SIZE_INVALID` |
+| Final-frame payload | `1..frame_size` bytes | — (a short final frame is valid; `ciphertext_length` need not be a multiple of `frame_size`) |
 | Transfer ciphertext | 65552 bytes | `TRANSFER_SIZE_EXCEEDED` |
 | Frames per transfer | 32768 | `TRANSFER_SIZE_EXCEEDED` |
 | Control messages per direction | 4096 | `MESSAGE_TOO_LARGE` |
@@ -269,13 +310,34 @@ No failure transition reaches a verified receipt (`DESIGN.md` §9).
 The type system MUST distinguish these, and the receipt path MUST require the authenticated one (`DESIGN.md` §6.3: "the handshake signature does not replace receipt signature verification"):
 
 ```text
-SessionKeysOnly        # keys derived, peer NOT authenticated -> may be used only for
-                       # diagnostics / error handling, NEVER to transfer or accept a receipt
-SessionAuthenticated   # credential verified to a pinned anchor AND transcript signature
-                       # verified -> the only session type the transfer path accepts
+SessionKeysOnly          # keys derived, peer NOT authenticated.
+                         # Used only for diagnostics/error handling.
+                         # Can NEVER transfer and MUST NOT send ACCEPT.
+SessionUnverifiedPeer    # ServerHello credential is well-formed but its issuer is not a
+                         # pinned anchor; the transcript signature verified against the
+                         # credential's SELF-ASSERTED device key. Internal consistency only,
+                         # NOT identity. MAY transfer; every receipt is
+                         # UNVERIFIED_UNKNOWN_ISSUER and can NEVER be TRUSTED.
+SessionAuthenticated     # credential verified to a pinned anchor AND transcript signature
+                         # verified. Identity established. The only session type whose
+                         # receipts can be TRUSTED.
 ```
 
-A receiver that derives keys but has not verified `ServerHello`'s signature holds `SessionKeysOnly`. `ACCEPT` MUST NOT be sent from it. This is a compile-time distinction in A3's shared types (two nominal types, no common base that the transfer path accepts) and a runtime guard in A4/A5. A `SessionAuthenticated` value carries the verified `merchant_id`, `device_key_id`, and the exact credential bytes.
+Transitions:
+
+| Observation | Resulting type |
+|---|---|
+| keys derived, no verified `ServerHello` yet | `SessionKeysOnly` |
+| credential issuer not in the anchor set **and** transcript signature verified against the credential's self-asserted device key | `SessionUnverifiedPeer` |
+| credential issuer in the anchor set **and** transcript signature verified against that anchor's `device_public_key` | `SessionAuthenticated` |
+| anything else (bad credential, bad signature, mismatch) | fail closed → `ABORT`, no session |
+
+A receiver holding `SessionKeysOnly` MUST NOT send `ACCEPT`. A3 models three nominal types
+with no common base that the transfer path accepts; A4/A5 enforce the same at runtime.
+`SessionAuthenticated` carries the verified `merchant_id`, `device_key_id`, and exact
+credential bytes; `SessionUnverifiedPeer` carries the same fields marked unverified. The
+`unknown_issuer` case in `protocol/vectors/handshake-unverified-peer.json` is the reference
+fixture for the middle type.
 
 ## 10. A2 transaction-binding adoption (dependency closure)
 

@@ -1,5 +1,5 @@
 {
- "revision": "deceipt-proto-r1",
+ "revision": "deceipt-proto-r2",
  "protocol_version": 1,
  "suite_id": 1,
  "cbor": {
@@ -51,6 +51,9 @@
   "max_att_payload": 512,
   "max_frame_payload": 512,
   "min_frame_payload": 16,
+  "final_frame_min_payload": 1,
+  "k_m2c_payload_usage": "ONE-SHOT: exactly one AEAD seal per session, always at counter 0. A second payload seal under the same key is a protocol violation (GCM nonce reuse is prevented by construction, not by luck).",
+  "final_frame_rule": "payload_bytes of the final frame is ciphertext_length - frame_size*(frame_count-1), in 1..frame_size; the 16-byte minimum applies only to the negotiated frame_size, not to the final frame",
   "dataframe_header_bytes": 20,
   "max_transfer_ciphertext": 65552,
   "max_frames": 32768,

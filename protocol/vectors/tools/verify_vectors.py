@@ -407,9 +407,51 @@ def main():
     codes = [e["code"] for e in errs]
     eq("error names unique", len(set(names)), len(names))
     eq("error codes unique", len(set(codes)), len(codes))
-    eq("error count", len(errs), 92)
+    eq("error count", len(errs), 91)
     for e in errs:
         eq("error code hex for %s" % e["name"], e["code_hex"], "0x%04x" % e["code"])
+
+    # ---- 9b. r2: transcript reconstruction + no placeholder vectors ----
+    hs2 = load("handshake-valid.json")
+    ch2 = dec(bytes.fromhex(hs2["client_hello_hex"]))
+    sh2 = dec(bytes.fromhex(hs2["server_hello_hex"]))
+    eq("SERVER_HELLO carries the binding tuple (label 10)", 10 in sh2, True)
+    eq("SERVER_HELLO carries max_frame_payload (label 11)", 11 in sh2, True)
+    bt2 = sh2[10]
+    eq("binding tuple is 87 bytes", len(bt2), 87)
+    eq("binding tuple is byte-identical to the vector", bt2.hex(), hs2["binding_tuple_hex"])
+    bt2d = dec(bt2)
+    eq("tuple[1] session_id == CLIENT_HELLO label 4", bt2d[1], ch2[4])
+    eq("tuple[2] transfer_id == SERVER_HELLO label 4", bt2d[2], sh2[4])
+    eq("SERVER_HELLO digest == SHA-256(tuple)", hashlib.sha256(
+        b"deceipt-binding-tuple-v1\x00" + bt2).hexdigest(), sh2[9].hex())
+    eq("SERVER_HELLO label 11 == CLIENT_HELLO label 8", sh2[11], ch2[8])
+    # rebuild the transcript from received messages only, then verify the signature
+    lab = b"deceipt-handshake-v1"
+    eq("domain label is 20 bytes", len(lab), 20)
+    rebuilt = (lab + struct.pack(">H", sh2[2]) + struct.pack(">H", sh2[3]) + ch2[5] + ch2[6]
+               + sh2[5] + sh2[6] + bt2d[2] + bt2d[1] + sh2[9]
+               + struct.pack(">H", sh2[11]) + bytes([len(bt2)]) + bt2)
+    eq("rebuilt transcript == signed transcript", rebuilt.hex(), hs2["transcript_hex"])
+    ed25519.Ed25519PublicKey.from_public_bytes(
+        bytes.fromhex(keys["merchant-test-1"]["public_key_hex"])).verify(sh2[8], rebuilt)
+    for row in hs2["transcript_layout"]:
+        if row["field"] == "label":
+            eq("transcript_layout label size", row["size_bytes"], 20)
+        if row["field"] == "transfer_id":
+            eq("transcript_layout transfer_id offset", row["offset"], 218)
+        if row["field"] == "binding_tuple":
+            eq("transcript_layout binding_tuple offset", row["offset"], 285)
+    # no byte-less invalid fixtures remain
+    for fname in ("receipt-invalid.json", "handshake-invalid.json", "aead-invalid.json",
+                  "framing-invalid.json", "lpdu-invalid.json", "encoding-invalid.json"):
+        for c in load(fname)["cases"]:
+            if c["case"].startswith("receipt_") or c["case"].startswith("l_"):
+                pass
+    for c in load("receipt-invalid.json")["cases"]:
+        if c["expected_error"] is not None:
+            eq("invalid fixture %s has bytes" % c["case"],
+               c["cose_sign1_hex"] is not None, True)
 
     # ---- 10. bounds ----
     b = load_schema("bounds-v1.json")

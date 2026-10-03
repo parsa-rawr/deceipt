@@ -1,6 +1,6 @@
 # Verification order, outcomes, and typed errors
 
-**Revision:** `deceipt-proto-r1` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A3 (state machine, persistence, UI), A4/A5 (native result events), A6 (adversarial checks)
 **Machine-readable:** `protocol/vectors/errors.json` · **Vectors:** all files under `protocol/vectors/`
 
@@ -18,7 +18,7 @@ Each step is a gate. **A failure at any step MUST NOT fall through to a verified
 | 2 | Validate handshake message format and versions | `MESSAGE_*`, `CBOR_*`, `HANDSHAKE_UNSUPPORTED_VERSION`, `HANDSHAKE_NO_COMMON_SUITE` |
 | 3 | Verify merchant device credential against trust anchors | `CREDENTIAL_*` (unknown issuer = non-fatal, trust=unknown) |
 | 4 | Verify merchant handshake signature over the exact transcript | `HANDSHAKE_SIGNATURE_INVALID`, `HANDSHAKE_TRANSCRIPT_MISMATCH`, `TRANSFER_ID_MISMATCH` |
-| 5 | Derive session keys | — (`SessionAuthenticated` only after 3 and 4) |
+| 5 | Derive session keys | — (`SessionAuthenticated`/`SessionUnverifiedPeer` only after 3 and 4) |
 | 6 | Receive and reassemble the encrypted payload | `FRAME_*`, `TRANSFER_INCOMPLETE`, `TRANSFER_HASH_MISMATCH`, `TRANSFER_SIZE_EXCEEDED` |
 | 7 | Authenticate/decrypt the AEAD payload | `AEAD_AUTH_FAILED`, `AEAD_REPLAY_DETECTED`, `AEAD_COUNTER_MISMATCH` |
 | 8 | Parse the signed receipt container **as untrusted input** | `RECEIPT_CONTAINER_MALFORMED`, `RECEIPT_SIZE_EXCEEDED`, `RECEIPT_NONCANONICAL` |
@@ -53,7 +53,7 @@ Storage MUST persist the sub-states, not just the policy outcome, so a later pol
 | Outcome | Code | Meaning | Store? | UI |
 |---|---:|---|---|---|
 | `TRUSTED` | `0x0001` | all applicable sub-states pass, key authorized | yes, as trusted | "Verified · {display_name}" |
-| `UNVERIFIED_UNKNOWN_ISSUER` | `0x0002` | signature valid, key **not** authorized (issuer not pinned) | yes, as **unverified** | "Unverified merchant" — never the trusted affordance |
+| `UNVERIFIED_UNKNOWN_ISSUER` | `0x0002` | signature valid, key **not** authorized (issuer not pinned); reachable only via a `SessionUnverifiedPeer` session (`handshake.md` §9) — never via `SessionKeysOnly`, which cannot transfer | yes, as **unverified** | "Unverified merchant" — never the trusted affordance |
 | `ALREADY_IMPORTED_IDENTICAL` | `0x0003` | idempotent re-import, byte-identical | no new row | "Already saved" |
 | `REJECTED` | `0x0004` | any fatal `RECEIPT_*`/`CREDENTIAL_*` failure | evidence only, never trusted | "Could not verify" + reason |
 | `PENDING` | `0x0005` | in-flight / awaiting user decision | transient | progress |
@@ -107,7 +107,7 @@ Selected codes (see `errors.json` for all):
 | `peer_candidate(peripheral_id)` | a peripheral advertising the service UUID (never carries RSSI into selection) |
 | `connected(peripheral_id)` / `disconnected(reason)` | link state |
 | `mtu_changed(att_mtu)` | reported MTU changed; frame size is recomputed, never assumed |
-| `session_authenticated(merchant_id, device_key_id)` | step 4 passed → `SessionAuthenticated` |
+| `session_type_resolved(kind, merchant_id, device_key_id)` | after step 4: `SessionAuthenticated` (pinned anchor), `SessionUnverifiedPeer` (unknown issuer, self-asserted key verified), or `SessionKeysOnly` (not authenticated; cannot transfer) |
 | `offer_received(display fields)` | untrusted pre-verification metadata |
 | `transfer_progress(highest_contiguous_sequence, frame_count)` | flow-control progress |
 | `receipt_received(exact bytes)` | payload decrypted; still `RECEIPT_UNTRUSTED` |

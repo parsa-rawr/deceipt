@@ -1,6 +1,6 @@
 # Transfer framing and flow control
 
-**Revision:** `deceipt-proto-r1` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (native fragmentation/flow control), A3 (progress semantics), A6 (fragmentation proof)
 **Vectors:** `protocol/vectors/framing-valid.json`, `framing-invalid.json`, `lpdu-valid.json`, `lpdu-invalid.json` · **Bounds:** `protocol/schema/bounds-v1.json`
 
@@ -16,14 +16,15 @@ DataFrame = transfer_id(16) ‖ u32_be(sequence_number) ‖ payload_bytes
 
 * `transfer_id` — the session's 16-byte identifier, authenticated in the transcript.
 * `sequence_number` — `0..frame_count−1`, big-endian `u32`.
-* `payload_bytes` — a slice of the AEAD ciphertext; `16..512` bytes. Byte boundaries of BLE packets MUST NOT influence cryptographic object boundaries (`DESIGN.md` §6.5); frames are fragments of one ciphertext, reassembled before AEAD open.
+* `payload_bytes` — a slice of the AEAD ciphertext. Non-final frames carry exactly `frame_size` bytes; the **final** frame carries `ciphertext_length − frame_size·(frame_count−1)`, which is `1..frame_size` and MAY be shorter than the 16-byte minimum that applies to the negotiated `frame_size`. A final frame of 4 bytes (as in the frozen vector) is valid; only a **non-final** frame shorter than 16 bytes, or any frame longer than `frame_size`, is `FRAME_SIZE_INVALID`. Byte boundaries of BLE packets MUST NOT influence cryptographic object boundaries (`DESIGN.md` §6.5); frames are fragments of one ciphertext, reassembled before AEAD open.
 
 **Frame size is negotiated from the reported MTU, never a fixed ATT MTU** (`DESIGN.md` §8.5, §12):
 
 ```text
 att_payload_max(att_mtu)     = min(att_mtu − 3, 512)
 max_frame_payload_for_mtu(m) = min(att_payload_max(m) − 20, 512)
-frame_size                   ∈ [16, 512], and ≤ peer's declared max_frame_payload
+frame_size                   ∈ [16, 512], and ≤ the peer's SERVER_HELLO label 11 value
+final_frame_payload          ∈ [1, frame_size]
 ```
 
 `max_frame_payload` is a member of the canonical transcript (`handshake.md` §3), so the negotiated size is authenticated. Neither side may renegotiate it after `SERVER_HELLO`.
@@ -100,15 +101,15 @@ A2 owns *how the user selects a transaction*; A1 owns *how the selection is boun
 | `session_id(16)` in the QR | `CLIENT_HELLO.label 4`, transcript offset 234 |
 | `transfer_id(16)` | binding tuple member; transcript offset 218; every frame |
 | `receipt_id(16)` | binding tuple member; `RECEIPT_OFFER.label 3`; dedup key |
-| `offer_hash(32)` | binding tuple member (offset 285); recomputed from `RECEIPT_OFFER` labels 3,4,5,6,7,10 |
+| `offer_hash(32)` | binding tuple member (offset 285); recomputed from `RECEIPT_OFFER` members in array order `[session_id(12), transfer_id(2), receipt_id(3), merchant_reference(4), total_amount_minor(5), currency(6), issued_at(7)]` — see `wire.md` §7 for the single definition |
 | `binding_tuple_digest(32)` | transcript offset 250, signed by the merchant |
 | `binding_proof(32)` | `CLIENT_HELLO.label 7` |
 
 **Fail-closed rules at the interface:**
 
 1. QR/session expired ⇒ `BINDING_STALE`; already claimed ⇒ `BINDING_CONSUMED`; unknown `session_id` ⇒ `BINDING_UNKNOWN_SESSION`; bad HMAC ⇒ `BINDING_PROOF_INVALID`.
-2. `RECEIPT_OFFER` fields MUST reproduce `offer_hash` (recompute-and-compare); the offer hash MUST equal the value from the QR, else `BINDING_PROOF_INVALID`/`WRONG_TRANSACTION` per A2 §3.9.
-3. The verified receipt MUST match the offer on `receipt_id`, `kind`, `total_minor`, `currency`, `issued_at`, `merchant_id`, `merchant_reference`; any mismatch ⇒ `WRONG_TRANSACTION` (fatal, audited). This is the last line of defense against a receipt being silently swapped for a different transaction after the user accepted.
+2. `RECEIPT_OFFER` fields MUST reproduce `offer_hash` (recompute-and-compare, array order per `wire.md` §7); the offer hash MUST equal the value from the QR, else `WRONG_TRANSACTION`.
+3. The verified receipt MUST match the offer on `receipt_id`, `kind`, `total_minor`, `currency`, `issued_at`, `merchant_id`, `merchant_reference`; any mismatch ⇒ **`WRONG_TRANSACTION`** (`0x0614`, fatal, audited). This is the only name for the condition; the r1 duplicate `RECEIPT_OFFER_MISMATCH` is removed.
 
 Session binding is **never** merchant-key trust (A2 §3.9): passing every binding check says only "this session, this transaction"; the receipt is still untrusted until Pass B and the §9 receipt checks pass.
 

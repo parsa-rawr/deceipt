@@ -1,5 +1,5 @@
 {
- "revision": "deceipt-proto-r1",
+ "revision": "deceipt-proto-r2",
  "schema": "deceipt.wire-v1",
  "envelope": {
   "plaintext": "0x00 || canonical CBOR (ClientHello, ServerHello only)",
@@ -292,9 +292,32 @@
      "label": 9,
      "name": "binding_tuple_digest",
      "type": "bstr32",
-     "required": true
+     "required": true,
+     "rule": "SHA-256 over the label-10 tuple; a one-way cross-check for the receiver's early digest comparison"
+    },
+    {
+     "label": 10,
+     "name": "binding_tuple",
+     "type": "bstr",
+     "required": true,
+     "rule": "the exact A2 binding_tuple bytes (87 B in v1); authoritative over label 9; lets the receiver rebuild the signed transcript"
+    },
+    {
+     "label": 11,
+     "name": "max_frame_payload",
+     "type": "uint",
+     "required": true,
+     "rule": "16..512; MUST equal the value signed in the transcript; it MAY be below CLIENT_HELLO label 8"
+    },
+    {
+     "label": 4,
+     "name": "transfer_id",
+     "type": "bstr16",
+     "required": true,
+     "note": "MUST equal binding_tuple[2]"
     }
-   ]
+   ],
+   "transcript_reconstruction": "rebuild with CLIENT_HELLO{2,3,5,6} + SERVER_HELLO{2,3,4,5,6,9,10,11}; see docs/protocol/handshake.md \u00a73.2"
   },
   {
    "type": 18,

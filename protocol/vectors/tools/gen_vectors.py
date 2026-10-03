@@ -36,7 +36,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 # 0. Constants — single source of truth for every number in the spec
 # ==========================================================================
 
-REVISION_LABEL = "deceipt-proto-r1"
+REVISION_LABEL = "deceipt-proto-r2"
 
 PROTOCOL_VERSION = 1
 SUITE_ID = 1
@@ -153,7 +153,8 @@ MAX_LPDU_FRAG_BYTES = 512
 LPDU_HEADER_BYTES = 4
 MAX_ATT_PAYLOAD = 512
 MAX_FRAME_PAYLOAD = 512
-MIN_FRAME_PAYLOAD = 16
+MIN_FRAME_PAYLOAD = 16      # negotiated frame_size lower bound
+FINAL_FRAME_MIN_PAYLOAD = 1  # last frame may be 1..frame_size (ciphertext not a multiple)
 DATAFRAME_HEADER_BYTES = 20
 MAX_TRANSFER_CIPHERTEXT = MAX_RECEIPT_BYTES + 16
 MAX_FRAMES = 32768
@@ -275,7 +276,6 @@ ERRORS: List[Tuple[str, int, bool, bool, str]] = [
     ("RECEIPT_DUPLICATE_CONFLICT", 0x060D, True, False, "receipt"),
     ("RECEIPT_OUTSIDE_KEY_VALIDITY", 0x060E, True, False, "receipt"),
     ("RECEIPT_CREDENTIAL_MISMATCH", 0x060F, True, False, "receipt"),
-    ("RECEIPT_OFFER_MISMATCH", 0x0610, True, False, "receipt"),
     ("RECEIPT_TEXT_INVALID", 0x0611, True, False, "receipt"),
     ("RECEIPT_UNKNOWN_CRITICAL_EXTENSION", 0x0612, True, False, "receipt"),
     ("RECEIPT_ISSUED_IN_FUTURE", 0x0613, True, False, "receipt"),
@@ -867,7 +867,7 @@ def binding_proof_message(client_nonce: bytes, client_eph_pub: bytes) -> bytes:
 # ==========================================================================
 
 TRANSCRIPT_LAYOUT = [
-    ("label", 19), ("protocol_version", 2), ("suite_id", 2),
+    ("label", 20), ("protocol_version", 2), ("suite_id", 2),
     ("client_nonce", 32), ("client_ephemeral_pubkey", 65),
     ("server_nonce", 32), ("server_ephemeral_pubkey", 65),
     ("transfer_id", 16), ("session_id", 16),
@@ -893,6 +893,29 @@ def build_transcript(protocol_version: int, suite_id: int, client_nonce: bytes,
             + server_nonce + server_eph_pub + transfer_id + session_id
             + binding_digest + struct.pack(">H", max_frame_payload)
             + bytes([len(tuple_bytes)]) + tuple_bytes)
+
+
+def rebuild_transcript_from_messages(client_hello: Dict[int, Any],
+                                     server_hello: Dict[int, Any]) -> bytes:
+    """R4-01: rebuild the exact signed transcript using ONLY received plaintext.
+
+    The receiver uses CLIENT_HELLO{2,3,5,6,8} and SERVER_HELLO{2,3,4,5,6,9,10,11}.
+    All binding-tuple members (session_id, transfer_id, receipt_id, offer_hash) are
+    resolved from SERVER_HELLO label 10, which is authoritative over label 9.
+    """
+    btuple = server_hello[10]
+    bt = cbor_decode(btuple)
+    if not isinstance(bt, list) or len(bt) != 5 or bt[0] != 1:
+        raise CborError("HANDSHAKE_TRANSCRIPT_MISMATCH", "malformed binding tuple")
+    session_id, transfer_id, receipt_id, offer_hash_bytes = bt[1], bt[2], bt[3], bt[4]
+    if server_hello[4] != transfer_id:
+        raise CborError("TRANSFER_ID_MISMATCH", "server_hello transfer_id != tuple")
+    if binding_tuple_digest(btuple) != server_hello[9]:
+        raise CborError("HANDSHAKE_TRANSCRIPT_MISMATCH", "binding digest mismatch")
+    return build_transcript(server_hello[2], server_hello[3], client_hello[5],
+                            client_hello[6], server_hello[5], server_hello[6],
+                            transfer_id, session_id, server_hello[9],
+                            server_hello[11], btuple)
 
 
 def transcript_layout_table() -> List[Dict[str, Any]]:
@@ -1244,7 +1267,7 @@ def check_receipt_semantics(body: Dict[int, Any]) -> Optional[str]:
 
 
 def check_receipt_matches_offer(body: Dict[int, Any], offer: Dict[int, Any]) -> Optional[str]:
-    """WRONG_TRANSACTION / RECEIPT_OFFER_MISMATCH: receipt must be the offered one."""
+    """WRONG_TRANSACTION (0x0614): the receipt must be the one the offer/QR named."""
     if body.get(R_RECEIPT_ID) != offer.get(3):
         return "WRONG_TRANSACTION"
     if body.get(R_CURRENCY) != offer.get(6):
@@ -1477,6 +1500,8 @@ RECEIPT_ID_1 = bytes.fromhex("0123456789abcdef0123456789abcdef")
 RECEIPT_ID_LONG = bytes.fromhex("fedcba98765432100123456789abcdef")
 CLIENT_NONCE = bytes.fromhex("c0ffee00" + "00" * 27 + "01")
 SERVER_NONCE = bytes.fromhex("5e57e500" + "00" * 27 + "01")
+CLIENT_NONCE_2 = bytes.fromhex("c0ffee00" + "00" * 27 + "02")
+SERVER_NONCE_2 = bytes.fromhex("5e57e500" + "00" * 27 + "02")
 TRANSACTION_REF = bytes.fromhex("74780000000000000000000000000042")
 SBT = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
 
@@ -1494,6 +1519,7 @@ ANCHORS = {ROOT_ID: ed25519_pub_bytes(ROOT_KEY)}
 SESSION_KEYS: Dict[str, str] = {}
 offer_hash_v_global = b""
 VALID_CRED = b""
+CH_PROBE: Dict[int, Any] = {}
 OFFER_TOTAL_MINOR = 970
 OFFER_ISSUED_AT = 0
 
@@ -1515,7 +1541,7 @@ def lines_long(n: int) -> List[Dict[int, Any]]:
 
 
 def main() -> None:
-    global SESSION_KEYS, offer_hash_v_global, VALID_CRED, OFFER_TOTAL_MINOR, OFFER_ISSUED_AT
+    global SESSION_KEYS, offer_hash_v_global, VALID_CRED, CH_PROBE, OFFER_TOTAL_MINOR, OFFER_ISSUED_AT
     here = os.path.dirname(os.path.abspath(__file__))
     vec_dir = os.path.abspath(os.path.join(here, ".."))
     schema_dir = os.path.abspath(os.path.join(vec_dir, "..", "schema"))
@@ -1659,6 +1685,17 @@ def main() -> None:
                                   btd, max_fp, btuple)
     assert len(transcript) == TRANSCRIPT_LEN, (len(transcript), TRANSCRIPT_LEN)
     t_sig = MERCHANT_KEY.sign(transcript)
+    # R4-01: the receiver MUST be able to rebuild the exact signed transcript from received
+    # plaintext only: CLIENT_HELLO (nonce, eph key, negotiated max_frame_payload) +
+    # SERVER_HELLO (nonce, eph key, transfer_id, binding_tuple_digest, binding_tuple,
+    # max_frame_payload). binding_tuple is authoritative over its digest.
+    _sh_probe = {1: MSG_SERVER_HELLO, 2: PROTOCOL_VERSION, 3: SUITE_ID,
+                 4: TRANSFER_ID, 5: SERVER_NONCE, 6: server_pub, 7: valid_cred,
+                 8: t_sig, 9: btd, 10: btuple, 11: max_fp}
+    _ch_probe = {1: MSG_CLIENT_HELLO, 2: PROTOCOL_VERSION, 3: [SUITE_ID],
+                 4: SESSION_ID, 5: CLIENT_NONCE, 6: client_pub, 7: bproof, 8: max_fp}
+    _reb = rebuild_transcript_from_messages(_ch_probe, _sh_probe)
+    assert _reb == transcript, "transcript not reconstructible from received plaintext"
     transcript_hash = hashlib.sha256(transcript).digest()
     shared = ecdh(CLIENT_EPH, server_pub)
     assert shared == ecdh(SERVER_EPH, client_pub)
@@ -1667,10 +1704,11 @@ def main() -> None:
     SESSION_KEYS = {k: v.hex() for k, v in sched.items()}
     offer_hash_v_global = offer_hash_v
     VALID_CRED = valid_cred
+    CH_PROBE.clear(); CH_PROBE.update(client_hello)
 
     server_hello = {1: MSG_SERVER_HELLO, 2: PROTOCOL_VERSION, 3: SUITE_ID,
                     4: TRANSFER_ID, 5: SERVER_NONCE, 6: server_pub, 7: valid_cred,
-                    8: t_sig, 9: btd}
+                    8: t_sig, 9: btd, 10: btuple, 11: max_fp}
     sh_env = control_envelope_plaintext(server_hello)
 
     hs = {"revision": REVISION_LABEL, "protocol_version": PROTOCOL_VERSION,
@@ -1785,12 +1823,81 @@ def main() -> None:
             "ReceiptOffer/Receipt is not the transaction named by the scanned QR",
             offer_receipt_id_hex=bytes(16).hex(),
             qr_receipt_id_hex=RECEIPT_ID_1.hex())
+    hs_case("server_hello_binding_tuple_absent", "BINDING_REQUIRED",
+            "SERVER_HELLO without label 10: the receiver cannot rebuild the signed "
+            "transcript",
+            server_hello_hex=cbor_encode({k: v for k, v in server_hello.items()
+                                          if k != 10}).hex())
+    hs_case("server_hello_binding_tuple_substituted", "HANDSHAKE_TRANSCRIPT_MISMATCH",
+            "label 10 replaced by another transaction's tuple while label 9 is unchanged; "
+            "the receiver recomputes the digest from label 10 and rejects",
+            server_hello_hex=cbor_encode({**server_hello, 10: binding_tuple(
+                SESSION_ID, TRANSFER_ID, RECEIPT_ID_1, bytes(32))}).hex())
+    hs_case("server_hello_max_frame_payload_unsigned", "HANDSHAKE_SIGNATURE_INVALID",
+            "label 11 lowered after signing; the rebuilt transcript differs from the "
+            "signed one",
+            server_hello_hex=cbor_encode({**server_hello, 11: 64}).hex())
+    hs_case("server_hello_transfer_id_not_a_tuple_member", "TRANSFER_ID_MISMATCH",
+            "label 4 != binding_tuple[2]",
+            server_hello_hex=cbor_encode({**server_hello, 4: bytes(16)}).hex())
     hs_case("frame_payload_above_reported_capacity", "FRAME_SIZE_INVALID",
             "ClientHello.max_frame_payload 200 > merchant hard cap 162",
             client_hello_hex=cbor_encode({**client_hello, 8: 200}).hex(),
             merchant_max_frame_payload=162)
     _wj(os.path.join(vec_dir, "handshake-invalid.json"), hs_invalid)
     manifest["handshake-invalid.json"] = _sha(os.path.join(vec_dir, "handshake-invalid.json"))
+
+    # ---------------- R1-02: SessionUnverifiedPeer (unknown issuer) ----------------
+    # A peer whose credential is well-formed but whose issuer is not pinned. The receiver
+    # cannot verify the credential's issuer signature, so it verifies the transcript
+    # signature against the credential's SELF-ASSERTED device key: this proves internal
+    # consistency, not identity. The session is SessionUnverifiedPeer: transfer allowed,
+    # every receipt UNVERIFIED_UNKNOWN_ISSUER, never TRUSTED.
+    u_cp = p256_pub_bytes(CLIENT_EPH_2)
+    u_sp = p256_pub_bytes(SERVER_EPH)
+    u_transcript = build_transcript(PROTOCOL_VERSION, SUITE_ID, CLIENT_NONCE_2, u_cp,
+                                    SERVER_NONCE_2, u_sp, TRANSFER_ID, SESSION_ID, btd,
+                                    max_fp, btuple)
+    u_sig = OTHER_MERCHANT_KEY.sign(u_transcript)
+    u_th = hashlib.sha256(u_transcript).digest()
+    u_ch = {1: MSG_CLIENT_HELLO, 2: PROTOCOL_VERSION, 3: [SUITE_ID], 4: SESSION_ID,
+            5: CLIENT_NONCE_2, 6: u_cp, 7: binding_proof(SBT, CLIENT_NONCE_2, u_cp),
+            8: max_fp}
+    u_sh = {1: MSG_SERVER_HELLO, 2: PROTOCOL_VERSION, 3: SUITE_ID, 4: TRANSFER_ID,
+            5: SERVER_NONCE_2, 6: u_sp, 7: unknown_cred, 8: u_sig, 9: btd, 10: btuple,
+            11: max_fp}
+    # the credential's issuer is unknown, but its self-asserted device key must verify
+    _uc = cose_parse(unknown_cred)
+    _ubody = cbor_decode(_uc["payload"], max_bytes=MAX_CREDENTIAL_BYTES)
+    ed25519.Ed25519PublicKey.from_public_bytes(_ubody[CRED_DEVICE_PUBKEY]).verify(
+        u_sig, u_transcript)
+    assert rebuild_transcript_from_messages(u_ch, u_sh) == u_transcript
+    uev = {
+        "revision": REVISION_LABEL,
+        "purpose": "R1-02: a well-formed peer whose issuer is not a pinned anchor reaches "
+                   "SessionUnverifiedPeer. The transcript signature verifies against the "
+                   "credential's self-asserted device key (internal consistency only, NOT "
+                   "identity). Transfer is allowed; every receipt from it is "
+                   "UNVERIFIED_UNKNOWN_ISSUER and can never become TRUSTED.",
+        "session_type": "SessionUnverifiedPeer",
+        "client_hello_hex": cbor_encode(u_ch).hex(),
+        "server_hello_hex": cbor_encode(u_sh).hex(),
+        "transcript_hex": u_transcript.hex(),
+        "transcript_hash_hex": u_th.hex(),
+        "transcript_signature_hex": u_sig.hex(),
+        "credential_hex": unknown_cred.hex(),
+        "credential_issuer_id_hex": UNKNOWN_ROOT_ID.hex(),
+        "credential_device_public_key_hex": _ubody[CRED_DEVICE_PUBKEY].hex(),
+        "pinned_anchors_hex": {k.hex(): v.hex() for k, v in ANCHORS.items()},
+        "credential_verification": {"expected_error": "CREDENTIAL_UNKNOWN_ISSUER",
+                                    "expected_trust": "unknown_issuer", "fatal": False},
+        "expected_transfer": "allowed",
+        "expected_receipt_outcome": "UNVERIFIED_UNKNOWN_ISSUER",
+        "must_never_be": "TRUSTED",
+    }
+    _wj(os.path.join(vec_dir, "handshake-unverified-peer.json"), uev)
+    manifest["handshake-unverified-peer.json"] = _sha(
+        os.path.join(vec_dir, "handshake-unverified-peer.json"))
 
     # ---------------- binding cross-check vs A2 ----------------
     a2_sid = bytes.fromhex("00112233445566778899aabbccddeeff")
@@ -2150,19 +2257,20 @@ def main() -> None:
     cont = cbor_encode([pb, {}, payload, rsig])
     r_case("receipt_container_noncanonical", (b"\x98\x04" + cont[1:]).hex(),
            "RECEIPT_NONCANONICAL", note="outer array length encoded as 0x98 0x04")
-    r_case("receipt_oversize_placeholder", None, "RECEIPT_SIZE_EXCEEDED",
-           note="see protocol/schema/bounds-v1.json max_receipt_bytes; any payload > 65536 "
-                "bytes is rejected before parsing")
-
-    # concrete oversize case: a validly-signed receipt whose payload exceeds the bound
+    # R3-01: two concrete oversize cases (no byte-less placeholders)
     big_body = M(body, {R_EXTENSIONS: [
         {1: "com.example.pad", 2: False, 3: b"\x00" * 70000}]})
     big_payload = cbor_encode(big_body)
     assert len(big_payload) > MAX_RECEIPT_BYTES
     b_pb, _s, b_sig = cose_sign1_parts(prot, big_payload, MERCHANT_KEY)
-    ri["cases"][-1]["cose_sign1_hex"] = cbor_encode([b_pb, {}, big_payload, b_sig]).hex()
-    ri["cases"][-1]["note"] = ("payload is %d bytes > max_receipt_bytes=%d; rejected before "
-                               "signature verification" % (len(big_payload), MAX_RECEIPT_BYTES))
+    big_blob = cbor_encode([b_pb, {}, big_payload, b_sig])
+    r_case("receipt_oversize_signed", big_blob.hex(), "RECEIPT_SIZE_EXCEEDED",
+           note="validly signed, but the container is %d bytes > max_receipt_bytes=%d; "
+                "rejected on the container length before any parse or signature work"
+                % (len(big_blob), MAX_RECEIPT_BYTES))
+    r_case("receipt_oversize_raw", "00" * (MAX_RECEIPT_BYTES + 1), "RECEIPT_SIZE_EXCEEDED",
+           note="%d opaque bytes with no valid structure; the size bound fires before the "
+                "parser" % (MAX_RECEIPT_BYTES + 1))
     _wj(os.path.join(vec_dir, "receipt-invalid.json"), ri)
     manifest["receipt-invalid.json"] = _sha(os.path.join(vec_dir, "receipt-invalid.json"))
 
@@ -2290,6 +2398,12 @@ def main() -> None:
         "frame_count": fcount, "ciphertext_len": len(receipt_ct),
         "payload_hash_hex": hashlib.sha256(receipt_ct).hexdigest(),
         "frames_hex": [f.hex() for f in frames],
+        "frame_payload_sizes": [len(f) - DATAFRAME_HEADER_BYTES for f in frames],
+        "final_frame_payload_bytes": len(frames[-1]) - DATAFRAME_HEADER_BYTES,
+        "final_frame_rule": "the final frame payload is ciphertext_length - "
+                            "frame_size*(frame_count-1), which is 1..frame_size and MAY be "
+                            "below the 16-byte minimum that applies to the negotiated "
+                            "frame_size; it is NOT a FRAME_SIZE_INVALID condition",
         "ack_example": {"1": MSG_ACK, "2": TRANSFER_ID.hex(), "3": 0},
         "ack_example_plaintext_hex": cbor_encode({1: MSG_ACK, 2: TRANSFER_ID, 3: 0}).hex(),
         "reassembly_rule": "concatenate frames 0..frame_count-1 payloads == ciphertext",
@@ -2345,6 +2459,10 @@ def main() -> None:
     f_case("retries_exhausted", "TRANSFER_RETRY_EXHAUSTED", retries_used=MAX_FRAME_RETRIES + 1)
     f_case("receiver_cancelled", "TRANSFER_CANCELLED", cancel_from="customer",
            disposition="abort_and_disconnect")
+    f_case("final_frame_payload_exceeds_frame_size", "FRAME_SIZE_INVALID",
+           final_frame_payload_bytes=163, frame_size=162,
+           note="a NON-final frame shorter than 16 bytes, or any frame longer than the "
+                "negotiated frame_size, is invalid; a short FINAL frame is valid")
     _wj(os.path.join(vec_dir, "framing-invalid.json"), fi)
     manifest["framing-invalid.json"] = _sha(os.path.join(vec_dir, "framing-invalid.json"))
 
@@ -2466,6 +2584,15 @@ def main() -> None:
                  "max_lpdu_frag_bytes": MAX_LPDU_FRAG_BYTES,
                  "lpdu_header_bytes": LPDU_HEADER_BYTES, "max_att_payload": MAX_ATT_PAYLOAD,
                  "max_frame_payload": MAX_FRAME_PAYLOAD, "min_frame_payload": MIN_FRAME_PAYLOAD,
+                 "final_frame_min_payload": FINAL_FRAME_MIN_PAYLOAD,
+                 "k_m2c_payload_usage": "ONE-SHOT: exactly one AEAD seal per session, always "
+                                        "at counter 0. A second payload seal under the same "
+                                        "key is a protocol violation (GCM nonce reuse is "
+                                        "prevented by construction, not by luck).",
+                 "final_frame_rule": "payload_bytes of the final frame is "
+                                     "ciphertext_length - frame_size*(frame_count-1), in "
+                                     "1..frame_size; the 16-byte minimum applies only to the "
+                                     "negotiated frame_size, not to the final frame",
                  "dataframe_header_bytes": DATAFRAME_HEADER_BYTES,
                  "max_transfer_ciphertext": MAX_TRANSFER_CIPHERTEXT, "max_frames": MAX_FRAMES,
                  "aead_tag_bytes": AEAD_TAG_BYTES, "aead_nonce_bytes": AEAD_NONCE_BYTES,
@@ -2500,7 +2627,8 @@ def main() -> None:
     for name in ("handshake-valid.json", "handshake-invalid.json", "aead-valid.json",
                  "aead-invalid.json", "framing-valid.json", "framing-invalid.json",
                  "lpdu-valid.json", "lpdu-invalid.json", "encoding-invalid.json",
-                 "errors.json", "binding-crosscheck.json"):
+                 "errors.json", "binding-crosscheck.json",
+                 "handshake-unverified-peer.json"):
         manifest[name] = _sha(os.path.join(vec_dir, name))
 
     _wb(os.path.join(vec_dir, "NOTICE"), NOTICE_FILE.encode("utf-8"))
@@ -2520,7 +2648,8 @@ def main() -> None:
 
     # ---------------- freeze revision manifest ----------------
     rev_dir = os.path.abspath(os.path.join(vec_dir, ".."))
-    doc_dir = os.path.abspath(os.path.join(rev_dir, "..", "docs", "protocol"))
+    root_dir = os.path.abspath(os.path.join(rev_dir, ".."))
+    doc_dir = os.path.join(root_dir, "docs", "protocol")
     frozen = dict(sorted(manifest.items()))
     for fn in sorted(os.listdir(doc_dir)) if os.path.isdir(doc_dir) else []:
         if fn.endswith(".md"):
@@ -2529,16 +2658,28 @@ def main() -> None:
         fp = os.path.join(schema_dir, fn)
         if os.path.exists(fp):
             frozen["../schema/" + fn] = _sha(fp)
+    # RX-02: docs/protocol/README.md pins the A2 flow artifacts, so they must be inside
+    # the aggregate. Glob every file under protocol/flows/** with a stable relative key.
+    flows_dir = os.path.join(rev_dir, "flows")
+    if os.path.isdir(flows_dir):
+        for dp, _dns, fns in os.walk(flows_dir):
+            for fn in sorted(fns):
+                if fn.endswith(".pyc"):
+                    continue
+                fp = os.path.join(dp, fn)
+                rel = os.path.relpath(fp, vec_dir).replace(os.sep, "/")
+                frozen[rel] = _sha(fp)
     aggregate = hashlib.sha256(
-        b"deceipt-proto-r1\x00" + b"\x00".join(
+        (REVISION_LABEL + "\x00").encode() + b"\x00".join(
             (k + "=" + v).encode() for k, v in sorted(frozen.items()))).hexdigest()
     _wj(os.path.join(rev_dir, "REVISION.json"), {
         "_TESTONLY": TEST_ONLY_NOTICE,
         "revision": REVISION_LABEL,
         "aggregate_sha256": aggregate,
-        "hash_rule": "SHA-256(\"deceipt-proto-r1\" || 0x00 || <sorted 'path=sha256' rows "
-                     "joined by 0x00>) over every frozen protocol artifact "
-                     "(docs/protocol/*.md, protocol/schema/*, protocol/vectors/*)",
+        "hash_rule": "SHA-256(<revision id> || 0x00 || <sorted 'path=sha256' rows joined by "
+                     "0x00>) over every frozen protocol artifact: docs/protocol/*.md, "
+                     "protocol/schema/*, protocol/vectors/** and protocol/flows/** (the A2 "
+                     "artifacts docs/protocol/README.md adopts and pins).",
         "files": frozen,
         "status": "FROZEN for the PoC; changes require a new revision id and a new "
                   "vector regeneration",
@@ -2795,7 +2936,20 @@ def wire_messages_schema() -> Dict[str, Any]:
                         {"label": 8, "name": "transcript_signature", "type": "bstr64",
                          "required": True},
                         {"label": 9, "name": "binding_tuple_digest", "type": "bstr32",
-                         "required": True}]},
+                         "required": True, "rule": "SHA-256 over the label-10 tuple; a "
+                         "one-way cross-check for the receiver's early digest comparison"},
+                        {"label": 10, "name": "binding_tuple", "type": "bstr",
+                         "required": True, "rule": "the exact A2 binding_tuple bytes "
+                         "(87 B in v1); authoritative over label 9; lets the receiver "
+                         "rebuild the signed transcript"},
+                        {"label": 11, "name": "max_frame_payload", "type": "uint",
+                         "required": True, "rule": "16..512; MUST equal the value signed in "
+                         "the transcript; it MAY be below CLIENT_HELLO label 8"},
+                        {"label": 4, "name": "transfer_id", "type": "bstr16",
+                         "required": True, "note": "MUST equal binding_tuple[2]"}],
+             "transcript_reconstruction": "rebuild with CLIENT_HELLO{2,3,5,6} + "
+                                          "SERVER_HELLO{2,3,4,5,6,9,10,11}; see "
+                                          "docs/protocol/handshake.md \u00a73.2"},
             {"type": MSG_RECEIPT_OFFER, "name": "RECEIPT_OFFER", "direction": "m2c",
              "state": "MERCHANT_SESSION_AUTHENTICATED", "encrypted": True,
              "fields": [{"label": 1, "name": "type", "type": "uint", "required": True},
@@ -2977,15 +3131,27 @@ def self_test(vec_dir: str, schema_dir: str) -> Dict[str, Any]:
             elif not (set(m[3]) & {SUITE_ID}):
                 got = "HANDSHAKE_NO_COMMON_SUITE"
         elif c["case"] in ("merchant_selects_unoffered_suite", "server_hello_transfer_id_mismatch",
-                           "server_hello_binding_digest_mismatch"):
+                           "server_hello_binding_digest_mismatch",
+                           "server_hello_binding_tuple_absent",
+                           "server_hello_binding_tuple_substituted",
+                           "server_hello_max_frame_payload_unsigned",
+                           "server_hello_transfer_id_not_a_tuple_member"):
             m = cbor_decode(bytes.fromhex(c["server_hello_hex"]))
             if m[3] != SUITE_ID:
                 got = "HANDSHAKE_SUITE_MISMATCH"
-            elif m[4] != TRANSFER_ID:
-                got = "TRANSFER_ID_MISMATCH"
-            elif m[9] != binding_tuple_digest(binding_tuple(SESSION_ID, TRANSFER_ID,
-                                                           RECEIPT_ID_1, offer_hash_v_global)):
-                got = "HANDSHAKE_TRANSCRIPT_MISMATCH"
+            elif 10 not in m:
+                got = "BINDING_REQUIRED"
+            else:
+                try:
+                    rebuilt = rebuild_transcript_from_messages(CH_PROBE, m)
+                    try:
+                        ed25519.Ed25519PublicKey.from_public_bytes(
+                            ed25519_pub_bytes(MERCHANT_KEY)).verify(m[8], rebuilt)
+                        got = None
+                    except Exception:
+                        got = "HANDSHAKE_SIGNATURE_INVALID"
+                except CborError as e:
+                    got = e.code
         elif c["case"] == "binding_required_fields_absent":
             m = cbor_decode(bytes.fromhex(c["client_hello_hex"]))
             if 4 not in m or 7 not in m:
@@ -3007,6 +3173,45 @@ def self_test(vec_dir: str, schema_dir: str) -> Dict[str, Any]:
             continue
         expect(c["case"], c["expected_error"], got, "handshake-invalid")
 
+    # --- R1-02: unverified peer verifies against its self-asserted device key ---
+    up = V("handshake-unverified-peer.json")
+    checked += 1
+    u_sh = cbor_decode(bytes.fromhex(up["server_hello_hex"]))
+    u_c = cose_parse(u_sh[7])
+    u_b = cbor_decode(u_c["payload"], max_bytes=MAX_CREDENTIAL_BYTES)
+    err, _b, trust = verify_credential(u_sh[7], ANCHORS, NOW)
+    expect("unverified_peer", "CREDENTIAL_UNKNOWN_ISSUER", err, "handshake-unverified-peer")
+    expect("unverified_peer trust", "unknown_issuer", trust, "handshake-unverified-peer")
+    checked += 1
+    try:
+        ed25519.Ed25519PublicKey.from_public_bytes(u_b[CRED_DEVICE_PUBKEY]).verify(
+            u_sh[8], build_transcript(u_sh[2], u_sh[3], u_c_nonce := cbor_decode(
+                bytes.fromhex(up["client_hello_hex"]))[5],
+                cbor_decode(bytes.fromhex(up["client_hello_hex"]))[6], u_sh[5], u_sh[6],
+                u_sh[4], cbor_decode(u_sh[10])[1], u_sh[9], u_sh[11], u_sh[10]))
+    except Exception as e:  # noqa: BLE001
+        failed.append({"file": "handshake-unverified-peer", "case": "self-asserted verify",
+                       "expected": "ok", "observed": repr(e)})
+
+    # --- r2: the signed transcript MUST be reconstructible from received plaintext ---
+    hs0 = V("handshake-valid.json")
+    checked += 1
+    try:
+        rb = rebuild_transcript_from_messages(
+            cbor_decode(bytes.fromhex(hs0["client_hello_hex"])),
+            cbor_decode(bytes.fromhex(hs0["server_hello_hex"])))
+        if rb.hex() != hs0["transcript_hex"]:
+            failed.append({"file": "handshake-valid", "case": "reconstruction",
+                           "expected": hs0["transcript_hex"], "observed": rb.hex()})
+    except Exception as e:  # noqa: BLE001
+        failed.append({"file": "handshake-valid", "case": "reconstruction raised",
+                       "expected": "rebuilt transcript", "observed": repr(e)})
+    for row in hs0["transcript_layout"]:
+        if row["field"] == "label":
+            checked += 1
+            if row["size_bytes"] != 20:
+                failed.append({"file": "handshake-valid", "case": "label length",
+                               "expected": 20, "observed": row["size_bytes"]})
     # --- valid vectors must round-trip ---
     hs = V("handshake-valid.json")
     checked += 1

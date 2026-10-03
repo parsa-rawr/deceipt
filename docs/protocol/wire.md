@@ -1,6 +1,6 @@
 # Wire identifiers and control messages — Pass D
 
-**Revision:** `deceipt-proto-r1` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r2` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (GATT, advertising, framing), A3 (message models), A6 (interop)
 **Machine-readable:** `protocol/schema/wire-v1.messages.json` · **CDDL:** `protocol/schema/wire-v1.cddl` · **Vectors:** `protocol/vectors/handshake-valid.json`, `aead-valid.json`, `lpdu-valid.json`, `framing-valid.json`
 
@@ -94,7 +94,7 @@ DataFrame = transfer_id(16) ‖ u32_be(sequence_number) ‖ payload_bytes
 | Rule | Value / violation |
 |---|---|
 | Total frame bytes | ≤ `att_payload_max` of the negotiated MTU, and header + payload ≤ 512 |
-| `payload_bytes` length | `16..512` ⇒ else `FRAME_SIZE_INVALID` |
+| `payload_bytes` length | non-final frames `16..frame_size`; the **final** frame `1..frame_size` (ciphertext length need not be a multiple of `frame_size`) ⇒ else `FRAME_SIZE_INVALID` |
 | `frame_size` | negotiated in the transcript; MUST be `≤` the peer's declared `max_frame_payload` |
 | `sequence_number` | `0..frame_count−1`; out of range ⇒ `FRAME_SEQUENCE_OUT_OF_RANGE` |
 | duplicate sequence, identical bytes | ignored (`FRAME_SEQUENCE_REPLAYED`, non-fatal) |
@@ -147,7 +147,17 @@ All values from `handshake-valid.json` / `aead-valid.json` / `framing-valid.json
 | `ACK` plaintext | CBOR `{1:3, 2:transfer_id, 3:0}` = `a3 01 03 02 50 <transfer_id> 03 00` |
 | Frames | 6 × (`transfer_id ‖ u32_be(i) ‖ ciphertext[i*162:(i+1)*162]`) |
 
-`RECEIPT_OFFER` plaintext CBOR (156 B) begins `ac 01 12 02 50 <transfer_id> 03 50 <receipt_id> 04 77 "merchant.poc.test-alpha" 05 19 03ca 06 63 "CAD" 07 1a 6955b8c4 08 01 09 19 032e 0a 50 <merchant_id> 0b 58 20 <credential_hash> 0c 50 <session_id>`; `19 03ca` = **970 minor**, i.e. the offer commits to exactly the receipt that follows (CAD 9.70). The offer hash recomputed from labels 3,4,5,6,7,10 equals the QR value and the receipt's binding tuple.
+`RECEIPT_OFFER` plaintext CBOR (156 B) begins `ac 01 12 02 50 <transfer_id> 03 50 <receipt_id> 04 77 "merchant.poc.test-alpha" 05 19 03ca 06 63 "CAD" 07 1a 6955b8c4 08 01 09 19 032e 0a 50 <merchant_id> 0b 58 20 <credential_hash> 0c 50 <session_id>`; `19 03ca` = **970 minor**, i.e. the offer commits to exactly the receipt that follows (CAD 9.70).
+
+**`offer_hash` (single definition, r2).** The hash is over the **array element order**, not label order:
+
+```text
+offer_hash = SHA-256("deceipt-offer-hash-v1" ‖ 0x00 ‖ CBOR([
+    session_id, transfer_id, receipt_id, merchant_reference,
+    total_amount_minor, currency, issued_at_unix ]))
+```
+
+In `RECEIPT_OFFER` label terms the members are `[12, 2, 3, 4, 5, 6, 7]`. (r1 stated `3,4,5,6,7,10` here and in `framing.md`, which was wrong; this is the corrected, single statement. The frozen `offer_hash_hex` and the receipt's binding tuple already use this order.)
 
 
 ## 8. Explicitly deferred

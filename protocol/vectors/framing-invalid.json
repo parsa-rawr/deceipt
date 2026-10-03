@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "_generated": "generated; do not edit by hand",
- "revision": "deceipt-proto-r1",
+ "revision": "deceipt-proto-r2",
  "cases": [
   {
    "case": "frame_size_zero",
@@ -125,6 +125,13 @@
    "note": "",
    "cancel_from": "customer",
    "disposition": "abort_and_disconnect"
+  },
+  {
+   "case": "final_frame_payload_exceeds_frame_size",
+   "expected_error": "FRAME_SIZE_INVALID",
+   "note": "a NON-final frame shorter than 16 bytes, or any frame longer than the negotiated frame_size, is invalid; a short FINAL frame is valid",
+   "final_frame_payload_bytes": 163,
+   "frame_size": 162
   }
  ]
 }

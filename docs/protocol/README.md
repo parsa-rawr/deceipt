@@ -1,6 +1,6 @@
 # Deceipt protocol contract — index
 
-**Revision:** `deceipt-proto-r1` — **FROZEN for the PoC**
+**Revision:** `deceipt-proto-r2` — **FROZEN for the PoC**
 **Aggregate hash:** see `protocol/REVISION.json` (`aggregate_sha256`) — computed over every file listed there.
 **Owner:** A1. Changes require a new revision id and a full vector regeneration.
 
@@ -27,7 +27,7 @@
 * `protocol/schema/*.cddl` — CDDL descriptions of all three structures
 * `protocol/vectors/**` — valid and invalid fixtures with exact bytes and expected typed errors
 * `protocol/vectors/self-test.json` — proof that every byte-level invalid fixture produces its recorded error
-* `protocol/REVISION.json` — frozen file list + aggregate hash
+* `protocol/REVISION.json` — frozen file list + aggregate hash (r2 scope includes `protocol/flows/**`, the A2 artifacts this contract adopts)
 
 ## Non-negotiable invariants (restated)
 
@@ -53,6 +53,8 @@ This repository is **public**. Consequently:
 ```bash
 python3 protocol/vectors/tools/gen_vectors.py     # deterministic; rewrites vectors, bounds, field tables, REVISION.json
 ```
+
+Revision history: **r1** was the first freeze; **r2** closes A6's early-review findings (transcript reconstructibility from received bytes, `offer_hash` single definition, three session types incl. `SessionUnverifiedPeer`, final-frame bound, anchor-key correction, one-shot payload key, duplicate offer-mismatch error removed, `transcript_layout` label size, `protocol/flows/**` in hash scope, no placeholder fixtures). No A2 binding byte changed in r2.
 
 The generator runs a self-test that executes every byte-level invalid fixture through the reference implementation and fails the build if any recorded typed error does not match. `self-test.json` records the result (`checked: 153, failed: []` at this revision).
 
