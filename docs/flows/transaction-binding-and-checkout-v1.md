@@ -1,12 +1,12 @@
 # Deceipt PoC — Transaction Binding & Checkout Flow (v1)
 
 **Owner:** A2 (transaction binding + checkout flow)
-**Status:** v1 — binding bytes **adopted verbatim by A1 into the frozen revision `deceipt-proto-r1`** (`docs/protocol/handshake.md` §10). **Selection model: QR-mandatory** (§4, resolution of A6 RX-04).
-**Revision note:** binding vectors regenerated after A1's cross-check found the published `client_ephemeral_pubkey` was not a valid P-256 point; V1 reconciles byte-for-byte with `protocol/vectors/handshake-valid.json`. A1 is revising to `deceipt-proto-r2` (offer_hash member-definition fix, A6 R2-01); **these vectors will be reconciled again once r2 lands** — see §12/§14.
+**Status:** v1 — binding bytes **adopted verbatim by A1 into the frozen revision `deceipt-proto-r1`, and confirmed unchanged by `deceipt-proto-r2`** (`docs/protocol/handshake.md` §10). **Selection model: QR-mandatory** (§4, resolution of A6 RX-04).
+**Revision note:** binding vectors regenerated after A1's cross-check found the published `client_ephemeral_pubkey` was not a valid P-256 point; V1 reconciles byte-for-byte with `protocol/vectors/handshake-valid.json`. **r2 reconciliation: verified no-op** — `deceipt-proto-r2` did not change the binding inputs, and the frozen `offer_hash`/`binding_tuple`/`binding_tuple_digest`/`binding_proof` values and transcript offsets (250, 282, 284, 285) are identical to r1; `protocol/flows/**` is now inside the r2 revision hash scope (A6 RX-02). See §12/§14.
 **Consumes:** `DESIGN.md` §2.5, §4.4–4.5, §6.3–6.4, §7.1–7.4, §8, §9, §11, §13.
 **Feeds:** A1 (pass C/D — closed in r1), A3 (checkout UI + state machine), A6 (adversarial review), A0 (freeze gate).
 
-> **Labelling rule.** The **QR bootstrap is the single, mandatory binding path for v1** (§4). Values marked **[FROZEN r1]** are byte-identical to A1's `deceipt-proto-r1` and must not change without a revision bump. The removal of the QR-less path is recorded in §4 and §14.
+> **Labelling rule.** The **QR bootstrap is the single, mandatory binding path for v1** (§4). Values marked **[FROZEN r1]** are byte-identical across A1's `deceipt-proto-r1` and `deceipt-proto-r2` (confirmed: r2 did not change binding bytes) and must not change without a revision bump. The removal of the QR-less path is recorded in §4 and §14.
 
 ---
 
@@ -107,7 +107,7 @@ Rules:
 - The QR MUST NOT contain merchant name, amount, receipt id, line items, customer data, or any credential. (If the terminal screen separately displays the amount as text, that text is *display*, not protocol input.)
 - `session_id` is random 16 bytes per checkout session; not derived from merchant identity.
 - Implementations MUST reject `qr_format_version != 1` and MUST reject a payload whose declared lengths differ from the fixed sizes above.
-- **[pending r2]** If A1 resolves A6 R4-01 by transmitting the full `binding_tuple` source via the QR (option b), this map gains `transfer_id`/`receipt_id` fields. Do not add them until A1 publishes r2 (§12/§14).
+- **r2 status:** A1's `deceipt-proto-r2` resolution of A6 R4-01 used **option (a)** — the full `binding_tuple` travels in `SERVER_HELLO`, not the QR — so this map is **unchanged**; no `transfer_id`/`receipt_id` fields are added. (Confirmed at r2; see §14.)
 
 **Vector (V1) [FROZEN r1]:**
 
@@ -476,14 +476,14 @@ A1 **adopted** this contract's binding bytes verbatim (`docs/protocol/handshake.
 
 | Item | Status |
 |---|---|
-| QR bootstrap as the PoC binding path | **MANDATORY for v1** (§4); bytes FROZEN r1 |
-| QR-less / picker-connect path | **REMOVED** — not realisable in r1 (§4.1); any replacement requires an A1 wire revision |
-| `qr_format_version`, domain separators, `proof_message` layout | **FROZEN r1** (adopted by A1) |
-| Transcript field placement of `binding_tuple_digest` | **FROZEN r1** — A1 pass C, offset 250 |
-| Wire IDs for session/transfer/receipt | **FROZEN r1** — A1 pass D |
-| `offer_hash` member set/type | **A2 prose/JSON corrected**; A1 fixing conflicting docs in r2 |
-| HKDF-expanded SBT key | **Recorded hardening path**, not in r1 (§3.4) |
-| r2 reconciliation of A2 vectors | **PENDING** — A1 will notify; do not regenerate until r2 lands (§14) |
+| QR bootstrap as the PoC binding path | **MANDATORY for v1** (§4); bytes FROZEN (r1 = r2) |
+| QR-less / picker-connect path | **REMOVED** — not realisable in r1/r2 (§4.1); any replacement requires an A1 wire revision |
+| `qr_format_version`, domain separators, `proof_message` layout | **FROZEN r1 = r2** (adopted by A1) |
+| Transcript field placement of `binding_tuple_digest` | **FROZEN r1 = r2** — A1 pass C, offset 250 |
+| Wire IDs for session/transfer/receipt | **FROZEN r1 = r2** — A1 pass D |
+| `offer_hash` member set/type | **A2 prose/JSON corrected**; A1 fixed the conflicting docs in r2 (A6 R2-01 closed) |
+| HKDF-expanded SBT key | **Recorded hardening path**, not in r1/r2 (§3.4) |
+| r2 reconciliation of A2 vectors | **DONE — verified no-op** (§14); `protocol/flows/**` now inside r2 hash scope |
 | Production disambiguation UX | §14 provisional, out of PoC scope |
 | Perceived tap count on real devices | pending A4/A5 |
 
@@ -530,4 +530,14 @@ All four vectors and their exact bytes live in `protocol/flows/vectors/binding-v
 
 **R7-01 (minor, A1) — A2 text aligned.** §6 now cites only `WRONG_TRANSACTION` (`0x0614`), the frozen identifier; `RECEIPT_OFFER_MISMATCH` is no longer presented as an alternative name.
 
-**Pending:** A1 is revising to `deceipt-proto-r2`. Per Main's instruction, A2 will **not** regenerate vectors until r2 lands; on notification A2 reconciles byte-for-byte and verifies. If r2 changes `offer_hash` inputs or moves the `binding_tuple` source into the QR (R4-01 option b), the affected vectors/QR layout will be regenerated then.
+**r2 reconciliation (2026-10-03) — verified no-op.** A1 published `deceipt-proto-r2` (offer_hash member-definition fix, A6 R2-01) and folded `protocol/flows/**` into the revision hash scope (A6 RX-02). A2 reconciled against r2 and found:
+
+| Check | Result |
+|---|---|
+| `offer_hash`, `binding_tuple`, `binding_tuple_digest`, `binding_proof` (V1) vs r2 `handshake-valid.json` | **byte-identical** |
+| `binding_proof_message` / `client_ephemeral_pubkey` | **identical** |
+| transcript offsets (`binding_tuple_digest` 250, `max_frame_payload` 282, `binding_len` 284, `binding_tuple` 285) | **unchanged** |
+| all 38 frozen rows vs their recorded SHA-256 | **0 mismatches** (includes all four `protocol/flows/**` files) |
+| recomputed revision aggregate | **matches** r2's stated aggregate |
+
+**Conclusion:** r2 changed no binding input, so **no A2 vector regeneration was required** — the r1 vectors are the r2 vectors. Because `protocol/flows/**` is now hash-pinned in `REVISION.json`, A2 makes **no** further edits to those four files under r2; any future change to them requires a new revision id (A0/A1). A1's option-a resolution of R4-01 (no QR layout change) means the QR map in §3.3 is unchanged, so the `pending r2` note there is resolved (no `transfer_id`/`receipt_id` added).
