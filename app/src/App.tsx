@@ -59,7 +59,9 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
   const binding = useMemo(() => (native === undefined ? resolveNativeAdapter() : bindSuppliedAdapter(native)), [native]);
   const resolvedNative = binding.adapter;
   // Point the protocol layer at the adapter's CSPRNG before any screen can mint
-  // an identifier or a nonce. Hermes has no `globalThis.crypto`, so on device
+  // an identifier or a nonce. `globalThis.crypto` is absent on the tested
+  // Hermes/RN 0.87 device build (it threw CAPABILITY_UNAVAILABLE for secure
+  // randomness), so on device
   // this is the only secure source there is.
   useMemo(() => {
     // The OS normalizer behind the bridge, used only when this engine cannot

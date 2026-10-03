@@ -23,12 +23,15 @@ for (let i = 0; i < 64; i += 1) {
 }
 
 /**
- * TextEncoder/TextDecoder are NOT guaranteed on device: RN 0.87 on Hermes has no
- * `globalThis.TextDecoder` (and no `crypto`), even though Node — and therefore
- * Jest — provides both. Relying on them produced
- * `CBOR_MALFORMED: text string is not valid UTF-8` on real hardware, because a
- * missing global threw and the throw was indistinguishable from a genuinely
- * malformed string.
+ * TextEncoder/TextDecoder are NOT guaranteed on device. Node — and therefore
+ * Jest — provides both, which is why a reliance on them passed every test and
+ * still failed on real hardware with
+ * `CBOR_MALFORMED: text string is not valid UTF-8`: a missing (or throwing)
+ * global was indistinguishable from a genuinely malformed string.
+ *
+ * Precise about what was observed: that failure is device-verified; which of
+ * "absent" or "present but throwing" caused it was not separately confirmed, and
+ * this module does not need to know — it handles both.
  *
  * So both directions are implemented here in plain TypeScript. The decoder is
  * STRICT: it rejects overlong encodings, surrogate halves and out-of-range code

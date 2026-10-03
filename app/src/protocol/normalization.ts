@@ -4,10 +4,16 @@
  * Why this module exists: NFC is a REQUIRED receipt text rule
  * (docs/protocol/receipt-v1.md §1, §3 label 6, §4.3 label 2, §8 `check_text` —
  * "valid UTF-8, NFC-normalized, ... Any violation ⇒ RECEIPT_TEXT_INVALID"), for
- * bidi/lookalike defense on a user-facing document. Hermes on RN 0.87 does not
- * guarantee `String.prototype.normalize` (it is an Intl feature, and Intl is
- * optional in Hermes builds), so a fallback is needed rather than a silent
- * weakening of the check.
+ * bidi/lookalike defense on a user-facing document.
+ *
+ * What is actually true about the engine, stated precisely: `String.prototype.normalize`
+ * is an Intl feature and is NOT GUARANTEED to exist on Hermes — Intl is optional in
+ * Hermes builds. It is not universally absent: a physical RN 0.87 / Hermes Android
+ * build was observed reporting `platform`, i.e. it HAS the method. So this module
+ * does not depend on the pessimistic case and does not assume the optimistic one:
+ * it uses the engine when the engine has it, uses the OS normalizer when it does
+ * not, and fails closed when neither exists. The engine actually in use is
+ * reported (`normalizationEngine`) rather than assumed, and can be read on device.
  *
  * Resolution order:
  *

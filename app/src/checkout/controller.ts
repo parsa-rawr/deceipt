@@ -321,7 +321,7 @@ export class CheckoutController {
         offer: this.model.offer ?? undefined,
         seenReceipts,
         // Prefer the adapter's verifier: Ed25519 must run in native custody, and
-        // Hermes has no WebCrypto for the shared fallback to use on device.
+        // The device build has no WebCrypto for the shared fallback to use.
         signatureVerifier: async (devicePublicKey, coseSign1Bytes) => {
           const outcome = await this.options.native.verifyReceiptContainer(
             base64Encode(coseSign1Bytes),

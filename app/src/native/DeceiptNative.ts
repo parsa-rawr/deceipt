@@ -761,7 +761,8 @@ export interface DeceiptNative {
    * Native owns this because the identifiers and nonces it produces are protocol
    * SECRETS: `session_id`, `client_nonce`, the ephemeral key material and the
    * session-binding token must come from a real CSPRNG (Android `SecureRandom`,
-   * iOS `SecRandomCopyBytes`). Hermes on RN 0.87 has no `globalThis.crypto`, and
+   * iOS `SecRandomCopyBytes`). `globalThis.crypto` was absent on the tested
+   * Hermes/RN 0.87 device build, and
    * a JavaScript PRNG is NOT an acceptable substitute — a predictable nonce is a
    * security defect (DESIGN.md §6, invariant 2).
    *
@@ -776,11 +777,13 @@ export interface DeceiptNative {
    * `text.precomposedStringWithCanonicalMapping`. Both are ICU-backed.
    *
    * It exists because NFC is a REQUIRED receipt text rule (receipt-v1.md §8,
-   * lookalike/bidi defense) and Hermes builds are not guaranteed to have
-   * `String.prototype.normalize`. The shared layer uses the engine's normalizer
-   * when it has one and this method otherwise, so a receipt is never accepted on
-   * an unverified text field. Text in, text out — no base64, because the value
-   * is public display data, not bytes.
+   * lookalike/bidi defense) while `String.prototype.normalize` is an Intl feature
+   * that Hermes builds are not guaranteed to have. (Not universally absent: an
+   * RN 0.87 / Hermes Android build was observed having it, which is why the
+   * engine in use is reported rather than assumed.) The shared layer uses the
+   * engine's normalizer when it has one and this method otherwise, so a receipt
+   * is never accepted on an unverified text field. Text in, text out — no
+   * base64, because the value is public display data, not bytes.
    *
    * The guarantee is exactness for the Unicode version the OS supports, which is
    * the maintained, vendor-updated set; it is not a claim to carry the newest
