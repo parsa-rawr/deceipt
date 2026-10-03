@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "revision": "deceipt-proto-r2",
- "aggregate_sha256": "959bb87cd15bc1af49eb5a7f21d616ea954e78fddb58d5022e792da618f495a8",
+ "aggregate_sha256": "27fb1ed028386188b5f35b44df0d39afc01837b9b700ad1a41f43b221334d859",
  "hash_rule": "SHA-256(<revision id> || 0x00 || <sorted 'path=sha256' rows joined by 0x00>) over every frozen protocol artifact: docs/protocol/*.md, protocol/schema/*, protocol/vectors/** and protocol/flows/** (the A2 artifacts docs/protocol/README.md adopts and pins).",
  "files": {
   "../schema/bounds-v1.json": "dd516e8b23b62e8fd989efc3e4a65776147be4b622cec79d7eb9daf7cbe8c378",
@@ -39,7 +39,7 @@
   "../schema/receipt-v1.cddl": "6162b51133530aff0387729ce2522b64112377f2c29f2d42b2f468f11fa51056",
   "../schema/credential-v1.cddl": "6fe13ad31e00be30b86e6f9cb5b942cda3b5e1abacc2aa9c50e0a72f621f3884",
   "../schema/wire-v1.cddl": "ced6127dd50b3bd55a1727b25b501ef553bc6e171b82d7b5b697b739b988b1be",
-  "../flows/checkout-flow-v1.json": "246061bc1368c714064ecbef278aafaf984556221713769de5e58d361964f350",
+  "../flows/checkout-flow-v1.json": "ccd4a9f16052d10a49181e588c227d17ddc22273335f316b359a9e86dee02515",
   "../flows/checkout-flow-v1.mmd": "ac82c2d55d133ce55437ff0ea17985e1f683b49e30103e6eb0bd59b641add906",
   "../flows/tools/gen_binding_vectors.py": "3f7ce85b03f5d5354d21f0af05f639c56de52de76a0b5c9abf06ada584c3df40",
   "../flows/vectors/binding-v1.json": "72806ff94b6cae455c1dc99eaa0cc9386c33d7162f2189a294db43a5a6c3457c"
