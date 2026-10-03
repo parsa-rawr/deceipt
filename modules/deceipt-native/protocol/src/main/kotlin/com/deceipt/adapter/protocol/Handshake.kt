@@ -143,11 +143,11 @@ object Handshake {
      * Uses SERVER_HELLO label 10 as the authoritative binding tuple and the
      * received max_frame_payload (label 11), never a client-side assumption.
      *
-     * Rule 3 enforcement: label 11 is the value the merchant SIGNED. If it is
-     * below the client's own declared ceiling that is legal; if it is above it,
-     * the merchant signed a frame size the client never offered, so the rebuilt
-     * transcript cannot match the signature -> `HANDSHAKE_SIGNATURE_INVALID`
-     * (vector `server_hello_max_frame_payload_unsigned`).
+     * Label 11 is taken EXACTLY as received: it is the value the merchant signed.
+     * The merchant MAY sign a value below the client's declared ceiling (rule 3);
+     * a label altered after signing produces a transcript whose signature does not
+     * verify, which the caller detects at step 4 by verifying `transcriptSignature`
+     * over this rebuild. No client-side frame-size rule is invented here.
      */
     fun rebuildFromReceived(
         protocolVersion: Int,
@@ -164,9 +164,6 @@ object Handshake {
         }
         if (!Bytes.constantTimeEquals(tuple.sessionId, clientHello.sessionId)) {
             throw ProtocolError("BINDING_UNKNOWN_SESSION")
-        }
-        if (serverHello.maxFramePayload > clientHello.maxFramePayload) {
-            throw ProtocolError("HANDSHAKE_SIGNATURE_INVALID", "signed max_frame_payload above the client's declared ceiling")
         }
         return buildTranscript(
             protocolVersion, suiteId,
