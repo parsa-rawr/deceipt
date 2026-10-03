@@ -200,7 +200,7 @@ Max 4 concurrent implementation workers + A0. A6 runs two short bursts, not cont
 
 1. One shared RN/TypeScript app builds for iOS and Android with working native BLE + crypto adapters.
 2. One documented wire revision + fixture set, used by both platforms.
-3. iOS merchant → Android customer **and** Android merchant → iOS customer demonstrated on physical phones.
+3. iOS merchant → Android customer **and** Android merchant → iOS customer demonstrated on physical phones. **STATUS (2026-10-03): BLOCKED by the user's confirmed device availability** — no Android device or usable Android emulator (BLE peripheral is not emulable), and only one iPhone. The user directed that this gate be documented as blocked with evidence rather than claimed. Radio-independent vector tests must still pass on both platforms.
 4. BLE payload encryption verified; no trusted status granted merely because decryption succeeded.
 5. Ed25519 verification **plus** merchant-key trust binding required for a trusted receipt.
 6. Wrong transaction, malformed payload, tampered receipt, replay/cross-session frames → rejected per contract.
