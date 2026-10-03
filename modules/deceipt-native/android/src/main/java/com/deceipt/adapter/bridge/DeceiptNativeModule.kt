@@ -70,18 +70,18 @@ class DeceiptNativeModule(
         reactContext.runOnUiQueueThread { flushBatch() }
     }
 
-    /** Drain the queue into ONE batched bridge call. */
+    /** Drain the queue into ONE batched emitter delivery. */
     private fun flushBatch() {
         val batch = Arguments.createArray()
         synchronized(eventQueue) {
             while (eventQueue.isNotEmpty()) batch.pushMap(eventQueue.removeFirst())
             flushScheduled = false
         }
-        if (batch.size() > 0) {
-            reactContext
-                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                .emit(EVENT_BATCH, batch)
-        }
+        if (batch.size() == 0) return
+        // A3's adapterShim subscribes to this exact channel (EVENT_CHANNEL).
+        reactContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit(EVENT_CHANNEL, batch)
     }
 
     private fun toWritable(value: Any?): WritableMap {
@@ -486,6 +486,13 @@ class DeceiptNativeModule(
         }
     }
 
+    /**
+     * Readiness probe. A3's contract is satisfied on the JS side by
+     * `adaptNativeModule` / `subscribeViaEmitter`: the emitter pattern is the
+     * agreed Android mechanism (a legacy bridge method cannot RETURN the
+     * `unsubscribe` closure the contract declares). Events are emitted BATCHED on
+     * [EVENT_CHANNEL] and delivered via `addListener`/`removeListeners`.
+     */
     @ReactMethod
     fun subscribe(promise: Promise) {
         onWorker(promise) {
@@ -494,11 +501,16 @@ class DeceiptNativeModule(
         }
     }
 
+    /** Standard emitter contract: the shim builds a NativeEventEmitter over this. */
     @ReactMethod
-    fun addListener(eventName: String) { listenerAttached = true }
+    fun addListener(eventName: String) {
+        listenerAttached = true
+    }
 
     @ReactMethod
-    fun removeListeners(count: Double) { /* no-op; batching queue is drained per flush */ }
+    fun removeListeners(count: Double) {
+        listenerAttached = false
+    }
 
     // -- test-only provisioning (gated) ------------------------------------
 
@@ -581,7 +593,11 @@ class DeceiptNativeModule(
     }
 
     companion object {
-        private const val EVENT_BATCH = "DeceiptNative.events"
+        /**
+         * Emitter channel for BATCHED event arrays. Must match A3's
+         * `adapterShim.EVENT_CHANNEL` exactly.
+         */
+        private const val EVENT_CHANNEL = "DeceiptEvent"
         private const val REQ_BLE = 0x0DEC
 
         /** `BlePermissions.PermissionReport` -> the contract's `PermissionReport` shape. */
