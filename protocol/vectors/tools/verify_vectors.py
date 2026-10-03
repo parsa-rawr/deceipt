@@ -350,19 +350,56 @@ def main():
     eq("lpdu reassembled", b"".join(f[4:] for f in frags), pdu)
     eq("lpdu pdu is the ServerHello envelope", pdu.hex(), hs["server_hello_pdu_hex"])
 
-    # ---- 8. binding vector cross-check vs A2 ----
+    # ---- 8. binding vector cross-check vs A2 (live) ----
     xc = load("binding-crosscheck.json")
-    for c in xc["checks"]:
-        if "observed" in c and "expected" in c:
-            eq("crosscheck %s" % c["name"], c["observed"], c["expected"])
-    a2cp = bytes.fromhex("04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ce"
-                         "d5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0"
-                         "a7aeb5bc")
-    try:
-        ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), a2cp)
-        fails.append("crosscheck: A2 client point unexpectedly decodes; defect record is stale")
-    except Exception:
-        pass
+    eq("crosscheck a2 bytes match", xc["a2_bytes_match"], True)
+    for c in xc["a2_checks"]:
+        eq("crosscheck %s" % c["name"], c["match"], True)
+        if "derived" in c:
+            eq("crosscheck %s derived==published" % c["name"], c["derived"], c["published"])
+    # A1 and A2 must publish the identical binding bytes at r1
+    a2_rel = os.path.join(V, "..", "flows", "vectors", "binding-v1.json")
+    if os.path.exists(a2_rel):
+        a2 = json.load(open(a2_rel, encoding="utf-8"))
+        v1 = a2["vectors"]["V1_reconciled_with_A1_r1"]["expected"]
+        hs_ = load("handshake-valid.json")
+        for k in ("offer_hash_hex", "binding_tuple_hex", "binding_tuple_digest_hex",
+                  "binding_proof_hex"):
+            eq("A1 r1 reconciles A2 V1 %s" % k, hs_[k], v1[k])
+        # every A2 non-V4 vector must be reproducible from A2's own inputs
+        for name, v in a2["vectors"].items():
+            if not v["expected"]["client_ephemeral_pubkey_valid_p256"]:
+                try:
+                    ec.EllipticCurvePublicKey.from_encoded_point(
+                        ec.SECP256R1(), bytes.fromhex(v["inputs"]["client_ephemeral_pubkey_hex"]))
+                    fails.append("A2 %s: point unexpectedly decodes" % name)
+                except Exception:
+                    pass
+                continue
+            i, e = v["inputs"], v["expected"]
+            eph = bytes.fromhex(i["client_ephemeral_pubkey_hex"])
+            oh = hashlib.sha256(b"deceipt-offer-hash-v1\x00" + enc(
+                [bytes.fromhex(i["session_id_hex"]), bytes.fromhex(i["transfer_id_hex"]),
+                 bytes.fromhex(i["receipt_id_hex"]), i["merchant_reference"],
+                 i["total_amount_minor"], i["currency"], i["issued_at_unix"]])).digest()
+            eq("A2 %s offer_hash" % name, oh.hex(), e["offer_hash_hex"])
+            bp = hmac.new(bytes.fromhex(i["session_binding_token_hex"]),
+                          b"deceipt-binding-proof-v1\x00" + bytes.fromhex(i["client_nonce_hex"])
+                          + eph, hashlib.sha256).digest()
+            eq("A2 %s proof" % name, bp.hex(), e["binding_proof_hex"])
+            eq("A2 %s nonce is 32 bytes" % name, len(bytes.fromhex(i["client_nonce_hex"])), 32)
+            bt = enc([1, bytes.fromhex(i["session_id_hex"]), bytes.fromhex(i["transfer_id_hex"]),
+                      bytes.fromhex(i["receipt_id_hex"]), oh])
+            eq("A2 %s tuple" % name, bt.hex(), e["binding_tuple_hex"])
+            eq("A2 %s tuple digest" % name,
+               hashlib.sha256(b"deceipt-binding-tuple-v1\x00" + bt).hexdigest(),
+               e["binding_tuple_digest_hex"])
+    # session_id and transfer_id are DISTINCT 16-byte values (advisory-confirmed, A2 layout)
+    ch_ = dec(bytes.fromhex(load("handshake-valid.json")["client_hello_hex"]))
+    sh_ = dec(bytes.fromhex(load("handshake-valid.json")["server_hello_hex"]))
+    eq("session_id is 16 bytes", len(ch_[4]), 16)
+    eq("transfer_id is 16 bytes", len(sh_[4]), 16)
+    eq("session_id != transfer_id", ch_[4] != sh_[4], True)
 
     # ---- 9. every declared error name/code is unique ----
     errs = load("errors.json")["errors"]

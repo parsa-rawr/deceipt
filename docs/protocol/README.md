@@ -55,3 +55,9 @@ python3 protocol/vectors/tools/gen_vectors.py     # deterministic; rewrites vect
 ```
 
 The generator runs a self-test that executes every byte-level invalid fixture through the reference implementation and fails the build if any recorded typed error does not match. `self-test.json` records the result (`checked: 153, failed: []` at this revision).
+
+Independent re-derivation of every published value (including a live cross-check against A2's binding vectors):
+
+```bash
+python3 protocol/vectors/tools/verify_vectors.py
+```

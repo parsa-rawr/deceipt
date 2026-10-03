@@ -2,67 +2,165 @@
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "_generated": "generated; do not edit by hand",
  "revision": "deceipt-proto-r1",
- "purpose": "Prove A1's implementation of the A2 binding contract is byte-identical to A2's published vectors, and record the one defect found in A2's published vectors plus the adopted error names.",
+ "purpose": "Record that A1's implementation of the A2 binding contract is byte-identical to A2's published vectors, re-derived from A2's inputs, and that V1 reconciles byte-for-byte with A1's frozen revision r1.",
  "source": "protocol/flows/vectors/binding-v1.json (owner A2)",
- "checks": [
+ "a2_verification_status": "verified-live (revision deceipt-proto-r1)",
+ "a2_bytes_match": true,
+ "a2_checks": [
   {
-   "name": "V1 offer_hash",
-   "expected": "b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
-   "observed": "b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa"
+   "name": "V1_reconciled_with_A1_r1 offer_hash",
+   "match": true,
+   "derived": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5",
+   "published": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
   },
   {
-   "name": "V1 binding_tuple",
-   "observed": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
-   "expected": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
-   "length": 87
+   "name": "V1_reconciled_with_A1_r1 binding_tuple",
+   "match": true,
+   "derived": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5",
+   "published": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
   },
   {
-   "name": "V1 binding_tuple_digest",
-   "observed": "11f63f30af68580b95ffa4b456dd0f89ced8204ba144e105812b61d2fe2259be",
-   "expected": "11f63f30af68580b95ffa4b456dd0f89ced8204ba144e105812b61d2fe2259be"
+   "name": "V1_reconciled_with_A1_r1 binding_tuple_digest",
+   "match": true,
+   "derived": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2",
+   "published": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2"
   },
   {
-   "name": "V1 binding_proof (HMAC reproduced over A2's published point bytes)",
-   "observed": "06ceaa6595ade4ec34e74f44a7b8a85e82f69a71959a125118b23bc7de337547",
-   "expected": "06ceaa6595ade4ec34e74f44a7b8a85e82f69a71959a125118b23bc7de337547"
+   "name": "V1_reconciled_with_A1_r1 binding_proof",
+   "match": true,
+   "derived": "fa19790fda7c85c1c745d4299c4177f9bcd15090de78961a38b7ebc36565083e",
+   "published": "fa19790fda7c85c1c745d4299c4177f9bcd15090de78961a38b7ebc36565083e"
   },
   {
-   "name": "V2 binding_proof",
-   "observed": "f249919ec38c298b4468ff9844088ac8de4201f0770da86221391ffb44efd269",
-   "expected": "f249919ec38c298b4468ff9844088ac8de4201f0770da86221391ffb44efd269"
+   "name": "V1_reconciled_with_A1_r1 qr_raw_cbor",
+   "match": true,
+   "derived": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f045820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5051a6955b9f0",
+   "published": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f045820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5051a6955b9f0"
   },
   {
-   "name": "V1 QR raw CBOR",
-   "observed": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f045820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa051a6955b978",
-   "expected": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f045820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa051a6955b978"
+   "name": "V1_reconciled_with_A1_r1 qr_payload",
+   "match": true,
+   "derived": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFgg79xE86bQiPzSPun7j5tl9GRXLag95T8M43pdIcmU1MUFGmlVufA",
+   "published": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFgg79xE86bQiPzSPun7j5tl9GRXLag95T8M43pdIcmU1MUFGmlVufA"
   },
   {
-   "name": "V1 QR payload",
-   "observed": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFggs208Y6uWMYnhM1pKbPwAeJZyxiQzdIo3D34GFIx3Q6oFGmlVuXg",
-   "expected": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFggs208Y6uWMYnhM1pKbPwAeJZyxiQzdIo3D34GFIx3Q6oFGmlVuXg"
+   "name": "V2_same_inputs_wrong_sbt offer_hash",
+   "match": true,
+   "derived": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5",
+   "published": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
+  },
+  {
+   "name": "V2_same_inputs_wrong_sbt binding_tuple",
+   "match": true,
+   "derived": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5",
+   "published": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
+  },
+  {
+   "name": "V2_same_inputs_wrong_sbt binding_tuple_digest",
+   "match": true,
+   "derived": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2",
+   "published": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2"
+  },
+  {
+   "name": "V2_same_inputs_wrong_sbt binding_proof",
+   "match": true,
+   "derived": "49b9edb37943d3c4c3607e429a85118050b3a3f7c3f70fcaf6444ec4df81e4fc",
+   "published": "49b9edb37943d3c4c3607e429a85118050b3a3f7c3f70fcaf6444ec4df81e4fc"
+  },
+  {
+   "name": "V2_same_inputs_wrong_sbt qr_raw_cbor",
+   "match": true,
+   "derived": "a50101025000112233445566778899aabbccddeeff0350ffeeddccbbaa99887766554433221100045820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5051a6955b9f0",
+   "published": "a50101025000112233445566778899aabbccddeeff0350ffeeddccbbaa99887766554433221100045820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5051a6955b9f0"
+  },
+  {
+   "name": "V2_same_inputs_wrong_sbt qr_payload",
+   "match": true,
+   "derived": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1D_7t3Mu6qZiHdmVUQzIhEABFgg79xE86bQiPzSPun7j5tl9GRXLag95T8M43pdIcmU1MUFGmlVufA",
+   "published": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1D_7t3Mu6qZiHdmVUQzIhEABFgg79xE86bQiPzSPun7j5tl9GRXLag95T8M43pdIcmU1MUFGmlVufA"
+  },
+  {
+   "name": "V3_different_transaction offer_hash",
+   "match": true,
+   "derived": "043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac",
+   "published": "043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac"
+  },
+  {
+   "name": "V3_different_transaction binding_tuple",
+   "match": true,
+   "derived": "850150aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa50bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb50cccccccccccccccccccccccccccccccc5820043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac",
+   "published": "850150aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa50bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb50cccccccccccccccccccccccccccccccc5820043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac"
+  },
+  {
+   "name": "V3_different_transaction binding_tuple_digest",
+   "match": true,
+   "derived": "e7b28cffce49a18686d8cf97a18566416724ea1d8ca78c2c788660ffdad1d14f",
+   "published": "e7b28cffce49a18686d8cf97a18566416724ea1d8ca78c2c788660ffdad1d14f"
+  },
+  {
+   "name": "V3_different_transaction binding_proof",
+   "match": true,
+   "derived": "45aa8fcd46cee2030c95ddf443febcd2cf7445d24abb44daeb440da9f8be8edb",
+   "published": "45aa8fcd46cee2030c95ddf443febcd2cf7445d24abb44daeb440da9f8be8edb"
+  },
+  {
+   "name": "V3_different_transaction qr_raw_cbor",
+   "match": true,
+   "derived": "a501010250aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa03501f1e1d1c1b1a19181716151413121110045820043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac051a6955bb58",
+   "published": "a501010250aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa03501f1e1d1c1b1a19181716151413121110045820043f3cde62ad673bc72cd828dd1f0bba2f66516e3bf4a504da344c1b8921dfac051a6955bb58"
+  },
+  {
+   "name": "V3_different_transaction qr_payload",
+   "match": true,
+   "derived": "deceipt1:pQEBAlCqqqqqqqqqqqqqqqqqqqqqA1AfHh0cGxoZGBcWFRQTEhEQBFggBD883mKtZzvHLNgo3R8Lui9mUW479KUE2jRMG4kh36wFGmlVu1g",
+   "published": "deceipt1:pQEBAlCqqqqqqqqqqqqqqqqqqqqqA1AfHh0cGxoZGBcWFRQTEhEQBFggBD883mKtZzvHLNgo3R8Lui9mUW479KUE2jRMG4kh36wFGmlVu1g"
+  },
+  {
+   "name": "V4_invalid_point_rejected point rejected",
+   "expect_invalid_point": true,
+   "observed_invalid_point": true,
+   "match": true
+  },
+  {
+   "name": "V1 reconciles A1 offer_hash_hex",
+   "match": true,
+   "derived": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5",
+   "published": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
+  },
+  {
+   "name": "V1 reconciles A1 binding_tuple_hex",
+   "match": true,
+   "derived": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5",
+   "published": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
+  },
+  {
+   "name": "V1 reconciles A1 binding_tuple_digest_hex",
+   "match": true,
+   "derived": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2",
+   "published": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2"
+  },
+  {
+   "name": "V1 reconciles A1 binding_proof_hex",
+   "match": true,
+   "derived": "fa19790fda7c85c1c745d4299c4177f9bcd15090de78961a38b7ebc36565083e",
+   "published": "fa19790fda7c85c1c745d4299c4177f9bcd15090de78961a38b7ebc36565083e"
   }
  ],
- "findings_on_A2_vectors": [
+ "history": [
   {
-   "severity": "high",
-   "defect": "client_ephemeral_pubkey_hex in V1, V2 and V3 is not a valid P-256 point: EC point decoding fails, so ECDH cannot be performed.",
-   "evidence": [
-    [
-     "V1",
-     "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bc"
-    ],
-    [
-     "V3",
-     "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bd"
-    ]
-   ],
-   "impact": "The binding HMAC values are still correct (HMAC is over opaque bytes), but these vectors MUST NOT be used as handshake vectors and A2 should regenerate them with a point that decodes.",
-   "observed_in_a1": "A1 publishes valid P-256 points in protocol/vectors/handshake-valid.json; the binding proof there is computed over a valid point and therefore differs from A2's V1 binding_proof value."
+   "at": "A2 contract publication d09776a",
+   "defect": "client_ephemeral_pubkey_hex in V1/V2/V3 was not a valid P-256 point (EC decode failed), recorded by A1 as a high-severity defect.",
+   "resolution": "A2 fixed it in commit 7e90945 and regenerated the vectors with valid points; V1 now uses the same client key as A1's client-eph-1 and reconciles byte-for-byte. Defect closed."
   },
   {
+   "at": "A1 freeze r1",
+   "note": "A1 adopts A2's binding contract verbatim: binding_tuple, binding_tuple_digest, offer_hash, binding_proof, 32-byte nonces, and the five binding error names. No A1 replacement; no silent collapse of session_id and transfer_id (they remain distinct 16-byte values)."
+  }
+ ],
+ "a2_findings": [
+  {
    "severity": "info",
-   "finding": "docs/flows/*.md lists binding errors as BINDING_UNKNOWN_SESSION, BINDING_PROOF_INVALID, BINDING_STALE, BINDING_CONSUMED, WRONG_TRANSACTION; A1 adopts exactly these names.",
-   "evidence": [],
+   "finding": "docs/flows/*.md lists binding errors as BINDING_UNKNOWN_SESSION, BINDING_PROOF_INVALID, BINDING_STALE, BINDING_CONSUMED, WRONG_TRANSACTION; A1 adopts exactly these names (codes 0x0312..0x0316, 0x0614 in errors.json).",
    "impact": "no defect; recorded for the freeze record"
   }
  ]

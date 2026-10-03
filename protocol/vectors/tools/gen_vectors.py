@@ -1812,55 +1812,93 @@ def main() -> None:
     a2_sbt2 = bytes.fromhex("0104070a0d101316191c1f2225282b2e")
     a2_qr = cbor_encode({1: 1, 2: a2_sid, 3: a2_sbt, 4: a2_oh, 5: 1767225720})
 
+    # Cross-check against A2's published binding vectors. A2 regenerated them
+    # (commit 7e90945) so that V1 reconciles byte-for-byte with A1 r1; A1 re-derives
+    # every value from A2's inputs rather than trusting the file.
+    a2_path = os.path.join(os.path.dirname(vec_dir), "flows", "vectors", "binding-v1.json")
+    a2_live = os.path.exists(a2_path)
+    a2_checks = []
+    a2_findings = []
+    a2_status = "absent"
+    if a2_live:
+        a2 = json.load(open(a2_path, encoding="utf-8"))
+        a2_rev = a2.get("revision", "unknown")
+        a2_status = "verified-live (revision %s)" % a2_rev
+        for name, v in a2["vectors"].items():
+            i, e = v["inputs"], v["expected"]
+            if not e.get("client_ephemeral_pubkey_valid_p256", True):
+                ok_pt = not is_valid_p256_point(bytes.fromhex(i["client_ephemeral_pubkey_hex"]))
+                a2_checks.append({"name": "%s point rejected" % name, "expect_invalid_point": True,
+                                  "observed_invalid_point": ok_pt, "match": ok_pt})
+                continue
+            eph = bytes.fromhex(i["client_ephemeral_pubkey_hex"])
+            oh = offer_hash(bytes.fromhex(i["session_id_hex"]), bytes.fromhex(i["transfer_id_hex"]),
+                            bytes.fromhex(i["receipt_id_hex"]), i["merchant_reference"],
+                            i["total_amount_minor"], i["currency"], i["issued_at_unix"])
+            bp = binding_proof(bytes.fromhex(i["session_binding_token_hex"]),
+                               bytes.fromhex(i["client_nonce_hex"]), eph)
+            bt = binding_tuple(bytes.fromhex(i["session_id_hex"]),
+                               bytes.fromhex(i["transfer_id_hex"]),
+                               bytes.fromhex(i["receipt_id_hex"]), oh)
+            btd = binding_tuple_digest(bt)
+            qr = cbor_encode({1: 1, 2: bytes.fromhex(i["session_id_hex"]),
+                              3: bytes.fromhex(i["session_binding_token_hex"]), 4: oh,
+                              5: e["qr_expires_at_unix"]})
+            for label, got, want in (
+                    ("offer_hash", oh.hex(), e["offer_hash_hex"]),
+                    ("binding_tuple", bt.hex(), e["binding_tuple_hex"]),
+                    ("binding_tuple_digest", btd.hex(), e["binding_tuple_digest_hex"]),
+                    ("binding_proof", bp.hex(), e["binding_proof_hex"]),
+                    ("qr_raw_cbor", qr.hex(), e["qr_raw_cbor_hex"]),
+                    ("qr_payload", "deceipt1:" + base64.urlsafe_b64encode(qr).rstrip(b"=").decode(),
+                     e["qr_payload"])):
+                a2_checks.append({"name": "%s %s" % (name, label), "match": got == want,
+                                  "derived": got, "published": want})
+        v1 = a2["vectors"].get("V1_reconciled_with_A1_r1", {})
+        a1_hs = json.load(open(os.path.join(vec_dir, "handshake-valid.json"), encoding="utf-8"))
+        for label in ("offer_hash_hex", "binding_tuple_hex", "binding_tuple_digest_hex",
+                      "binding_proof_hex"):
+            if label in v1.get("expected", {}):
+                a2_checks.append({"name": "V1 reconciles A1 %s" % label,
+                                  "match": v1["expected"][label] == a1_hs[label],
+                                  "derived": v1["expected"][label], "published": a1_hs[label]})
+    else:
+        a2_findings.append({"severity": "info",
+                            "finding": "A2 vector file not present at %s; expected values "
+                                       "recorded from A1's re-derivation only." % a2_path})
+
+    a2_all = all(c["match"] for c in a2_checks if "match" in c) if a2_checks else None
+
     xc = {
+        "_TESTONLY": TEST_ONLY_NOTICE,
         "revision": REVISION_LABEL,
-        "purpose": "Prove A1's implementation of the A2 binding contract is "
-                   "byte-identical to A2's published vectors, and record the one defect "
-                   "found in A2's published vectors plus the adopted error names.",
+        "purpose": "Record that A1's implementation of the A2 binding contract is "
+                   "byte-identical to A2's published vectors, re-derived from A2's inputs, "
+                   "and that V1 reconciles byte-for-byte with A1's frozen revision r1.",
         "source": "protocol/flows/vectors/binding-v1.json (owner A2)",
-        "checks": [
-            {"name": "V1 offer_hash", "expected": "b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa",
-             "observed": a2_oh.hex()},
-            {"name": "V1 binding_tuple", "observed": a2_bt.hex(),
-             "expected": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100"
-                         "500123456789abcdef0123456789abcdef5820b36d3c63ab963189e1335a4a6cfc00789"
-                         "672c62433748a370f7e06148c7743aa", "length": len(a2_bt)},
-            {"name": "V1 binding_tuple_digest", "observed": a2_btd.hex(),
-             "expected": "11f63f30af68580b95ffa4b456dd0f89ced8204ba144e105812b61d2fe2259be"},
-            {"name": "V1 binding_proof (HMAC reproduced over A2's published point bytes)",
-             "observed": binding_proof(a2_sbt, a2_cn, a2_cp).hex(),
-             "expected": "06ceaa6595ade4ec34e74f44a7b8a85e82f69a71959a125118b23bc7de337547"},
-            {"name": "V2 binding_proof", "observed": binding_proof(a2_sbt2, a2_cn, a2_cp).hex(),
-             "expected": "f249919ec38c298b4468ff9844088ac8de4201f0770da86221391ffb44efd269"},
-            {"name": "V1 QR raw CBOR", "observed": a2_qr.hex(),
-             "expected": "a50101025000112233445566778899aabbccddeeff0350000102030405060708090a0b0c0d0e0f"
-                         "045820b36d3c63ab963189e1335a4a6cfc00789672c62433748a370f7e06148c7743aa"
-                         "051a6955b978"},
-            {"name": "V1 QR payload", "observed": "deceipt1:" + base64.urlsafe_b64encode(
-                a2_qr).rstrip(b"=").decode(),
-             "expected": "deceipt1:pQEBAlAAESIzRFVmd4iZqrvM3e7_A1AAAQIDBAUGBwgJCgsMDQ4PBFggs208Y6uWMYnhM1pKbPw"
-                         "AeJZyxiQzdIo3D34GFIx3Q6oFGmlVuXg"},
+        "a2_verification_status": a2_status,
+        "a2_bytes_match": a2_all,
+        "a2_checks": a2_checks,
+        "history": [
+            {"at": "A2 contract publication d09776a",
+             "defect": "client_ephemeral_pubkey_hex in V1/V2/V3 was not a valid P-256 "
+                       "point (EC decode failed), recorded by A1 as a high-severity defect.",
+             "resolution": "A2 fixed it in commit 7e90945 and regenerated the vectors with "
+                           "valid points; V1 now uses the same client key as A1's "
+                           "client-eph-1 and reconciles byte-for-byte. Defect closed."},
+            {"at": "A1 freeze r1",
+             "note": "A1 adopts A2's binding contract verbatim: binding_tuple, "
+                     "binding_tuple_digest, offer_hash, binding_proof, 32-byte nonces, and "
+                     "the five binding error names. No A1 replacement; no silent collapse "
+                     "of session_id and transfer_id (they remain distinct 16-byte values)."},
         ],
-        "findings_on_A2_vectors": [
-            {"severity": "high",
-             "defect": "client_ephemeral_pubkey_hex in V1, V2 and V3 is not a valid "
-                       "P-256 point: EC point decoding fails, so ECDH cannot be performed.",
-             "evidence": [("V1", a2_cp.hex()),
-                          ("V3", "04030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ce"
-                                 "d5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0"
-                                 "a7aeb5bd")],
-             "impact": "The binding HMAC values are still correct (HMAC is over opaque "
-                       "bytes), but these vectors MUST NOT be used as handshake vectors "
-                       "and A2 should regenerate them with a point that decodes.",
-             "observed_in_a1": "A1 publishes valid P-256 points in protocol/vectors/"
-                               "handshake-valid.json; the binding proof there is "
-                               "computed over a valid point and therefore differs from "
-                               "A2's V1 binding_proof value."},
+        "a2_findings": a2_findings + [
             {"severity": "info",
              "finding": "docs/flows/*.md lists binding errors as BINDING_UNKNOWN_SESSION, "
                         "BINDING_PROOF_INVALID, BINDING_STALE, BINDING_CONSUMED, "
-                        "WRONG_TRANSACTION; A1 adopts exactly these names.",
-             "evidence": [], "impact": "no defect; recorded for the freeze record"},
+                        "WRONG_TRANSACTION; A1 adopts exactly these names "
+                        "(codes 0x0312..0x0316, 0x0614 in errors.json).",
+             "impact": "no defect; recorded for the freeze record"},
         ],
     }
     _wj(os.path.join(vec_dir, "binding-crosscheck.json"), xc)

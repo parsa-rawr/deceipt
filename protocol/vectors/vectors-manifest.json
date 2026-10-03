@@ -8,7 +8,7 @@
   "aead-invalid.json": "c99e42be635af9124e9323a5db2539fcba867f0535cbcdc1fc26dc2a8e0fdf3c",
   "aead-valid.json": "2ddce1f2df499c14d709d8c114bccccea730e34497228b61a62aa409245cab7a",
   "arithmetic-valid.json": "f415caf5bc5e8dddc209df36782fd2add4f4cb96d4c8f1d5641255283200352b",
-  "binding-crosscheck.json": "32c24af7a04cf6b740bb1837f17c11f302632624bc5aff636cd324eb6e73e5d8",
+  "binding-crosscheck.json": "b863f4f995d05d6e137b77b033d9781a86f02b96ff698c9dd5ed64e311e7870b",
   "credentials.json": "84518f3da0bd76971fa29a8122be02a66885cd8ac945aae807007fc0aa81a501",
   "encoding-invalid.json": "0d6f3242044337f676c567983a182fd61c716607c79025b3b11ae08e1917eabe",
   "errors.json": "b7e97e204bea9b11b78530c6e914dc0a5fcca290fd9681de1440f77532d36434",

@@ -291,11 +291,19 @@ A1 **adopts** `docs/flows/transaction-binding-and-checkout-v1.md` v1 with the de
 | typed errors `BINDING_*`, `WRONG_TRANSACTION` | adopted; codes `0x0312..0x0316`, `0x0614` in `errors.json` |
 | QR `deceipt1:` payload | adopted; consumed by A2/A3, out of A1 scope |
 
-### 10.1 Defect found in the published A2 vectors (A2 must regenerate)
+### 10.1 Defect history (closed)
 
-`protocol/vectors/binding-crosscheck.json` records that A2's `client_ephemeral_pubkey_hex` in vectors V1, V2 and V3 is **not a valid P-256 point** (standard EC point decoding fails, so no ECDH is possible). The HMAC values in those vectors are still correct because HMAC treats the key bytes as opaque, but the vectors cannot be used as handshake vectors.
+A2's original vectors (commit `d09776a`) published a `client_ephemeral_pubkey_hex` in V1/V2/V3 that was **not a valid P-256 point**; A1 recorded it as a high-severity defect.
 
-Consequently A1's `handshake-valid.json#binding_proof_hex = fa19790f…` is computed over a **valid** client point and therefore differs from A2's V1 `binding_proof` value; the QR/offer/tuple/digest values remain byte-identical. A2 action: regenerate V1–V3 `client_ephemeral_pubkey_hex` with a decodable point, or mark those three vectors "binding-hash only, not handshake".
+**A2 fixed it (commit `7e90945`) and regenerated the vectors.** A1 re-derived every value from A2's inputs and independently confirmed:
+
+* V1 now uses the same client ephemeral key as A1's `client-eph-1`, and reconciles byte-for-byte with `handshake-valid.json`: `offer_hash`, `binding_tuple` (87 B), `binding_tuple_digest`, and `binding_proof` are identical;
+* V2 (wrong SBT) keeps the same offer/tuple/digest but a different proof — proving SBT possession is required;
+* V4 adds a point with a flipped last byte that fails `secp256r1` decode ⇒ `HANDSHAKE_ECDH_INVALID_POINT`, raised **before** any binding check.
+
+Result is recorded live in `protocol/vectors/binding-crosscheck.json` (`a2_bytes_match: true`, 23 checks). No open A2 dependency remains for A1's freeze.
+
+A2 documents the 128-bit SBT rationale (single-use, TTL 300 s, HMAC key) and records HKDF-expanding the SBT as a **future-revision** hardening path, deliberately not in r1 because it would change every proof byte. A1 concurs: r1 stays as published.
 
 ## 11. What is NOT fixed here (escalated)
 

@@ -112,4 +112,4 @@ A2 owns *how the user selects a transaction*; A1 owns *how the selection is boun
 
 Session binding is **never** merchant-key trust (A2 §3.9): passing every binding check says only "this session, this transaction"; the receipt is still untrusted until Pass B and the §9 receipt checks pass.
 
-**Dependency status:** A2's binding contract v1 is adopted verbatim (`handshake.md` §10). The one defect — A2's published `client_ephemeral_pubkey` is not a valid P-256 point — is recorded in `binding-crosscheck.json`; A2 must regenerate those three vectors. A1's own handshake vectors use valid points, so handshake work is unblocked.
+**Dependency status:** A2's binding contract v1 is adopted verbatim (`handshake.md` §10). The one defect found (an invalid P-256 point in A2's original vectors) was fixed by A2 at commit `7e90945`; A1 re-derived all regenerated vectors and they reconcile byte-for-byte with r1. `binding-crosscheck.json` records the live result (`a2_bytes_match: true`). No open A2 dependency.
