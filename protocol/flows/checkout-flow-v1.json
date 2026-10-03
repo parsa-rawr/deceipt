@@ -1,9 +1,11 @@
 {
-  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. PROPOSAL for A1/A0 adoption. Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
+  "$comment": "Deceipt PoC - checkout-flow contract v1. Owner A2. Binding bytes ADOPTED by A1 into frozen revision deceipt-proto-r1 (docs/protocol/handshake.md section 10); the QR bootstrap remains a provisional PRODUCT flow that A1/A0 may replace. Machine-readable companion to docs/flows/transaction-binding-and-checkout-v1.md. No secrets: session_binding_token/private material appear only as test-only deterministic vectors under protocol/flows/vectors/.",
   "schema": "deceipt.checkout-flow/v1",
-  "status": "proposal",
+  "status": "binding_bytes_adopted_in_deceipt-proto-r1__product_flow_provisional",
   "owner": "A2",
+  "revision": "deceipt-proto-r1",
   "consumes": ["DESIGN.md#2.5", "DESIGN.md#7.2", "DESIGN.md#7.3", "DESIGN.md#8", "DESIGN.md#9", "DESIGN.md#11", "DESIGN.md#13"],
+  "adopted_by": "A1 docs/protocol/handshake.md section 10",
 
   "invariants": {
     "no_rssi": {
@@ -47,14 +49,21 @@
   },
 
   "binding_bytes": {
+    "point_requirement": {
+      "field": "client_ephemeral_pubkey",
+      "encoding": "P-256 uncompressed 0x04||X||Y (65 bytes)",
+      "must_decode_on": "secp256r1",
+      "error_on_failure": "HANDSHAKE_ECDH_INVALID_POINT",
+      "checked_before": "binding proof verification"
+    },
     "offer_hash": {
       "alg": "SHA-256",
       "prefix_ascii": "deceipt-offer-hash-v1",
       "separator_hex": "00",
-      "message": "prefix || 00 || cbor([session_id, transfer_id, receipt_id, merchant_id, total_amount_minor, currency, issued_at_unix])",
+      "message": "prefix || 00 || cbor([session_id(16), transfer_id(16), receipt_id(16), merchant_reference(tstr), total_amount_minor(uint), currency(tstr), issued_at_unix(uint)])",
       "length": 32,
-      "a1_may_replace_with": "SHA-256 over canonical ReceiptOffer bytes",
-      "requirements": ["32 bytes", "derived from offer content", "present in QR before BLE session exists"]
+      "recomputed_from": "RECEIPT_OFFER labels 2,3,4,5,6,7,12",
+      "frozen_value_v1": "efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5"
     },
     "binding_tuple": {
       "cbor": "array(5)",
@@ -67,7 +76,9 @@
         {"index": 4, "name": "offer_hash", "type": "bstr", "length": 32}
       ],
       "encoding": "RFC8949 deterministic: definite lengths, minimal integer encodings",
-      "wire_prefix_hex": "8501"
+      "wire_prefix_hex": "8501",
+      "frozen_value_v1": "85015000112233445566778899aabbccddeeff50ffeeddccbbaa99887766554433221100500123456789abcdef0123456789abcdef5820efdc44f3a6d088fcd23ee9fb8f9b65f464572da83de53f0ce37a5d21c994d4c5",
+      "transcript_offset": {"len_prefix_offset": 284, "tuple_offset": 285}
     },
     "binding_tuple_digest": {
       "alg": "SHA-256",
@@ -75,7 +86,9 @@
       "separator_hex": "00",
       "message": "prefix || 00 || binding_tuple",
       "length": 32,
-      "a1_requirement": "MUST be a required, length-framed field of the canonical handshake transcript signed by the merchant ServerHello signature"
+      "transcript_offset": 250,
+      "coverd_by": "ServerHello.transcript_signature (Ed25519)",
+      "frozen_value_v1": "d9d3d7df72b1e4df615c68dabac1f8fb6eb24371efe9cde6bfda2985abde59e2"
     },
     "binding_proof": {
       "alg": "HMAC-SHA-256",
@@ -85,27 +98,37 @@
       "message": "prefix || 00 || client_nonce(32) || client_ephemeral_pubkey(65)",
       "message_length_bytes": 122,
       "output_length": 32,
-      "carried_in": "ClientHello.binding_proof",
-      "compare": "constant_time"
+      "carried_in": "ClientHello.binding_proof (field 7)",
+      "compare": "constant_time",
+      "frozen_value_v1": "fa19790fda7c85c1c745d4299c4177f9bcd15090de78961a38b7ebc36565083e"
+    },
+    "sbt_key_rationale": {
+      "bits": 128,
+      "source": "CSPRNG, fresh per session, single-use, TTL 300s",
+      "hmac_key_security_bits": 128,
+      "not_password_derived": true,
+      "length_extension_not_applicable": true,
+      "hardening_path_not_in_r1": "HKDF-SHA-256(ikm=SBT_32_random, salt=session_id, info=\"deceipt-binding-key-v1\") -> 256-bit HMAC key; requires revision bump + A1 re-adoption because it changes every binding_proof byte"
     }
   },
 
   "client_hello_additions": [
-    {"name": "session_id", "type": "bstr", "length": 16},
-    {"name": "client_nonce", "type": "bstr", "length": 32},
-    {"name": "client_ephemeral_pubkey", "type": "bstr", "length": 65, "curve": "P-256", "form": "uncompressed 0x04||X||Y"},
-    {"name": "binding_proof", "type": "bstr", "length": 32}
+    {"name": "session_id", "type": "bstr", "length": 16, "field": 4},
+    {"name": "client_nonce", "type": "bstr", "length": 32, "field": 5},
+    {"name": "client_ephemeral_pubkey", "type": "bstr", "length": 65, "curve": "P-256", "form": "uncompressed 0x04||X||Y", "field": 6},
+    {"name": "binding_proof", "type": "bstr", "length": 32, "field": 7}
   ],
 
   "merchant_binding_check": [
     {"step": 1, "action": "resolve session_id to live, unconsumed, unexpired session", "fail": "BINDING_UNKNOWN_SESSION"},
-    {"step": 2, "action": "constant_time_compare(HMAC-SHA-256(SBT, proof_message), binding_proof)", "fail": "BINDING_PROOF_INVALID"},
-    {"step": 3, "action": "mark session claimed by (client_nonce, client_ephemeral_pubkey)"}
+    {"step": 2, "action": "client_ephemeral_pubkey decodes as P-256", "fail": "HANDSHAKE_ECDH_INVALID_POINT"},
+    {"step": 3, "action": "constant_time_compare(HMAC-SHA-256(SBT, proof_message), binding_proof)", "fail": "BINDING_PROOF_INVALID"},
+    {"step": 4, "action": "mark session claimed by (client_nonce, client_ephemeral_pubkey)"}
   ],
 
   "expiration": {
-    "qr_validity": {"owner": "merchant", "value_field": "expires_at_unix", "effect": "client refuses to start session from expired QR", "error": "BINDING_STALE"},
-    "session_lifetime_seconds_proposed": 120,
+    "qr_validity": {"owner": "merchant", "ttl_seconds": 300, "handshake_const": "T_BINDING_QR", "value_field": "expires_at_unix", "effect": "client refuses to start session from expired QR", "error": "BINDING_STALE"},
+    "session_lifetime": {"handshake_const_session": "T_SESSION=120s", "handshake_const_advertise": "T_ADVERTISE=60s", "error": "SESSION_EXPIRED"},
     "consumption": {"trigger": "first accepted ClientHello with valid binding_proof", "second_attempt_error": "BINDING_CONSUMED", "purpose": "anti-replay for the binding"}
   },
 
@@ -116,7 +139,7 @@
     {"from": "selecting", "to": "ready", "trigger": "0 eligible candidates", "behavior": "keep scanning"},
     {"from": "selecting", "to": "connecting", "guard": "exactly one candidate selected by explicit user act; 2+ eligible with no selection is unreachable"},
     {"from": "connecting", "to": "recoverable_failure", "trigger": "connect failure/timeout"},
-    {"from": "connecting", "to": "transferring", "guard": "binding check passed AND merchant credential + transcript signature verified (DESIGN.md#9 steps 3-4)"},
+    {"from": "connecting", "to": "transferring", "guard": "point decodes AND binding check passed AND merchant credential + transcript signature verified (DESIGN.md#9 steps 3-4)"},
     {"from": "transferring", "to": "recoverable_failure", "trigger": "cancel | disconnect | bluetooth_off"},
     {"from": "transferring", "to": "verifying", "guard": "full AEAD payload authenticated/decrypted (DESIGN.md#9 step 7)"},
     {"from": "verifying", "to": "saved", "guard": "ALL of DESIGN.md#9 steps 10-15 pass"},
@@ -132,13 +155,15 @@
   },
 
   "errors": [
-    {"code": "BINDING_UNKNOWN_SESSION", "meaning": "session_id does not resolve to a live session", "owner": "A1"},
-    {"code": "BINDING_PROOF_INVALID", "meaning": "binding_proof HMAC mismatch", "owner": "A1"},
-    {"code": "BINDING_STALE", "meaning": "QR or session expired before use", "owner": "A1"},
-    {"code": "BINDING_CONSUMED", "meaning": "binding already used once", "owner": "A1"},
-    {"code": "WRONG_TRANSACTION", "meaning": "offer does not match the selected/QR-bound transaction", "owner": "A1"},
+    {"code": "BINDING_UNKNOWN_SESSION", "meaning": "session_id does not resolve to a live session", "owner": "A1", "wire_code": "0x0312"},
+    {"code": "BINDING_PROOF_INVALID", "meaning": "binding_proof HMAC mismatch", "owner": "A1", "wire_code": "0x0313"},
+    {"code": "BINDING_STALE", "meaning": "QR or session expired before use", "owner": "A1", "wire_code": "0x0314"},
+    {"code": "BINDING_CONSUMED", "meaning": "binding already used once", "owner": "A1", "wire_code": "0x0315"},
+    {"code": "BINDING_REQUIRED", "meaning": "binding required but absent", "owner": "A1", "wire_code": "0x0316"},
+    {"code": "HANDSHAKE_ECDH_INVALID_POINT", "meaning": "client_ephemeral_pubkey does not decode on P-256", "owner": "A1"},
+    {"code": "WRONG_TRANSACTION", "meaning": "offer does not match the selected/QR-bound transaction", "owner": "A1", "wire_code": "0x0614"},
     {"code": "USER_CANCELLED", "meaning": "user cancelled", "owner": "A3"},
-    {"code": "BLUETOOTH_OFF", "meaning": "Bluetooth disabled", "owner": "A3"},
+    {"code": "TRANSPORT_BLUETOOTH_OFF", "meaning": "Bluetooth disabled", "owner": "A3"},
     {"code": "PERMISSION_DENIED", "meaning": "Bluetooth or camera permission denied", "owner": "A3"},
     {"code": "NO_ELIGIBLE_TERMINAL", "meaning": "no candidate advertising the Deceipt service UUID", "owner": "A3"}
   ],
@@ -172,19 +197,24 @@
       {"n": 4, "phase": "review_offer_accept", "automatic": false},
       {"n": 5, "phase": "save_and_verify", "automatic": true}
     ],
-    "P1_internal_protocol_actions_between_scan_and_accept": 7,
+    "P1_internal_protocol_actions_between_scan_and_accept": 9,
     "P0_extra_user_act_vs_P1": ["tap_one_candidate"],
     "failure_path_extra_explicit_acts": 1
   },
 
-  "a1_dependencies": [
-    "include binding_tuple_digest as required transcript field signed by ServerHello signature",
-    "include session_id, client_nonce, client_ephemeral_pubkey, binding_proof in ClientHello schema",
-    "define ReceiptOffer to carry session_id, transfer_id, receipt_id, merchant_id, total_amount_minor, currency, issued_at_unix, offer_hash",
-    "assign wire identifiers for session_id/transfer_id/receipt_id (fixed 16-byte)",
-    "provide typed errors including BINDING_* and WRONG_TRANSACTION",
-    "publish transcript test vectors containing the binding digest"
-  ],
+  "a1_dependencies": {
+    "status": "closed - adopted into deceipt-proto-r1 (handshake.md section 10)",
+    "items": [
+      {"requirement": "binding_tuple_digest required in signed transcript", "satisfied": true, "where": "transcript offset 250"},
+      {"requirement": "ClientHello carries session_id, client_nonce, client_ephemeral_pubkey, binding_proof", "satisfied": true, "where": "fields 4,5,6,7"},
+      {"requirement": "RECEIPT_OFFER carries offer-hash members", "satisfied": true, "where": "labels 2-7,12"},
+      {"requirement": "wire IDs for 16-byte identifiers", "satisfied": true, "where": "bstr(16)"},
+      {"requirement": "typed binding errors", "satisfied": true, "where": "0x0312..0x0316, 0x0614"},
+      {"requirement": "32-byte client_nonce", "satisfied": true, "where": "handshake.md section 1"}
+    ]
+  },
 
-  "vectors_file": "protocol/flows/vectors/binding-v1.json"
+  "vectors_file": "protocol/flows/vectors/binding-v1.json",
+  "vector_generator": "protocol/flows/tools/gen_binding_vectors.py",
+  "vectors_note": "V1 reconciles byte-for-byte with A1 protocol/vectors/handshake-valid.json; all non-negative vectors use valid P-256 points; V4 is a deliberate invalid-point negative vector. See docs/flows/transaction-binding-and-checkout-v1.md section 13 (defect fix record)."
 }

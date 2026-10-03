@@ -7,28 +7,33 @@ Owner: **A2** (transaction binding + checkout flow). Exclusive write scope: `doc
 | `docs/flows/transaction-binding-and-checkout-v1.md` | Authoritative prose contract: binding bytes, QR bootstrap **[PROPOSAL]**, state machine, user-visible failures, demo flows, friction budget. |
 | `protocol/flows/checkout-flow-v1.json` | Machine-readable flow contract (states, transitions, invariants, errors, A1 dependencies). |
 | `protocol/flows/checkout-flow-v1.mmd` | Flow diagram; RSSI shown only as a forbidden input. |
-| `protocol/flows/vectors/binding-v1.json` | Test vectors: exact binding bytes, digests, binding proofs, QR payload. Test-only deterministic secrets. |
+| `protocol/flows/vectors/binding-v1.json` | Test vectors: exact binding bytes, digests, binding proofs, QR payload. Test-only deterministic secrets. **V1 reconciles byte-for-byte with A1's frozen `protocol/vectors/handshake-valid.json`.** |
+| `protocol/flows/tools/gen_binding_vectors.py` | Regenerates the vectors above with valid P-256 points (mirrors A1's deterministic scalar derivation). |
 
-## Status: PROPOSAL, not decision
+## Status: binding bytes ADOPTED into `deceipt-proto-r1`; QR product flow still PROVISIONAL
 
-Per the delegation plan, A2 proposes **one** primary binding flow and publishes its bytes before A1 freezes the wire contract. The **QR bootstrap is explicitly a proposal** — A1/A0 may adopt, replace, or reject it. What is **not** negotiable and is restated as invariant:
+A1 **adopted this contract's binding bytes verbatim** into the frozen revision `deceipt-proto-r1` (`docs/protocol/handshake.md` §10): `binding_tuple` + `binding_tuple_digest` (transcript offset 250), `ClientHello` fields 4–7, the `RECEIPT_OFFER` fields, `32`-byte `client_nonce`, and the typed `BINDING_*` errors. The **QR bootstrap remains a provisional product flow** — A0/A1 may replace it; only the byte-level binding contract is frozen.
+
+**Vector defect fix (post A1 cross-check):** A2's original `client_ephemeral_pubkey` was not a valid P-256 point. Vectors regenerated (see §13 of the prose contract); V1 now matches A1's frozen fixture exactly. A negative vector (V4) with a non-decoding point was added.
+
+What is **not** negotiable and is restated as invariant:
 
 - §7.3 ambiguity rule (0 → scan, 1 → may auto-connect, 2+ → explicit disambiguation).
 - No RSSI in eligibility, selection, ordering, connection target, or trust.
 - Session binding strictly distinct from merchant-key trust; decryption ≠ trust.
 - Ambiguity fails closed.
 
-## Binding bytes at a glance (A1 must bind these into the transcript)
+## Binding bytes at a glance (adopted by A1 into the transcript)
 
 ```
-offer_hash            = SHA-256("deceipt-offer-hash-v1" || 0x00 || cbor(offer-identity-array))    32 B
-binding_tuple         = CBOR array(5): [1, session_id(16), transfer_id(16), receipt_id(16), offer_hash(32)]   87 B
-binding_tuple_digest  = SHA-256("deceipt-binding-tuple-v1" || 0x00 || binding_tuple)              32 B
-binding_proof         = HMAC-SHA-256(SBT, "deceipt-binding-proof-v1" || 0x00 || client_nonce(32)
-                                     || client_ephemeral_pubkey(65))                              32 B
+offer_hash           = SHA-256("deceipt-offer-hash-v1" || 0x00 || cbor(offer-identity-array))   32 B
+binding_tuple        = CBOR array(5): [1, session_id(16), transfer_id(16), receipt_id(16), offer_hash(32)]   87 B
+binding_tuple_digest = SHA-256("deceipt-binding-tuple-v1" || 0x00 || binding_tuple)             32 B
+binding_proof        = HMAC-SHA-256(SBT, "deceipt-binding-proof-v1" || 0x00 || client_nonce(32)
+                                      || client_ephemeral_pubkey(65))                           32 B
 ```
 
-**A1 dependency:** `binding_tuple_digest` MUST be a required field of the merchant-signed canonical handshake transcript; `ClientHello` MUST carry `session_id`, `client_nonce`, `client_ephemeral_pubkey`, `binding_proof`.
+`client_ephemeral_pubkey` MUST decode on `secp256r1` (`HANDSHAKE_ECDH_INVALID_POINT` otherwise). SBT is 16 CSPRNG bytes used directly as the HMAC key; rationale and a recorded HKDF hardening path (not in r1) are in §3.4 of the prose contract.
 
 ## Consumes / feeds
 
