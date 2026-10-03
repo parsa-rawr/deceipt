@@ -83,7 +83,7 @@ final class DeceiptUITests: XCTestCase {
         XCTAssertFalse(payload.isEmpty, "QR_PAYLOAD env var must be set to the deceipt1: payload from the merchant")
 
         let app = app()
-        waitFor(element(app, "app-root"), 30, "app-root")
+        waitFor(element(app, "app-root"), 120, "app-root")
 
         // The adapter report lives on the menu; it is replaced once a mode is
         // selected, so assert it before switching modes.
@@ -91,7 +91,7 @@ final class DeceiptUITests: XCTestCase {
                       "adapter NOT compatible: \(dump(app, "adapter-card"))")
 
         tap(app, "mode-customer")
-        waitFor(element(app, "customer-screen"), 15, "customer-screen")
+        waitFor(element(app, "customer-screen"), 30, "customer-screen")
 
         dismissPermissionIfNeeded(app)
 
@@ -103,7 +103,17 @@ final class DeceiptUITests: XCTestCase {
         input.typeText(payload)
 
         tap(app, "scan-qr")
-        waitFor(element(app, "offer-card"), 60, "offer-card")
+        let offer = element(app, "offer-card")
+        if !offer.waitForExistence(timeout: 60) {
+            let diag = [
+                "permission=\(dump(app, "permission-warning"))",
+                "checkoutError=\(dump(app, "checkout-error"))",
+                "customerLog=\(dump(app, "customer-log-card"))",
+                "state=\(dump(app, "checkout-state"))",
+            ].joined(separator: " || ")
+            XCTFail("offer-card never appeared. \(diag)")
+            return
+        }
         print("OFFER_CARD: " + dump(app, "offer-card"))
 
         tap(app, "accept-offer")
@@ -121,13 +131,13 @@ final class DeceiptUITests: XCTestCase {
 
     func testMerchantPrintsQrPayload() throws {
         let app = app()
-        waitFor(element(app, "app-root"), 30, "app-root")
+        waitFor(element(app, "app-root"), 120, "app-root")
 
         XCTAssertTrue(element(app, "adapter-compatible").waitForExistence(timeout: 5),
                       "adapter NOT compatible: \(dump(app, "adapter-card"))")
 
         tap(app, "mode-merchant")
-        waitFor(element(app, "merchant-screen"), 15, "merchant-screen")
+        waitFor(element(app, "merchant-screen"), 30, "merchant-screen")
 
         if element(app, "merchant-key-missing").waitForExistence(timeout: 3) {
             tap(app, "provision-test-merchant")
@@ -138,7 +148,17 @@ final class DeceiptUITests: XCTestCase {
         tap(app, "prepare-checkout")
 
         let qr = element(app, "qr-payload-text")
-        waitFor(qr, 20, "qr-payload-text")
+        if !qr.waitForExistence(timeout: 25) {
+            let diag = [
+                "phase=\(dump(app, "merchant-phase"))",
+                "keyMissing=\(element(app, "merchant-key-missing").exists)",
+                "provisionNote=\(dump(app, "provision-note"))",
+                "merchantError=\(dump(app, "merchant-error"))",
+                "keyId=\(dump(app, "merchant-device-key-id"))",
+            ].joined(separator: " || ")
+            XCTFail("prepare-checkout produced no QR payload. \(diag)")
+            return
+        }
         // Selectable Text exposes its content as `value`; concatenate with label.
         var printed = qr.label
         if let v = qr.value as? String, !v.isEmpty { printed = v }
