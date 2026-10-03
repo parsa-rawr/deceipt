@@ -837,6 +837,8 @@ public final class BluetoothStateProbe: NSObject, CBCentralManagerDelegate {
         guard !reported else { return }
         reported = true
         onState(DeceiptCapabilities.mapState(central.state))
-        manager = nil
+        // Do NOT release the manager here: CoreBluetooth must not dealloc a
+        // manager from inside its own delegate callback. The backend retains
+        // this probe; a later probe replaces it.
     }
 }
