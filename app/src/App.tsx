@@ -22,6 +22,7 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {NativeModules, ScrollView, StatusBar, Text, View, useColorScheme} from 'react-native';
 import type {DeceiptNative} from './native/DeceiptNative';
 import {InMemoryDeceiptNative} from './native/mock/InMemoryDeceiptNative';
+import {adaptNativeModule, probeNativeModule, type ProbeResult} from './native/adapterShim';
 import {MemoryKeyValueStore, ReceiptStore} from './storage/receiptStore';
 import {TRUST_ANCHORS} from './config/trustAnchors';
 import {MerchantScreen} from './ui/MerchantScreen';
@@ -52,7 +53,8 @@ export default function App(props: AppProps): React.JSX.Element {
 
 export function AppContent({native, store, now}: AppProps): React.JSX.Element {
   const [mode, setMode] = useState<Mode>('menu');
-  const resolvedNative = useMemo(() => native ?? resolveNativeAdapter(), [native]);
+  const binding = useMemo(() => (native === undefined ? resolveNativeAdapter() : bindSuppliedAdapter(native)), [native]);
+  const resolvedNative = binding.adapter;
   const resolvedStore = useMemo(() => store ?? new ReceiptStore(new MemoryKeyValueStore()), [store]);
   const clock = useMemo(() => now ?? (() => DEMO_NOW_UNIX), [now]);
 
@@ -76,6 +78,22 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
           <Card testID="adapter-card">
             <Text style={styles.sectionTitle}>Adapter</Text>
             <Text style={styles.value}>{describeAdapter(resolvedNative)}</Text>
+            {binding.probe.compatible ? (
+              <Text style={styles.label} testID="adapter-compatible">
+                contract check: ok ({binding.probe.present.length} methods, events via {binding.probe.eventMode})
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.error} testID="adapter-incompatible">
+                  This native module does not match the app's contract, so Bluetooth modes are disabled.
+                </Text>
+                {binding.probe.problems.map(problem => (
+                  <Text key={problem} style={styles.error}>
+                    {problem}
+                  </Text>
+                ))}
+              </>
+            )}
             <Text style={styles.notice}>
               The shared protocol, state machine and verification run identically whichever adapter is present.
             </Text>
@@ -90,40 +108,66 @@ export function AppContent({native, store, now}: AppProps): React.JSX.Element {
           />
         </ScrollView>
       ) : null}
-      {mode === 'merchant' ? <MerchantScreen native={resolvedNative} now={clock} /> : null}
-      {mode === 'customer' ? (
+      {mode === 'merchant' && binding.probe.compatible ? <MerchantScreen native={resolvedNative} now={clock} /> : null}
+      {mode === 'merchant' && !binding.probe.compatible ? (
+        <Text style={styles.error} testID="merchant-blocked">
+          Merchant mode needs a native module matching the app's contract. See the adapter report on the menu.
+        </Text>
+      ) : null}
+      {mode === 'customer' && binding.probe.compatible ? (
         <CustomerScreen native={resolvedNative} store={resolvedStore} anchors={TRUST_ANCHORS} now={clock} />
+      ) : null}
+      {mode === 'customer' && !binding.probe.compatible ? (
+        <Text style={styles.error} testID="customer-blocked">
+          Customer mode needs a native module matching the app's contract. See the adapter report on the menu.
+        </Text>
       ) : null}
     </View>
   );
 }
 
-/**
- * Pick the adapter. A4/A5 register a hand-written native module under
- * `DeceiptNative`; when it is absent (a JS-only build, Jest, or a platform that
- * has not been built yet) the in-process mock stands in so the app still runs.
- * The choice is reported in the UI rather than made silently.
- */
-function resolveNativeAdapter(): DeceiptNative {
-  const registered: unknown = (NativeModules as Record<string, unknown>).DeceiptNative;
-  if (isDeceiptNative(registered)) {
-    return registered;
-  }
-  return new InMemoryDeceiptNative();
+export interface AdapterBinding {
+  adapter: DeceiptNative;
+  probe: ProbeResult;
+  /** `true` when the module is native (rather than the in-process mock). */
+  isNative: boolean;
 }
 
-function isDeceiptNative(candidate: unknown): candidate is DeceiptNative {
-  if (typeof candidate !== 'object' || candidate === null) {
-    return false;
+/**
+ * Resolve the adapter and PROBE it before use.
+ *
+ * The probe matters because the shared test suite runs against the mock: a
+ * native module whose `subscribe` has the wrong arity passes every Jest test and
+ * redboxes on the first tap. Probing at resolution time turns that into a
+ * reported, visible state — the app says which method does not match instead of
+ * crashing when the user chooses a mode.
+ *
+ * Event delivery is adapted if needed: A4 implements `subscribe(listener)`
+ * natively; the emitter pattern is absorbed by `adaptNativeModule` so the native
+ * side needs no callback ABI.
+ */
+function resolveNativeAdapter(): AdapterBinding {
+  const registered: unknown = (NativeModules as Record<string, unknown>).DeceiptNative;
+  const probe = probeNativeModule(registered);
+  if (registered !== undefined && registered !== null && probe.present.length > 0) {
+    return {
+      adapter: probe.compatible ? adaptNativeModule(registered) : new InMemoryDeceiptNative(),
+      probe,
+      isNative: true,
+    };
   }
-  const record = candidate as Record<string, unknown>;
-  const required = ['capabilities', 'startCustomerSession', 'startMerchantSession', 'subscribe'];
-  return required.every(name => typeof record[name] === 'function');
+  const mock = new InMemoryDeceiptNative();
+  return {adapter: mock, probe: probeNativeModule(mock), isNative: false};
+}
+
+/** Probe an adapter supplied by a host (tests, an embedded build). */
+function bindSuppliedAdapter(adapter: DeceiptNative): AdapterBinding {
+  return {adapter, probe: probeNativeModule(adapter), isNative: !(adapter instanceof InMemoryDeceiptNative)};
 }
 
 function describeAdapter(adapter: DeceiptNative): string {
   return adapter instanceof InMemoryDeceiptNative
-    ? 'Mock adapter (no native module registered — this build cannot use Bluetooth)'
+    ? 'Mock adapter (no usable native module — this build cannot use Bluetooth)'
     : 'Native adapter (Bluetooth available)';
 }
 

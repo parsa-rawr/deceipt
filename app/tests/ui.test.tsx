@@ -277,3 +277,78 @@ describe('copy rules (A2 §8)', () => {
     expect(formatMoney(-250, 'USD')).toBe('-USD 2.50');
   });
 });
+
+describe('native module binding (device-found defects)', () => {
+  it('probes a contract-complete module as compatible', () => {
+    const {probeNativeModule} = bindings();
+    const complete = contractShapedModule({subscribe: (listener: unknown) => () => listener});
+    const probe = probeNativeModule(complete);
+    expect(probe.compatible).toBe(true);
+    expect(probe.eventMode).toBe('native_jsi');
+    expect(probe.problems).toEqual([]);
+  });
+
+  it('flags the Android emitter shape as needing the shim, not as broken', () => {
+    const {probeNativeModule, needsEmitterShim} = bindings();
+    // A5's original module: subscribe(promise) with no JS listener argument.
+    const emitterShaped = contractShapedModule({
+      subscribe: () => Promise.resolve(),
+      addListener: () => undefined,
+      removeListeners: () => undefined,
+    });
+    const probe = probeNativeModule(emitterShaped);
+    expect(probe.compatible).toBe(true);
+    expect(probe.eventMode).toBe('emitter');
+    expect(needsEmitterShim(emitterShaped)).toBe(true);
+  });
+
+  it('reports a missing method instead of redboxing on first tap', () => {
+    const {probeNativeModule} = bindings();
+    const incomplete = contractShapedModule({});
+    delete (incomplete as Record<string, unknown>).startCustomerSession;
+    const probe = probeNativeModule(incomplete);
+    expect(probe.compatible).toBe(false);
+    expect(probe.problems).toContain('startCustomerSession is missing');
+  });
+
+  it('reports a module with no event channel at all', () => {
+    const {probeNativeModule} = bindings();
+    const noEvents = contractShapedModule({});
+    delete (noEvents as Record<string, unknown>).subscribe;
+    const probe = probeNativeModule(noEvents);
+    expect(probe.compatible).toBe(false);
+    expect(probe.problems.some(problem => problem.includes('no way to receive events'))).toBe(true);
+  });
+
+  it('does not use function arity as a compatibility test', () => {
+    const {probeNativeModule} = bindings();
+    // An adapter whose methods declare no arguments is still valid: JS optional
+    // parameters make Function.length unreliable.
+    const noArity = contractShapedModule({subscribe: (listener: unknown) => () => listener});
+    for (const name of Object.keys(noArity)) {
+      if (typeof (noArity as Record<string, unknown>)[name] === 'function' && name !== 'subscribe') {
+        (noArity as Record<string, unknown>)[name] = () => undefined;
+      }
+    }
+    expect(probeNativeModule(noArity).compatible).toBe(true);
+  });
+});
+
+/** The shim module, loaded through the same path the app uses. */
+function bindings(): typeof import('../src/native/adapterShim') {
+  return require('../src/native/adapterShim') as typeof import('../src/native/adapterShim');
+}
+
+/** A module-shaped object with every contract method present and callable. */
+function contractShapedModule(overrides: Record<string, unknown>): Record<string, unknown> {
+  const {NATIVE_METHODS} = require('../../modules/deceipt-native') as {NATIVE_METHODS: readonly string[]};
+  const built: Record<string, unknown> = {};
+  for (const name of NATIVE_METHODS) {
+    built[name] = () => Promise.resolve();
+  }
+  built.subscribe = (listener: unknown) => () => listener;
+  for (const [key, value] of Object.entries(overrides)) {
+    built[key] = value;
+  }
+  return built;
+}

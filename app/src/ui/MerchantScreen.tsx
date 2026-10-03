@@ -23,6 +23,7 @@ import {DeceiptBridgeError} from '../native/bridgeError';
 import {ProtocolError, type ProtocolErrorName} from '../protocol/errors';
 import {prepareMerchantOffer, startMerchantServing, assertMerchantReady, type PreparedMerchantOffer} from '../checkout/merchantFlow';
 import {buildDemoReceipt} from '../demo/demoReceipt';
+import {ensureDemoMerchant} from '../demo/merchantProvision';
 import {Card, Field, ActionButton, StatusPill, colors, formatMoney, styles} from './primitives';
 
 export interface MerchantScreenProps {
@@ -36,12 +37,41 @@ type MerchantPhase = 'idle' | 'preparing' | 'advertising' | 'transferring' | 'co
 export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.Element {
   const [phase, setPhase] = useState<MerchantPhase>('idle');
   const [keyStatus, setKeyStatus] = useState<MerchantKeyStatus | null>(null);
+  const [provisionNote, setProvisionNote] = useState<string | null>(null);
+  const [provisioning, setProvisioning] = useState(false);
   const [prepared, setPrepared] = useState<PreparedMerchantOffer | null>(null);
   const [sessionHandle, setSessionHandle] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
   const [log, setLog] = useState<string[]>([]);
   const [failure, setFailure] = useState<{name: ProtocolErrorName | null; message: string} | null>(null);
   const [sessionType, setSessionType] = useState<string>('none');
+
+  /**
+   * Dev-only bootstrap. Called before the first prepare so the demo can render a
+   * code on a fresh install; it is a no-op on an adapter that forbids test
+   * provisioning, and the reason is surfaced rather than swallowed.
+   */
+  const onProvision = useCallback(async () => {
+    setProvisioning(true);
+    setProvisionNote(null);
+    try {
+      const outcome = await ensureDemoMerchant(native);
+      if (outcome.ok) {
+        setKeyStatus(outcome.status ?? (await native.merchantKeyStatus()));
+        setProvisionNote(
+          outcome.alreadyProvisioned
+            ? 'already provisioned'
+            : 'test merchant key and credential imported (dev build only)',
+        );
+      } else {
+        setProvisionNote(outcome.reason ?? 'provisioning unavailable');
+      }
+    } catch (error) {
+      setProvisionNote(describe(error));
+    } finally {
+      setProvisioning(false);
+    }
+  }, [native]);
 
   const append = useCallback((line: string) => {
     setLog(current => (current[current.length - 1] === line ? current : [...current, line].slice(-40)));
@@ -168,10 +198,25 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
             <Field label="storage" value={keyStatus.identity?.storage ?? 'unknown'} />
           </>
         ) : (
-          <Text style={styles.error} testID="merchant-key-missing">
-            No signing key is provisioned on this build. Merchant mode cannot sign a receipt.
-          </Text>
+          <>
+            <Text style={styles.error} testID="merchant-key-missing">
+              No signing key is provisioned on this build, so merchant mode cannot sign a receipt.
+            </Text>
+            <ActionButton
+              label="Import test merchant key"
+              onPress={() => void onProvision()}
+              testID="provision-test-merchant"
+              accessibilityLabel="provision-test-merchant"
+              variant="secondary"
+              disabled={provisioning}
+            />
+          </>
         )}
+        {provisionNote !== null ? (
+          <Text style={styles.label} testID="provision-note">
+            {provisionNote}
+          </Text>
+        ) : null}
       </Card>
 
       <Card>
