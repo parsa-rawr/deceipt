@@ -16,7 +16,6 @@ import UIKit
 import CoreBluetooth
 import AVFoundation
 import CryptoKit
-
 @objc(DeceiptNativeBackend)
 public final class DeceiptNativeBackend: NSObject {
     private let keyStore = DeceiptKeyStore()
@@ -26,6 +25,7 @@ public final class DeceiptNativeBackend: NSObject {
     private var cachedAnchors: DeceiptCredential.AnchorSet?
     private var candidates: [String: PeerCandidate] = [:]
     private var bluetoothState = "unknown"
+    private var stateProbe: BluetoothStateProbe?
     private var handleCounter = 0
 
     /// Batched event sink (installed by the module's `subscribe`).
@@ -62,30 +62,48 @@ public final class DeceiptNativeBackend: NSObject {
 
     public func capabilities() -> [String: Any] { caps.report() }
 
-    public func permissionState() -> [String: Any] { caps.permissionReport(bluetoothState: bluetoothState) }
-
-    public func requestPermissions(kinds: [String], completion: @escaping ([String: Any]) -> Void) {
-        let group = DispatchGroup()
-        if kinds.contains("bluetooth") {
-            group.enter()
-            // Instantiating a CBCentralManager triggers the Bluetooth prompt when
-            // authorization is notDetermined.
-            DispatchQueue.main.async {
-                let mgr = CBCentralManager(delegate: nil, queue: .main)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { _ = mgr; group.leave() }
-            }
-        }
-        if kinds.contains("camera") {
-            group.enter()
-            AVCaptureDeviceRequest { group.leave() }
-        }
-        group.notify(queue: .main) { [weak self] in
-            completion(self?.permissionState() ?? [:])
-        }
+    public func permissionState() -> [String: Any] {
+        // If the CoreBluetooth state has never resolved, kick a probe so the
+        // next call (and the UI's permission warning) reflects reality.
+        if bluetoothState == "unknown" { resolveBluetoothState { _ in } }
+        return caps.permissionReport(bluetoothState: bluetoothState)
     }
 
-    private func AVCaptureDeviceRequest(_ done: @escaping () -> Void) {
-        AVCaptureDevice.requestAccess(for: .video) { _ in done() }
+    /// Instantiates a CBCentralManager purely to learn the radio state, which
+    /// `CBCentralManagerDelegate.centralManagerDidUpdateState` reports
+    /// asynchronously. Without this, an idle screen (no session yet) would see
+    /// "unknown" and show a spurious permission warning.
+    private func resolveBluetoothState(_ completion: @escaping (String) -> Void) {
+        if bluetoothState != "unknown" { completion(bluetoothState); return }
+        var done = false
+        let finish: (String) -> Void = { [weak self] state in
+            guard !done else { return }
+            done = true
+            self?.bluetoothState = state
+            completion(state)
+        }
+        stateProbe = BluetoothStateProbe { [weak self] state in
+            self?.emit(["type": "bluetooth_state_changed", "state": state])
+            finish(state)
+        }
+        // Belt and braces: never hang the caller if the delegate never fires.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { finish(self.bluetoothState) }
+    }
+
+    public func requestPermissions(kinds: [String], completion: @escaping ([String: Any]) -> Void) {
+        let finish: () -> Void = { [weak self] in completion(self?.permissionState() ?? [:]) }
+        var pending = (kinds.contains("bluetooth") ? 1 : 0) + (kinds.contains("camera") ? 1 : 0)
+        if pending == 0 { finish(); return }
+        let one: () -> Void = {
+            pending -= 1
+            if pending == 0 { finish() }
+        }
+        if kinds.contains("bluetooth") {
+            resolveBluetoothState { _ in DispatchQueue.main.async { one() } }
+        }
+        if kinds.contains("camera") {
+            AVCaptureDevice.requestAccess(for: .video) { _ in DispatchQueue.main.async { one() } }
+        }
     }
 
     public func openSettings(target: String) {
@@ -108,12 +126,24 @@ public final class DeceiptNativeBackend: NSObject {
     // MARK: Merchant keys & signing
 
     public func merchantKeyStatus() -> [String: Any] {
-        guard let key = keyStore.load() else { return ["provisioned": false] }
+        guard let key = keyStore.load() else {
+            return ["provisioned": false, "ready": false, "missing": ["signing_key", "credential", "merchant_id"]]
+        }
+        // `provisioned` only means a signing key exists; `ready` requires the
+        // credential bytes AND the 16-byte merchant id, or the device cannot
+        // build a ServerHello or embed the credential at receipt label 20.
+        var missing: [String] = []
+        if keyStore.publicKeyBytes(key) == nil { missing.append("signing_key") }
+        if key.credential == nil || (key.credential?.isEmpty ?? true) { missing.append("credential") }
+        if key.merchantId == nil || key.merchantId?.count != 16 { missing.append("merchant_id") }
+
         var d: [String: Any] = [
             "provisioned": true,
+            "ready": missing.isEmpty,
             "identity": identityDict(key),
         ]
-        if let cred = key.credential {
+        if !missing.isEmpty { d["missing"] = missing }
+        if let cred = key.credential, !cred.isEmpty {
             d["credentialB64"] = DeceiptBytes.base64(cred)
             if let mid = key.merchantId { d["merchantIdHex"] = DeceiptBytes.hex(mid) }
         }
@@ -147,6 +177,13 @@ public final class DeceiptNativeBackend: NSObject {
             throw DeceiptFailure("CAPABILITY_UNAVAILABLE", phase: BridgePhase.internal, detail: "randomBytes count must be 1..64")
         }
         return DeceiptBytes.base64(DeceiptCrypto.randomBytes(count))
+    }
+
+    /// Unicode NFC normalization using the platform normalizer, which the shared
+    /// layer prefers over the JS fallback (Hermes' String.normalize is absent on
+    /// some builds). Pure function; no secrets.
+    public func normalizeNfc(text: String) throws -> String {
+        return text.precomposedStringWithCanonicalMapping
     }
 
     // MARK: Test-only provisioning (gated)
@@ -698,6 +735,8 @@ public final class DeceiptNativeBackend: NSObject {
             merchantKeyDelete(); return NSNull()
         case "randomBytes":
             return try randomBytes(count: (args.first as? NSNumber)?.intValue ?? 0)
+        case "normalizeNfc":
+            return try normalizeNfc(text: try str(args, 0))
         case "merchantPublicIdentity":
             return merchantPublicIdentity() ?? NSNull()
         case "merchantSignReceipt":
@@ -776,5 +815,28 @@ public final class DeceiptNativeBackend: NSObject {
             throw DeceiptFailure("INTERNAL_ERROR", phase: BridgePhase.permission, detail: "permission request timed out")
         }
         return v
+    }
+}
+
+/// A minimal CBCentralManager whose only job is to report the radio state, so
+/// capability/permission queries are honest before any session exists. It also
+/// triggers the iOS Bluetooth authorization prompt when it is notDetermined.
+/// It is retained until it has reported once, then released.
+public final class BluetoothStateProbe: NSObject, CBCentralManagerDelegate {
+    private var manager: CBCentralManager?
+    private let onState: (String) -> Void
+    private var reported = false
+
+    public init(onState: @escaping (String) -> Void) {
+        self.onState = onState
+        super.init()
+        self.manager = CBCentralManager(delegate: self, queue: .main)
+    }
+
+    public func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        guard !reported else { return }
+        reported = true
+        onState(DeceiptCapabilities.mapState(central.state))
+        manager = nil
     }
 }

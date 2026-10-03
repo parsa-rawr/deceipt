@@ -79,8 +79,22 @@ final class DeceiptUITests: XCTestCase {
     // MARK: - CUSTOMER test
 
     func testCustomerFlowFromQrPayload() throws {
-        let payload = ProcessInfo.processInfo.environment["QR_PAYLOAD"] ?? ""
-        XCTAssertFalse(payload.isEmpty, "QR_PAYLOAD env var must be set to the deceipt1: payload from the merchant")
+        // Payload resolution order:
+        //   1. launch argument  --qr-payload=<...>
+        //   2. QR_PAYLOAD environment variable
+        //   3. /tmp/deceipt-qr-payload (the wrapper script writes this and then
+        //      rewrites the .xctestrun EnvironmentVariables, which is the only
+        //      reliable injection point for an XCUITest runner).
+        var payload = ""
+        for arg in ProcessInfo.processInfo.arguments where arg.hasPrefix("--qr-payload=") {
+            payload = String(arg.dropFirst("--qr-payload=".count))
+        }
+        if payload.isEmpty { payload = ProcessInfo.processInfo.environment["QR_PAYLOAD"] ?? "" }
+        if payload.isEmpty {
+            payload = (try? String(contentsOfFile: "/tmp/deceipt-qr-payload", encoding: .utf8))?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+        XCTAssertFalse(payload.isEmpty, "QR_PAYLOAD must be set (env, --qr-payload= arg, or /tmp/deceipt-qr-payload)")
 
         let app = app()
         waitFor(element(app, "app-root"), 120, "app-root")

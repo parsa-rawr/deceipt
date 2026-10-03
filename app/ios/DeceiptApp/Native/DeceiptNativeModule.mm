@@ -105,7 +105,7 @@ static const std::set<std::string> &DeceiptMethodNames()
       "startMerchantSession", "beginTransfer",         "startScan",              "stopScan",
       "startCustomerSession", "acceptOffer",           "retryTransfer",          "sendReceiptAck",
       "cancelSession",        "stopSession",           "sessionSnapshot",        "randomBytes",
-      "provisionTestMerchant", "clearTestProvisioning",
+      "provisionTestMerchant", "clearTestProvisioning", "normalizeNfc",
   };
   return methods;
 }
