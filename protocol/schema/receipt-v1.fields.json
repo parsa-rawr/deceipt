@@ -1,5 +1,5 @@
 {
- "revision": "deceipt-proto-r3",
+ "revision": "deceipt-proto-r4",
  "schema": "deceipt.receipt-v1",
  "top_level": "map",
  "encoding": "deterministic CBOR (RFC 8949 4.2.1); integer keys 0..255; no floats; no tags; no indefinite lengths",
@@ -39,7 +39,7 @@
    "name": "tz_offset_minutes",
    "type": "int",
    "required": false,
-   "rule": "-840..840"
+   "rule": "-50400..50400 (= -840..840 minutes in SECONDS); the value and its bound are both in seconds"
   },
   {
    "label": 6,

@@ -1,6 +1,6 @@
 # Merchant trust bootstrap — Pass B
 
-**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r4` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (credential verification), A3 (trust-policy outcomes, UI), A6 (adversarial review)
 **Machine-readable:** `protocol/schema/credential-v1.fields.json` · **CDDL:** `protocol/schema/credential-v1.cddl` · **Vectors:** `protocol/vectors/credentials.json`, `receipt-invalid.json`
 

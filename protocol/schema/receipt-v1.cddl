@@ -1,5 +1,5 @@
 ; DeceiptReceiptV1 — CDDL
-; Revision: deceipt-proto-r1 (FROZEN for the PoC)
+; Revision: deceipt-proto-r4 (FROZEN for the PoC)
 ; Encoding: RFC 8949 4.2.1 core deterministic; integer map keys 0..255; NO floats, NO tags,
 ;           NO indefinite lengths, NO null. Text is NFC and free of control/bidi chars.
 ; This CDDL is descriptive of the byte layout; the normative bound values live in
@@ -10,7 +10,7 @@ deceipt-receipt-v1 = {
   2  : receipt-kind,            ; kind
   3  : receipt-id,              ; receipt_id  (bstr .size 16)
   4  : issued-at,               ; issued_at   (unix seconds 1577836800..4102444800)
-  ? 5  : int .ge -840 .le 840,  ; tz_offset_minutes
+  ? 5  : int .ge -50400 .le 50400,  ; tz_offset_minutes (units are SECONDS)
   6  : merchant,                ; merchant
   ? 7  : location,              ; location
   8  : currency-code,           ; currency (ISO 4217 alpha-3, v1 exponent table)

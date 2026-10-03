@@ -1,6 +1,6 @@
 # Wire identifiers and control messages — Pass D
 
-**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r4` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (GATT, advertising, framing), A3 (message models), A6 (interop)
 **Machine-readable:** `protocol/schema/wire-v1.messages.json` · **CDDL:** `protocol/schema/wire-v1.cddl` · **Vectors:** `protocol/vectors/handshake-valid.json`, `aead-valid.json`, `lpdu-valid.json`, `framing-valid.json`
 
@@ -75,7 +75,7 @@ LPdu fragment = u16_be(msg_seq) ‖ u8(frag_index) ‖ u8(frag_count) ‖ fragme
 
 `msg_seq` is scoped to the sender within the session and is used only for LPdu reassembly ordering; the AEAD counter of §6 is the cryptographic anti-replay mechanism. A receiver MUST NOT allocate buffers for a peer-declared `frag_count` before checking it against 512.
 
-Vector: `lpdu-valid.json` (ServerHello → 3 fragments of 182/182/171 bytes over an example ATT MTU of 185) and `lpdu-invalid.json`.
+Vector: `lpdu-valid.json` (a 615-byte `SERVER_HELLO` CBOR + envelope tag = 616-byte PDU → 4 fragments of 178/178/178/82 bytes over the example ATT MTU of 185) and `lpdu-invalid.json`.
 
 ## 4. Transfer identity rules
 
@@ -140,7 +140,7 @@ All values from `handshake-valid.json` / `aead-valid.json` / `framing-valid.json
 | Step | Bytes |
 |---|---|
 | `CLIENT_HELLO` PDU | `00` ‖ CBOR, 168 B (`ClientHello` 167 B + envelope tag) |
-| `SERVER_HELLO` PDU | 523 B (`00` ‖ 522-byte CBOR), fragmented into 3 LPdu fragments (182/182/171) |
+| `SERVER_HELLO` PDU | 616 B (615-byte `SERVER_HELLO` CBOR + `00` tag), fragmented into 4 LPdu fragments (178/178/178/82) at the example ATT MTU |
 | `RECEIPT_OFFER` AEAD envelope | 181 B: `01 0000000000000000` ‖ 172-byte GCM ciphertext (`010000000000000000 10f4d62494cb0cc5…fa5d15`) |
 | `TRANSFER_BEGIN` AEAD envelope | 90 B: `01 0000000000000001` ‖ … (`0118eda47f49904311…aaa52eeade`) |
 | `ACCEPT` AEAD envelope (B→A) | 50 B: `01 0000000000000000` ‖ … (`4f9409395765eee3…01de8e43cb`) |

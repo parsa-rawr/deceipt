@@ -1,6 +1,6 @@
 # Transfer framing and flow control
 
-**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r4` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (native fragmentation/flow control), A3 (progress semantics), A6 (fragmentation proof)
 **Vectors:** `protocol/vectors/framing-valid.json`, `framing-invalid.json`, `lpdu-valid.json`, `lpdu-invalid.json` · **Bounds:** `protocol/schema/bounds-v1.json`
 

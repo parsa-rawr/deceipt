@@ -1,5 +1,5 @@
 {
- "revision": "deceipt-proto-r3",
+ "revision": "deceipt-proto-r4",
  "protocol_version": 1,
  "suite_id": 1,
  "cbor": {

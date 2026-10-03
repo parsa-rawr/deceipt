@@ -36,7 +36,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 # 0. Constants — single source of truth for every number in the spec
 # ==========================================================================
 
-REVISION_LABEL = "deceipt-proto-r3"
+REVISION_LABEL = "deceipt-proto-r4"
 
 PROTOCOL_VERSION = 1
 SUITE_ID = 1
@@ -2730,7 +2730,7 @@ def receipt_fields_schema() -> Dict[str, Any]:
             f(3, "receipt_id", "bstr16", True, "random; dedup key"),
             f(4, "issued_at", "uint", True, "unix seconds; "
               "1577836800..4102444800 else RECEIPT_SEMANTIC_INVALID"),
-            f(5, "tz_offset_minutes", "int", False, "-840..840"),
+            f(5, "tz_offset_minutes", "int", False, "-50400..50400 (= -840..840 minutes in SECONDS); the value and its bound are both in seconds"),
             f(6, "merchant", "map", True, "see merchant; label 1 required"),
             f(7, "location", "map", False, "see location"),
             f(8, "currency", "tstr", True, "ISO 4217 alpha-3 from the v1 exponent table; "

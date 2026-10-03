@@ -1,6 +1,6 @@
 # Deceipt protocol contract — index
 
-**Revision:** `deceipt-proto-r3` — **FROZEN for the PoC**
+**Revision:** `deceipt-proto-r4` — **FROZEN for the PoC**
 **Aggregate hash:** see `protocol/REVISION.json` (`aggregate_sha256`) — computed over every file listed there.
 **Owner:** A1. Changes require a new revision id and a full vector regeneration.
 
@@ -54,7 +54,7 @@ This repository is **public**. Consequently:
 python3 protocol/vectors/tools/gen_vectors.py     # deterministic; rewrites vectors, bounds, field tables, REVISION.json
 ```
 
-Revision history: **r1** was the first freeze; **r2** closed A6's early-review findings (transcript reconstructibility from received bytes, `offer_hash` single definition, three session types incl. `SessionUnverifiedPeer`, final-frame bound, anchor-key correction, one-shot payload key, duplicate offer-mismatch error removed, `transcript_layout` label size, `protocol/flows/**` in hash scope, no placeholder fixtures). **r3** is a corrections-only revision: the final-frame rule is now encoded in `wire-v1.cddl` (was prose-only), the `SERVER_HELLO` field table's duplicated label 4 is removed, and the worked `ACK` example is now the AEAD envelope (a plaintext ACK was shown). **No binding byte and no session-structure byte changed in r2 or r3**; `offer_hash`, `binding_tuple`, its digest, `binding_proof`, the 372-byte transcript and all AEAD ciphertexts are identical across r1/r2/r3.
+Revision history: **r1** was the first freeze; **r2** closed A6's early-review findings (transcript reconstructibility from received bytes, `offer_hash` single definition, three session types incl. `SessionUnverifiedPeer`, final-frame bound, anchor-key correction, one-shot payload key, duplicate offer-mismatch error removed, `transcript_layout` label size, `protocol/flows/**` in hash scope, no placeholder fixtures). **r3** is a corrections-only revision: the final-frame rule is now encoded in `wire-v1.cddl` (was prose-only), the `SERVER_HELLO` field table's duplicated label 4 is removed, and the worked `ACK` example is now the AEAD envelope (a plaintext ACK was shown). **r4** is also corrections-only: `wire-v1.cddl`'s `server-hello` now declares labels 10/11 (it was `[1..9]`), the receipt `tz_offset_minutes` bound is stated in SECONDS (`-50400..50400`, matching the vector's `-14400`), the CDDL headers say r4, and `wire.md` §7's fragment figures match the LPdu vector (616 B / 4 fragments). **No binding byte and no session-structure byte changed in r2, r3 or r4**; `offer_hash`, `binding_tuple`, its digest, `binding_proof`, the 372-byte transcript and all AEAD ciphertexts are identical across r1/r2/r3.
 
 The generator runs a self-test that executes every byte-level invalid fixture through the reference implementation and fails the build if any recorded typed error does not match. `self-test.json` records the result (`checked: 165, failed: []` at this revision).
 

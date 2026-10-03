@@ -1,6 +1,6 @@
 # Conformance checklist
 
-**Revision:** `deceipt-proto-r3` · **Owner of execution:** A6 (independent) · **Owners of the code:** A3, A4, A5
+**Revision:** `deceipt-proto-r4` · **Owner of execution:** A6 (independent) · **Owners of the code:** A3, A4, A5
 
 A3/A4/A5 are accepted only if every applicable row passes against this revision. A6 derives expectations **only** from `protocol/vectors/**`, never from the implementation under test.
 
@@ -124,11 +124,20 @@ Every `docs/security/early-contract-review.md` finding is closed in r2 except RX
 | R2-03 (minor) | `SERVER_HELLO` field table's duplicated label 4 removed; labels are `[1..11]`, unique and ascending | verifier asserts every message's labels are unique and ascending |
 | R7-02 (minor) | `wire.md` §7 ACK row now shows the **AEAD envelope** (`framing-valid.json#ack_envelope_hex`, 50 B, `k_c2m_ctrl`, counter 0) and states a plaintext ACK is `MESSAGE_WRONG_STATE` | verifier decrypts the frozen ACK envelope and compares to the ACK CBOR |
 
-### Residual metadata note (r3)
+## I. A6 r3 review closure (r4)
+
+| Finding | Resolution | Where to verify |
+|---|---|---|
+| F-02 (major) | `wire-v1.cddl` `server-hello` gains labels 10 (`binding_tuple`, authoritative) and 11 (`max_frame_payload`); it previously declared `[1..9]` while the frozen vector decodes to `[1..11]` | verifier asserts labels 10/11 in the CDDL block |
+| F-06 (major) | `tz_offset_minutes` units fixed to **seconds**: `receipt-v1.md` §3, `receipt-v1.cddl` (`.ge -50400 .le 50400`) and `receipt-v1.fields.json` now agree with the frozen `-14400` (= UTC-4). The name is historical; the value and bound are seconds, range UTC-14..+14 | verifier asserts the seconds bound and rejects the minutes bound |
+| F-03/F-04 (minor) | All three CDDL headers bumped from r1 to the current revision | — |
+| F-07 (minor) | `wire.md` §7 fragment figures corrected to the LPdu vector: 616-byte PDU, 4 fragments `178/178/178/82` | verifier asserts the doc cites the vector's PDU length and fragment count |
+
+### Residual metadata note (r4)
 
 `protocol/flows/**` is inside the r2 hash scope (RX-02). A2 owns those files. A2's pinned `protocol/flows/**` files reference the A1 revision they were reconciled
-against; after the r3 bump those strings name r2 while the frozen revision is r3 (metadata
-only — no binding byte changed). A2 has been asked to make the reference revision-agnostic. `protocol/vectors/tools/verify_vectors.py`
+against; A2 has made the reference revision-agnostic (their commit 1c35c17), so those files no
+longer name any A1 revision and the metadata warning no longer fires. `protocol/vectors/tools/verify_vectors.py`
 prints a **WARN** line for any A2-owned pinned file still declaring r1, and **FAILS** on
 any A1-owned doc doing so. If any A2 warning is still present when the r2 aggregate is
 quoted, the pinned value is the one in `protocol/REVISION.json`; the warning names the

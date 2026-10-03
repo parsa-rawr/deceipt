@@ -1,5 +1,5 @@
 {
- "revision": "deceipt-proto-r3",
+ "revision": "deceipt-proto-r4",
  "schema": "deceipt.wire-v1",
  "envelope": {
   "plaintext": "0x00 || canonical CBOR (ClientHello, ServerHello only)",

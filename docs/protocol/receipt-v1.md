@@ -1,6 +1,6 @@
 # DeceiptReceiptV1 — Pass A (receipt schema)
 
-**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r4` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A3 (validation/serialization), A4/A5 (sign/verify over exact bytes), A6 (conformance)
 **Machine-readable companion:** `protocol/schema/receipt-v1.fields.json` · **CDDL:** `protocol/schema/receipt-v1.cddl` · **Bounds:** `protocol/schema/bounds-v1.json`
 **Vectors:** `protocol/vectors/receipt-valid.json`, `receipt-invalid.json`, `arithmetic-valid.json`
@@ -69,7 +69,7 @@ Labels `1..21`. All are integer labels in the receipt map. `REQ` = required.
 | 2 | `kind` | uint | ✔ | `1`=sale, `2`=refund, `3`=void |
 | 3 | `receipt_id` | bstr(16) | ✔ | cryptographically random, globally unique; dedup key (§9) |
 | 4 | `issued_at` | uint | ✔ | unix seconds, `1577836800..4102444800` (2020-01-01 .. 2100-01-01) |
-| 5 | `tz_offset_minutes` | int | | `-840..840`; display only |
+| 5 | `tz_offset_minutes` | int | | `-50400..50400`; **units are SECONDS**, not minutes (the name is historical), i.e. UTC offset `-14h..+14h`; display only |
 | 6 | `merchant` | map | ✔ | see §4.1 |
 | 7 | `location` | map | | see §4.2 |
 | 8 | `currency` | tstr | ✔ | ISO 4217 alpha-3 present in the v1 exponent table (`bounds-v1.json`); else `RECEIPT_UNSUPPORTED_CURRENCY` |

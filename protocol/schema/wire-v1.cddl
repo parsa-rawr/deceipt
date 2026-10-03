@@ -1,5 +1,5 @@
 ; Deceipt Wire v1 — CDDL
-; Revision: deceipt-proto-r1 (FROZEN for the PoC)
+; Revision: deceipt-proto-r4 (FROZEN for the PoC)
 ; Control messages are CBOR maps with integer labels; the envelope carries them.
 
 ; ---------------------------------------------------------------------------
@@ -77,6 +77,8 @@ server-hello = {
   7 : bstr,                       ; merchant_credential (<= 1024)
   8 : bstr .size 64,              ; transcript_signature
   9 : bstr .size 32,              ; binding_tuple_digest
+  10 : bstr,                      ; binding_tuple (87 B in v1; AUTHORITATIVE over label 9)
+  11 : uint .le 512,              ; max_frame_payload (signed; MAY be below CLIENT_HELLO's)
 }
 
 accept = {

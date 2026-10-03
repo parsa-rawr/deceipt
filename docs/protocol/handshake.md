@@ -1,6 +1,6 @@
 # Handshake — Pass C (byte-for-byte)
 
-**Revision:** `deceipt-proto-r3` · **Status:** FROZEN for the PoC
+**Revision:** `deceipt-proto-r4` · **Status:** FROZEN for the PoC
 **Owner:** A1 · **Consumers:** A4/A5 (native handshake, framing), A3 (session types, state machine), A6 (crypto review)
 **Vectors:** `protocol/vectors/handshake-valid.json`, `handshake-invalid.json`, `aead-valid.json`, `aead-invalid.json`, `binding-crosscheck.json`
 
