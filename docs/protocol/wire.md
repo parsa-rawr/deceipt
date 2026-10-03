@@ -109,7 +109,7 @@ att_payload_max(att_mtu)      = min(att_mtu − 3, 512)
 max_frame_payload_for_mtu(m)  = min(att_payload_max(m) − 20, 512)      # 20 = DataFrame header
 ```
 
-Worked example (vectors): `att_mtu = 185` ⇒ `att_payload_max = 182`; merchant negotiates `frame_size = 162` (a conservative value below the ceiling) and the receipt's 814-byte ciphertext becomes **6 frames** of 162 bytes except the last (24 bytes). Bounds on the negotiated value live in the transcript and are therefore authenticated.
+Worked example (vectors): `att_mtu = 185` ⇒ `att_payload_max = 182`; merchant negotiates `frame_size = 162` (a conservative value below the ceiling) and the receipt's 814-byte ciphertext becomes **6 frames** of 162 bytes except the last (4 bytes, valid — see `framing.md` §1). Bounds on the negotiated value live in the transcript and are therefore authenticated.
 
 ## 6. AEAD control envelopes (summary; full rules in `handshake.md` §6)
 

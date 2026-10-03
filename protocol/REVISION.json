@@ -1,7 +1,7 @@
 {
  "_TESTONLY": "TEST-ONLY DETERMINISTIC MATERIAL. Every key, nonce, seed, token and signature in this file is public by construction and reproducible from fixed ASCII labels. It MUST NEVER be used outside these test vectors: not in a build, not in a session, not as a trust anchor. The only production-relevant value here is the PoC TEST ROOT PUBLIC KEY (public material only). Production sessions use fresh CSPRNG randomness; production trust roots are generated offline and their private keys NEVER enter this repository. See docs/protocol/trust.md and protocol/vectors/NOTICE.",
  "revision": "deceipt-proto-r2",
- "aggregate_sha256": "5a7cc554dae28764155d478fa7cdd12eabb0aeac20bad982d44bddf5c045edda",
+ "aggregate_sha256": "959bb87cd15bc1af49eb5a7f21d616ea954e78fddb58d5022e792da618f495a8",
  "hash_rule": "SHA-256(<revision id> || 0x00 || <sorted 'path=sha256' rows joined by 0x00>) over every frozen protocol artifact: docs/protocol/*.md, protocol/schema/*, protocol/vectors/** and protocol/flows/** (the A2 artifacts docs/protocol/README.md adopts and pins).",
  "files": {
   "../schema/bounds-v1.json": "dd516e8b23b62e8fd989efc3e4a65776147be4b622cec79d7eb9daf7cbe8c378",
@@ -30,12 +30,12 @@
   "receipt-valid.json": "ecadbd08f8c27dd5f5eef488d320b9580e95a59829b61d459d840934335c22a1",
   "../../docs/protocol/README.md": "4b67e6669859af05f2927c6aab65aad4d75ecacf69672dd44c0c971b942d8c22",
   "../../docs/protocol/conformance.md": "294486d9706d1f02ac293d3ff1128dde74aea033e33bd9e4a6d88afa6518d658",
-  "../../docs/protocol/framing.md": "ce5efe2f442093a1f7ceccb6942d533e6641c658b1b46c6f733a28b276d96981",
+  "../../docs/protocol/framing.md": "fc379174c4ac54a47058c8c6dcf4cbbc3ea72846c7d0a502f1162fec76e7b698",
   "../../docs/protocol/handshake.md": "cd662d3e20e06ec4ece05b36443d75ee61f25583e107b7be73691ca6dc50bf9a",
   "../../docs/protocol/receipt-v1.md": "be6c84a6f59e1a82bfc5912fd549ffcb376a5ffccb5102491fed5e4539cc4330",
   "../../docs/protocol/trust.md": "198820eaa44f1efdfe65ad77fc7df55d1de32d04c65fc01a70f9269027e790f5",
   "../../docs/protocol/verification.md": "5fd975c133ef86b280aa5518fe022c52dd5c16ec1800868a2f375804de7fd235",
-  "../../docs/protocol/wire.md": "fbba592a5433b74e648c8e3c366d2384313d5e8158848ada8bc73499d6094c34",
+  "../../docs/protocol/wire.md": "85812527ca55b73c746248a96f918b48a18648cd1e3acca7865256d4d7f58a8a",
   "../schema/receipt-v1.cddl": "6162b51133530aff0387729ce2522b64112377f2c29f2d42b2f468f11fa51056",
   "../schema/credential-v1.cddl": "6fe13ad31e00be30b86e6f9cb5b942cda3b5e1abacc2aa9c50e0a72f621f3884",
   "../schema/wire-v1.cddl": "ced6127dd50b3bd55a1727b25b501ef553bc6e171b82d7b5b697b739b988b1be",

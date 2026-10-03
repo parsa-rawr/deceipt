@@ -29,7 +29,7 @@ final_frame_payload          ∈ [1, frame_size]
 
 `max_frame_payload` is a member of the canonical transcript (`handshake.md` §3), so the negotiated size is authenticated. Neither side may renegotiate it after `SERVER_HELLO`.
 
-Vector: `att_mtu = 185` ⇒ ceiling `162`; `frame_size = 162`; 814-byte ciphertext ⇒ `frame_count = 6`; last frame payload 24 bytes.
+Vector: `att_mtu = 185` ⇒ ceiling `162`; `frame_size = 162`; 814-byte ciphertext ⇒ `frame_count = 6`; payload sizes `[162,162,162,162,162,4]` (the final frame is 4 bytes and is valid).
 
 ## 2. Transfer begin and complete
 
