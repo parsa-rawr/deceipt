@@ -29,8 +29,6 @@ import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledFuture
-import java.util.concurrent.TimeUnit
 
 /**
  * The legacy `DeceiptNative` module (modules/deceipt-native/index.ts
@@ -48,7 +46,7 @@ class DeceiptNativeModule(
     private val manager = SessionManager(reactContext.applicationContext)
     private val executor = Executors.newSingleThreadExecutor { r -> Thread(r, "deceipt-native") }
     private val eventQueue = ArrayDeque<WritableMap>()
-    private var flushScheduled: ScheduledFuture<*>? = null
+    private var flushScheduled = false
     private var listenerAttached = false
 
     override fun getName(): String = DeceiptPackage.MODULE_NAME
@@ -60,42 +58,29 @@ class DeceiptNativeModule(
     private fun emit(map: Map<String, Any?>) {
         synchronized(eventQueue) {
             eventQueue.addLast(toWritable(map))
-            if (flushScheduled == null || flushScheduled!!.isDone) {
-                flushScheduled = reactContext.runOnQueue {
-                    // Batched delivery: one bridge call per batch of typed events.
-                    val batch = Arguments.createArray()
-                    synchronized(eventQueue) {
-                        while (eventQueue.isNotEmpty()) batch.pushMap(eventQueue.removeFirst())
-                    }
-                    if (batch.size() > 0) {
-                        reactContext
-                            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                            .emit(EVENT_BATCH, batch)
-                    }
-                }
+            if (!flushScheduled) {
+                flushScheduled = true
+                reactContext.runOnUiQueueThread { flushBatch() }
             }
         }
-    }
-
-    private fun emitEvents(events: List<Map<String, Any?>>) {
-        if (events.isEmpty()) return
-        synchronized(eventQueue) {
-            for (e in events) eventQueue.addLast(toWritable(e))
-        }
-        flushNow()
     }
 
     private fun flushNow() {
-        reactContext.runOnQueue {
-            val batch = Arguments.createArray()
-            synchronized(eventQueue) {
-                while (eventQueue.isNotEmpty()) batch.pushMap(eventQueue.removeFirst())
-            }
-            if (batch.size() > 0) {
-                reactContext
-                    .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit(EVENT_BATCH, batch)
-            }
+        synchronized(eventQueue) { flushScheduled = true }
+        reactContext.runOnUiQueueThread { flushBatch() }
+    }
+
+    /** Drain the queue into ONE batched bridge call. */
+    private fun flushBatch() {
+        val batch = Arguments.createArray()
+        synchronized(eventQueue) {
+            while (eventQueue.isNotEmpty()) batch.pushMap(eventQueue.removeFirst())
+            flushScheduled = false
+        }
+        if (batch.size() > 0) {
+            reactContext
+                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                .emit(EVENT_BATCH, batch)
         }
     }
 
@@ -151,9 +136,9 @@ class DeceiptNativeModule(
         executor.execute {
             try {
                 val r = block()
-                reactContext.runOnQueue { ok(promise, r) }
+                reactContext.runOnUiQueueThread { ok(promise, r) }
             } catch (t: Throwable) {
-                reactContext.runOnQueue { fail(promise, t) }
+                reactContext.runOnUiQueueThread { fail(promise, t) }
             }
         }
     }
@@ -203,9 +188,9 @@ class DeceiptNativeModule(
             if (requested.contains("bluetooth")) {
                 val role = if (manager.merchantKeyOrNull() != null) BlePermissions.Role.MERCHANT else BlePermissions.Role.CUSTOMER
                 val needed = BlePermissions.requestablePermissions(role, includeCamera)
-                currentActivity?.requestPermissions(needed.toTypedArray(), REQ_BLE)
+                reactContext.currentActivity?.requestPermissions(needed.toTypedArray(), REQ_BLE)
             } else if (includeCamera) {
-                currentActivity?.requestPermissions(arrayOf(BlePermissions.cameraPermission()), REQ_BLE)
+                reactContext.currentActivity?.requestPermissions(arrayOf(BlePermissions.cameraPermission()), REQ_BLE)
             }
             BlePermissions.report(reactContext).toBridgeMap()
         }
@@ -214,7 +199,7 @@ class DeceiptNativeModule(
     @ReactMethod
     fun openSettings(target: String, promise: Promise) {
         onWorker(promise) {
-            val activity = currentActivity
+            val activity = reactContext.currentActivity
             if (activity == null) {
                 throw ProtocolError("CAPABILITY_UNAVAILABLE", "no foreground activity")
             }
@@ -308,7 +293,8 @@ class DeceiptNativeModule(
             val r = ReceiptVerify.parseAndVerify(cose, pub)
             val m = linkedMapOf<String, Any?>("signatureValid" to r.signatureValid)
             r.deviceKeyIdHex?.let { m["deviceKeyIdHex"] = it }
-            if (r.errorName != null) m["error"] = Errors.descriptor(r.errorName).let {
+            val errName = r.errorName
+            if (errName != null) m["error"] = Errors.descriptor(errName).let {
                 linkedMapOf<String, Any?>("name" to it.name, "code" to it.code, "fatal" to it.fatal, "retryable" to it.retryable)
             }
             m

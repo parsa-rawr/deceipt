@@ -5,6 +5,9 @@ import com.deceipt.adapter.session.SessionTransport
 import java.util.ArrayDeque
 import java.util.concurrent.locks.ReentrantLock
 
+/** `PermissionReport` lives on [BlePermissions]; this is its package-level name. */
+typealias PermissionReport = BlePermissions.PermissionReport
+
 /**
  * Shared BLE transport surface (A5). Everything the session layer needs to talk
  * to the radio, expressed without `android.bluetooth` so the protocol/state
@@ -76,6 +79,9 @@ interface Callback {
     /** The link is usable and the MTU is known. */
     fun onLinkUp(mtu: MtuInfo) {}
 
+    /** The negotiated ATT MTU changed. Frame size is recomputed, never assumed. */
+    fun onMtuChanged(mtu: MtuInfo) {}
+
     /** The link ended. `reason` is a `TeardownReason` string (see [BleReasons]). */
     fun onLinkDown(reason: String) {}
 
@@ -122,7 +128,7 @@ interface CentralCallback : Callback {
 
     fun onServicesDiscovered(peripheralId: String) {}
 
-    fun onMtuChanged(mtu: MtuInfo) {}
+    override fun onMtuChanged(mtu: MtuInfo) {}
 
     /** EVENT + DATA notifications are enabled on the target peripheral. */
     fun onNotificationsEnabled() {}

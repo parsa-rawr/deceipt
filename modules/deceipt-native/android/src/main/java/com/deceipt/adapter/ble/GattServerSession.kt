@@ -605,7 +605,7 @@ class GattServerSession(
 
     private fun dispatch(action: () -> Unit) {
         if (closed.get()) return
-        if (Handler.myLooper() == handler.looper) {
+        if (android.os.Looper.myLooper() == handler.looper) {
             action()
         } else {
             handler.post {

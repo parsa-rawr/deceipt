@@ -1,7 +1,7 @@
 package com.deceipt.poc
 
 import android.app.Application
-import com.deceipt.native.bridge.DeceiptPackage
+import com.deceipt.adapter.bridge.DeceiptPackage
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost

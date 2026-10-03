@@ -80,7 +80,7 @@ class MerchantBleSession(
         val mtu = server.negotiatedAttMtu
         // Before the subscriber's MTU is known (default 23) fall back to the
         // hard LPdu cap rather than deriving a zero-size payload budget.
-        return if (mtu <= MIN_ATT_MTU) Bounds.MAX_LPDU_FRAG_BYTES else BleDiagnostics.attPayloadMax(mtu)
+        return if (mtu <= BleDiagnostics.MIN_USABLE_ATT_MTU) Bounds.MAX_LPDU_FRAG_BYTES else BleDiagnostics.attPayloadMax(mtu)
     }
 
     override fun close() { server.close() }
@@ -164,7 +164,7 @@ class CustomerBleSession(
 
     override fun controlFragmentCeiling(): Int {
         val mtu = client.negotiatedAttMtu
-        return if (mtu <= MIN_ATT_MTU) Bounds.MAX_LPDU_FRAG_BYTES else BleDiagnostics.attPayloadMax(mtu)
+        return if (mtu <= BleDiagnostics.MIN_USABLE_ATT_MTU) Bounds.MAX_LPDU_FRAG_BYTES else BleDiagnostics.attPayloadMax(mtu)
     }
 
     override fun close() { client.close() }
@@ -174,8 +174,6 @@ class CustomerBleSession(
 
 /** String form of the frozen service UUID, for the `serviceUuid` event field. */
 object GattUuids {
-    const val SERVICE_STR = com.deceipt.adapter.ble.GattUuids.SERVICE.toString()
+    val SERVICE_STR: String = com.deceipt.adapter.ble.GattUuids.SERVICE.toString()
 
-    /** The BLE default ATT MTU (23). Used only to detect "MTU not yet negotiated". */
-    const val MIN_ATT_MTU = 23
 }
