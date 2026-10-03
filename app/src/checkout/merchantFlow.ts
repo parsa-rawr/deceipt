@@ -76,6 +76,28 @@ export function buildSyntheticSale(options: SyntheticReceiptOptions, receiptId: 
   };
 }
 
+/**
+ * Name the step a merchant preparation is in. Preparation crosses the bridge
+ * several times, and a native call that never settles used to leave the UI on
+ * "preparing" forever with no error — so each step is named as it is entered and
+ * bounded by a timeout, which turns a silent stall into a reported failure.
+ */
+export type MerchantPrepareStep =
+  | 'checking_capabilities'
+  | 'provisioning'
+  | 'reading_key_status'
+  | 'minting_receipt_id'
+  | 'signing_receipt'
+  | 'deriving_offer'
+  | 'minting_qr'
+  | 'done';
+
+export interface MerchantPrepareProgress {
+  step: MerchantPrepareStep;
+  /** Milliseconds since preparation began. */
+  elapsedMs: number;
+}
+
 export interface PreparedMerchantOffer {
   receipt: Receipt;
   coseSign1B64: string;
@@ -92,19 +114,57 @@ export interface PreparedMerchantOffer {
  * Prepare one checkout: sign the receipt, derive the binding bytes and mint the
  * QR. The receipt is signed before the session exists (A2 §7 step 6).
  */
+/**
+ * How long any single bridged step may take before the preparation is reported
+ * as failed. Generous relative to real work (a few milliseconds) because it
+ * exists to surface a *stall*, not to police performance.
+ */
+export const PREPARE_STEP_TIMEOUT_MS = 10000;
+
+/** Wrap a bridged call so a call that never settles becomes a typed failure. */
+async function withStepTimeout<T>(step: MerchantPrepareStep, run: () => Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      run(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new ProtocolError(
+              'CAPABILITY_UNAVAILABLE',
+              `the native adapter did not answer the '${step}' step within ${PREPARE_STEP_TIMEOUT_MS} ms`,
+            ),
+          );
+        }, PREPARE_STEP_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 export async function prepareMerchantOffer(
   native: DeceiptNative,
   receipt: Receipt,
   nowUnix: number,
+  onProgress?: (progress: MerchantPrepareProgress) => void,
 ): Promise<PreparedMerchantOffer> {
+  const startedAt = Date.now();
+  const report = (step: MerchantPrepareStep): void => {
+    onProgress?.({step, elapsedMs: Date.now() - startedAt});
+  };
   // The receipt's text must be fully validated (including NFC through the OS
   // normalizer when needed) BEFORE it is signed: signing attests to bytes the
   // receiver would reject otherwise, and the failure would surface only as a
   // rejected transfer.
-  await validateReceiptText(receipt);
+  await withStepTimeout('checking_capabilities', () => validateReceiptText(receipt));
   const payload = serializeReceipt(receipt);
-  const signed = await native.merchantSignReceipt(base64Encode(payload));
-  const identity = await buildReceiptOfferFromReceipt(base64Decode(signed.coseSign1B64));
+  report('signing_receipt');
+  const signed = await withStepTimeout('signing_receipt', () => native.merchantSignReceipt(base64Encode(payload)));
+  report('deriving_offer');
+  const identity = await withStepTimeout('deriving_offer', () => buildReceiptOfferFromReceipt(base64Decode(signed.coseSign1B64)));
   const sessionIdHex = hexEncode(await secureRandomBytes(16));
   const transferIdHex = hexEncode(await secureRandomBytes(16));
   const receiptIdHex = hexEncode(receipt.receiptId);
@@ -118,7 +178,11 @@ export async function prepareMerchantOffer(
     issuedAtUnix: identity.issuedAt,
   });
   const expiresAtUnix = nowUnix + Math.floor(TIMEOUTS_MS.T_BINDING_QR / 1000);
-  const qr = await native.mintBindingQr({sessionIdHex, offerHashHex: binding.offerHashHex, expiresAtUnix});
+  report('minting_qr');
+  const qr = await withStepTimeout('minting_qr', () =>
+    native.mintBindingQr({sessionIdHex, offerHashHex: binding.offerHashHex, expiresAtUnix}),
+  );
+  report('done');
   return {
     receipt,
     coseSign1B64: signed.coseSign1B64,

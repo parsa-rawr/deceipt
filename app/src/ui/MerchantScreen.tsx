@@ -21,7 +21,14 @@ import type {
 } from '../native/DeceiptNative';
 import {DeceiptBridgeError} from '../native/bridgeError';
 import {ProtocolError, type ProtocolErrorName} from '../protocol/errors';
-import {prepareMerchantOffer, startMerchantServing, assertMerchantReady, type PreparedMerchantOffer} from '../checkout/merchantFlow';
+import {
+  PREPARE_STEP_TIMEOUT_MS,
+  assertMerchantReady,
+  prepareMerchantOffer,
+  startMerchantServing,
+  type MerchantPrepareProgress,
+  type PreparedMerchantOffer,
+} from '../checkout/merchantFlow';
 import {buildDemoReceipt} from '../demo/demoReceipt';
 import {ensureDemoMerchant, isMerchantReady, missingMerchantParts} from '../demo/merchantProvision';
 import {Card, Field, ActionButton, StatusPill, colors, formatMoney, styles} from './primitives';
@@ -39,6 +46,7 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
   const [keyStatus, setKeyStatus] = useState<MerchantKeyStatus | null>(null);
   const [provisionNote, setProvisionNote] = useState<string | null>(null);
   const [provisioning, setProvisioning] = useState(false);
+  const [prepareStep, setPrepareStep] = useState<MerchantPrepareProgress | null>(null);
   const [prepared, setPrepared] = useState<PreparedMerchantOffer | null>(null);
   const [sessionHandle, setSessionHandle] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SessionSnapshot | null>(null);
@@ -121,17 +129,43 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
     return unsubscribe;
   }, [native, append]);
 
+  /**
+   * Wrap a bridged call so a call that never settles is reported instead of
+   * leaving the screen on "preparing" with no explanation. The same bound is
+   * applied inside `prepareMerchantOffer`; this covers the steps before it.
+   */
+  const bounded = useCallback(async <T,>(step: string, run: () => Promise<T>): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        run(),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => {
+            reject(new ProtocolError('CAPABILITY_UNAVAILABLE', `the native adapter did not answer '${step}' within ${PREPARE_STEP_TIMEOUT_MS} ms`));
+          }, PREPARE_STEP_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
+    }
+  }, []);
+
   const onPrepare = useCallback(async () => {
     setFailure(null);
+    setPrepareStep(null);
     setPhase('preparing');
     try {
       // Repair an incomplete enrollment before signing: a key without its
       // credential cannot serve a receipt, so the affordance must stay reachable.
-      const ensured = await ensureDemoMerchant(native);
+      setPrepareStep({step: 'provisioning', elapsedMs: 0});
+      const ensured = await bounded('provisioning', () => ensureDemoMerchant(native));
       if (!ensured.ok && ensured.reason !== undefined) {
         setProvisionNote(ensured.reason);
       }
-      const status = await native.merchantKeyStatus();
+      setPrepareStep({step: 'reading_key_status', elapsedMs: 0});
+      const status = await bounded('reading_key_status', () => native.merchantKeyStatus());
       setKeyStatus(status);
       if (!isMerchantReady(status)) {
         throw new ProtocolError(
@@ -139,24 +173,26 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
           `merchant enrollment is incomplete (missing ${missingMerchantParts(status).join(', ')})`,
         );
       }
-      await assertMerchantReady(native);
+      await bounded('checking_capabilities', () => assertMerchantReady(native));
       const merchantIdHex = status.merchantIdHex ?? '';
       const credentialB64 = status.credentialB64 ?? '';
       if (merchantIdHex.length !== 32 || credentialB64.length === 0) {
         throw new ProtocolError('CAPABILITY_UNAVAILABLE', 'the provisioned key has no merchant id or credential');
       }
-      const receipt = await buildDemoReceipt({
+      setPrepareStep({step: 'minting_receipt_id', elapsedMs: 0});
+      const receipt = await bounded('minting_receipt_id', () => buildDemoReceipt({
         merchantId: hexToBytes(merchantIdHex),
         credentialBytes: base64ToBytes(credentialB64),
-      });
-      const next = await prepareMerchantOffer(native, receipt, now());
+      }));
+      const next = await prepareMerchantOffer(native, receipt, now(), setPrepareStep);
       setPrepared(next);
+      setPrepareStep({step: 'done', elapsedMs: 0});
       append(`prepared binding for ${next.receiptIdHex.slice(0, 8)}…`);
     } catch (error) {
       setFailure({name: errorName(error), message: describe(error)});
       setPhase('failed');
     }
-  }, [native, now, append]);
+  }, [native, now, append, bounded]);
 
   const onAdvertise = useCallback(async () => {
     if (prepared === null) {
@@ -254,6 +290,11 @@ export function MerchantScreen({native, now}: MerchantScreenProps): React.JSX.El
         />
         <Field label="session type" value={sessionType} />
         {snapshot !== null ? <Field label="state" value={snapshot.state} /> : null}
+        {phase === 'preparing' && prepareStep !== null ? (
+          <Text style={styles.label} testID="merchant-prepare-step">
+            step: {prepareStep.step} ({prepareStep.elapsedMs} ms)
+          </Text>
+        ) : null}
         {failure !== null ? (
           <Text style={styles.error} testID="merchant-error">
             {failure.name ?? 'ERROR'}: {failure.message}
